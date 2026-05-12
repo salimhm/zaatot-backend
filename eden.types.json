@@ -5,7 +5,8 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "declarationDir": "./dist/types",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "rootDir": "./src"
   },
   "include": ["src/app.ts"]
 }
