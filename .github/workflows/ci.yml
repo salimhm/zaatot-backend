@@ -9,6 +9,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      JWT_SECRET_KEY: jwt_secret_key_ci
+      NAME: zaatot-ci
+      ENV: ci
 
     steps:
       - uses: actions/checkout@v4
