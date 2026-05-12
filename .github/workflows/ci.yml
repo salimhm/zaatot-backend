@@ -34,5 +34,8 @@ jobs:
       - name: Check formatting
         run: bun run format:check
 
-      - name: Run tests
-        run: bun run test:all
+      - name: Run codebase rules
+        run: bun run rules
+
+      - name: Run functional tests
+        run: bun run test
