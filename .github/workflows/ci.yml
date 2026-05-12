@@ -26,7 +26,7 @@ jobs:
         run: bun install
 
       - name: Type check
-        run: bun x tsc --noEmit
+        run: bun run typecheck
 
       - name: Eden build
         run: bun run eden

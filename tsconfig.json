@@ -12,28 +12,27 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
       "@ai/*": [
-        "src/ai/*"
+        "./src/ai/*"
       ],
       "@agent/*": [
-        "src/ai/agent/*"
+        "./src/ai/agent/*"
       ],
       "@tool/*": [
-        "src/ai/tool/*"
-      ],
-      "@module/*": [
-        "src/module/*"
-      ],
-      "@lib/*": [
-        "src/lib/*"
+        "./src/ai/tool/*"
       ],
       "@db/*": [
-        "src/db/*"
+        "./src/db/*"
+      ],
+      "@lib/*": [
+        "./src/lib/*"
+      ],
+      "@module/*": [
+        "./src/module/*"
       ],
       "@storage/*": [
-        "src/storage/*"
+        "./src/storage/*"
       ]
     },
     "strict": true,

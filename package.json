@@ -9,6 +9,7 @@
     "db:studio": "drizzle-kit studio",
     "eden": "bun tsc -p eden.types.json && cp dist/types/app.d.ts public/eden.ts",
     "test:all": "bun test/index.test.ts",
+    "typecheck": "bun x tsc --noEmit",
     "format": "prettier --write \"{src,test}/**/*.ts\"",
     "format:check": "prettier --check \"{src,test}/**/*.ts\"",
     "dev": "bun run --env-file=.env --watch src/app.ts",
