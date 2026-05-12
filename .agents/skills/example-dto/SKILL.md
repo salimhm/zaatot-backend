@@ -1,0 +1,62 @@
+---
+name: example-dto
+description: Required code pattern for all dto-generated outputs.
+---
+
+* **Strictly follow this pattern!**:
+```typescript
+import { t } from 'elysia'
+import { lib_dto_query_find, lib_dto_response_find, /* the other reusable dto's: lib_dto_<query|body|response>_<function_name> */ } from '@lib/dto.lib'
+
+export const enum_<module_name>_columns = [
+  'column_1',
+  'column_2',
+  'created_at',
+] as const
+
+export const dto_<module_name> = {
+  find: {
+    query: t.Object({
+      ...lib_dto_query_find,
+      columns: t.Array(t.UnionEnum(enum_<module_name>_columns)),
+      // filter values as arrays if [] operator is used in service
+      <column_1>: t.Optional(t.Array(t.String())),
+    }),
+    response: t.Object({
+      ...lib_dto_response_find,
+    }),
+  },
+  create: {
+    body: t.Object({
+      // the other values...
+    }),
+    response: t.Object({
+      data: t.Any(),
+    }),
+  },
+  update: {
+    body: t.Object({
+      // the other values...
+    }),
+    response: t.Object({
+      data: t.Any(),
+    }),
+  },
+  delete: {
+    body: t.Object({
+      // the other values...
+    }),
+    response: t.Object({
+      data: t.Any(),
+    }),
+  },
+  <other_function_name>: {
+    <query | body>: t.Object({
+      // the other values...
+    }),
+    response: t.Object({
+      data: t.Any(),
+    }),
+  },
+}
+```

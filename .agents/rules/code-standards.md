@@ -1,0 +1,28 @@
+---
+trigger: always_on
+---
+
+# Restrictions
+
+* **Strictly use an indentation size of two spaces. Do not use four spaces or any other size**
+* **Strictly no comments; code clarity and readability should render comments unnecessary**
+* **Strictly the name of a module, database table, agent or tool must be singular, not plural**
+* **Strictly use module path aliases instead of relative paths: `@ai`, `@agent`, `@tool`, `@module`, `@lib`, `@db`, and `@<every-single-module-name>`**
+* **Strictly interact with the database through services only. Do not perform any queries or operations directly using the table schema**
+
+# Naming Conventions
+
+Adherence to strict naming conventions is essential:
+
+* **Files and folders**: kebab-case (e.g., `form-auth`, `user-profile/`)
+* **Classes**: PascalCase (e.g., `AgentResponse`, `AgentRequest`)
+* **Constants, variables, functions**: snake_case (e.g., `fetch_user_data`, `max_width`)
+* **Imports/Exports**: All imports/exports must strictly follow this naming format:
+  1. **controller**: `controller_<module_name>`
+  2. **dto**: `dto_<module_name>`
+  3. **service**: `service_<module_name>`
+  4. **agent**: Use `$agent_<agent_name>` for the Agent instance `new Agent()`, `agent_<agent_name>` for the function call, `prompt_agent_<agent_name>` for the agent's prompt, and `schema_agent_<agent_name>` for the agent's schema.
+  5. **tool**: Use `tool_<module_name>_<function_name>` for tools and `toolkit_<module_name>` for toolkits.
+  6. **enum**: `enum_<enum_name>`
+  7. **database's tables schema**: `table_<table_name>`
+  8. **CRUD Naming**: use `find`, `create`, `update`, or `delete`. Do not use variations like 'get', 'add', 'remove', or append table names.

@@ -1,0 +1,42 @@
+{
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 150,
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "plugins": [
+    "@ianvs/prettier-plugin-sort-imports"
+  ],
+  "importOrder": [
+    "<TYPES>",
+    "",
+    "^bun$",
+    "^elysia(.*)$",
+    "",
+    "<THIRD_PARTY_MODULES>",
+    "",
+    "^drizzle-orm(.*)$",
+    "^@db/(.*)$",
+    "",
+    "^@ai/(.*)$",
+    "^@agent/(.*)$",
+    "^@tool/(.*)$",
+    "",
+    "^@lib/(.*)$",
+    "",
+    "^@storage/(.*)$",
+    "",
+    "^@module/(.*)$",
+    "",
+    "^@doctor/(.*)$",
+    "",
+    "^@real-estate/(.*)$",
+    "",
+    "^[./]"
+  ],
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true
+}
