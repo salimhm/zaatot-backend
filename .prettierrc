@@ -31,10 +31,6 @@
     "",
     "^@module/(.*)$",
     "",
-    "^@doctor/(.*)$",
-    "",
-    "^@real-estate/(.*)$",
-    "",
     "^[./]"
   ],
   "importOrderSeparation": true,

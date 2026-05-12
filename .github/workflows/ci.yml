@@ -24,6 +24,9 @@ jobs:
       - name: Type check
         run: bun x tsc --noEmit
 
+      - name: Eden build
+        run: bun run eden
+
       - name: Check formatting
         run: bun run format:check
 

@@ -1,19 +1,19 @@
 {
   "name": "zaatot-backend",
-  "module": "index.ts",
+  "module": "src/app.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run --env-file=.env --watch src/app.ts",
-    "build": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile bin src/app.ts",
-    "start": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile bin src/app.ts && ./bin",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "eden": "bun tsc -p eden.types.json && cp dist/types/app.d.ts public/eden.ts",
     "test:all": "bun test/index.test.ts",
     "format": "prettier --write \"{src,test}/**/*.ts\"",
-    "format:check": "prettier --check \"{src,test}/**/*.ts\""
+    "format:check": "prettier --check \"{src,test}/**/*.ts\"",
+    "dev": "bun run --env-file=.env --watch src/app.ts",
+    "build": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile bin src/app.ts",
+    "start": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile bin src/app.ts && ./bin"
   },
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
