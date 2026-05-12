@@ -1,0 +1,9 @@
+node_modules
+bin
+test_bin
+dist
+.git
+.DS_Store
+.env
+Dockerfile*
+docker-compose.yml

@@ -1,0 +1,42 @@
+{
+  "name": "zaatot-backend",
+  "module": "src/app.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "eden": "mkdir -p public && bun tsc -p eden.types.json && cp dist/types/app.d.ts public/eden.ts",
+    "test:all": "bun test/index.test.ts",
+    "typecheck": "bun x tsc --noEmit",
+    "format": "prettier --write \"{src,test}/**/*.ts\"",
+    "format:check": "prettier --check \"{src,test}/**/*.ts\"",
+    "dev": "bun run --env-file=.env --watch src/app.ts",
+    "build": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile bin src/app.ts",
+    "start": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile bin src/app.ts && ./bin"
+  },
+  "devDependencies": {
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+    "@types/bun": "^1.3.13",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^3.0.73",
+    "@aws-sdk/client-s3": "^3.1045.0",
+    "@elysiajs/cors": "^1.4.2",
+    "@elysiajs/jwt": "^1.4.2",
+    "@elysiajs/swagger": "^1.3.1",
+    "@libsql/client": "^0.17.3",
+    "@tursodatabase/api": "^1.9.2",
+    "@voltagent/core": "^2.7.4",
+    "@voltagent/libsql": "^2.1.2",
+    "@voltagent/server-elysia": "^2.0.8",
+    "ai": "^6.0.180",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.2",
+    "elysia": "^1.4.28",
+    "zod": "^4.4.3"
+  }
+}

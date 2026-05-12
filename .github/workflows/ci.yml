@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET_KEY: jwt_secret_key_ci
+      NAME: zaatot-ci
+      ENV: ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Eden build
+        run: bun run eden
+
+      - name: Check formatting
+        run: bun run format:check
+
+      - name: Run tests
+        run: bun run test:all
