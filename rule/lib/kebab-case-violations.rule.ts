@@ -1,8 +1,8 @@
 import { Glob } from 'bun'
 
-import { SRC_DIR } from '../utils.test.ts'
+import { SRC_DIR } from '../utils.rule.ts'
 
-export const rule_label = 'Lowercase violations'
+export const rule_label = 'Kebab-case violations'
 
 export async function check() {
   const glob = new Glob('**/*')
@@ -12,9 +12,9 @@ export async function check() {
     const parts = path.split('/')
     for (const part of parts) {
       if (part.startsWith('.') || part === '') continue
-      const name = part.split('.')[0]!
-      if (name !== name.toLowerCase()) {
-        violations.push(`  ${SRC_DIR}/${path} → '${part}' must be lowercase`)
+      if (part !== part.toLowerCase()) continue
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$/.test(part)) {
+        violations.push(`  ${SRC_DIR}/${path} → '${part}' must use kebab-case (hyphen-separated segments)`)
         break
       }
     }

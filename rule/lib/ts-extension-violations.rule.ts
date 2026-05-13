@@ -3,7 +3,7 @@ import { basename, join } from 'path'
 
 import { Glob } from 'bun'
 
-import { SRC_DIR } from '../utils.test.ts'
+import { SRC_DIR } from '../utils.rule.ts'
 
 export const rule_label = '.ts extension violations'
 

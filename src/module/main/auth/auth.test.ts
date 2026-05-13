@@ -1,8 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import { service_auth } from './auth.service'
+import { service_auth } from '@module/main/auth/auth.service'
 
-// Mocking dependencies to avoid DB calls in this example
 mock.module('@module/main/user/user.service', () => ({
   service_user: {
     find: mock(() => Promise.resolve({ data: [{ user_id: 1 }] })),
@@ -16,7 +15,7 @@ mock.module('@db/client.db', () => ({
       insert: () => ({ values: () => Promise.resolve() }),
       select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }),
       delete: () => ({ where: () => Promise.resolve() }),
-    })
+    }),
   ),
 }))
 

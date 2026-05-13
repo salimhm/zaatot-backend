@@ -1,6 +1,6 @@
 import { Glob } from 'bun'
 
-import { SRC_DIR } from '../utils.test.ts'
+import { SRC_DIR } from '../utils.rule.ts'
 
 export const rule_label = 'Module file location violations'
 

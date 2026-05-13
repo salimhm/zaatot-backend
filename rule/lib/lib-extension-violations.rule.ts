@@ -3,22 +3,21 @@ import { basename, join } from 'path'
 
 import { Glob } from 'bun'
 
-import { SRC_DIR } from '../utils.test.ts'
+import { SRC_DIR } from '../utils.rule.ts'
 
-export const rule_label = 'db/ extension violations'
+export const rule_label = 'lib/ extension violations'
 
 export async function check() {
   const glob = new Glob('**/*')
-  const paths = await Array.fromAsync(glob.scan(join(SRC_DIR, 'db')))
+  const paths = await Array.fromAsync(glob.scan(join(SRC_DIR, 'lib')))
   const violations: string[] = []
   for (const path of paths) {
-    const fullPath = join(SRC_DIR, 'db', path)
+    const fullPath = join(SRC_DIR, 'lib', path)
     const fileStat = await stat(fullPath).catch(() => null)
     if (!fileStat?.isFile()) continue
     const name = basename(path)
     if (name !== name.toLowerCase()) continue
-    const is_valid = name.endsWith('.db.ts') || name.endsWith('.schema.db.ts') || name.endsWith('.dto.db.ts')
-    if (!is_valid) violations.push(`  db/${path} → '${name}' must be .db.ts, .schema.db.ts, or .dto.db.ts`)
+    if (!name.endsWith('.lib.ts')) violations.push(`  lib/${path} → '${name}' must be <name>.lib.ts`)
   }
   return violations
 }

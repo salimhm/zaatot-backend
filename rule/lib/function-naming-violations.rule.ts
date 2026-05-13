@@ -1,6 +1,6 @@
 import ts from 'typescript'
 
-import { get_source_files, parse_file, SNAKE_CASE_REGEX } from '../utils.test.ts'
+import { get_source_files, parse_file, SNAKE_CASE_REGEX } from '../utils.rule.ts'
 
 export const rule_label = 'Function naming violations'
 
