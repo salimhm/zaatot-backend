@@ -6,7 +6,7 @@ description: tech stack used in our backend.
 # Tech Stack
 * **Runtime environment**: Bun latest version + @types/bun latest version as devDependencies
 
-* **Programming language**: TypeScript version ^6.x.x as peerDependencies
+* **Programming language**: TypeScript version ^6.x.x as devDependencies
 
 * **Framework**: 
   1. ElysiaJS version ^1.x.x
@@ -16,7 +16,7 @@ description: tech stack used in our backend.
 
 * **Database**: TursoDB + @libsql/client version ^0.x.x + @tursodatabase/api version ^1.x.x
 
-* **ORM**: drizzle-orm version ^0.x.x + drizzle-kit version ^0.x.x (both on dependencies not dev dependencies!)
+* **ORM**: drizzle-orm version ^0.x.x as dependencies and drizzle-kit version ^0.x.x as devDependencies
 
 * **Object Storage**: Cloudflare R2 + @aws-sdk/client-s3 version ^3.x.x
 

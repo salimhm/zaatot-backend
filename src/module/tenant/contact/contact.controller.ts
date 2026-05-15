@@ -1,17 +1,13 @@
 import { Elysia } from 'elysia'
 
-import jwt from '@elysiajs/jwt'
+import { lib_jwt } from '@lib/jwt.lib'
 
 import { dto_contact } from '@module/tenant/contact/contact.dto'
 import { service_contact } from '@module/tenant/contact/contact.service'
 
 export const controller_contact = new Elysia({ prefix: '/contact' })
 
-  .use(
-    jwt({
-      secret: process.env.JWT_SECRET_KEY!,
-    }),
-  )
+  .use(lib_jwt)
 
   .get(
     '/',

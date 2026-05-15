@@ -1,17 +1,13 @@
 import { Elysia } from 'elysia'
 
-import jwt from '@elysiajs/jwt'
+import { lib_jwt } from '@lib/jwt.lib'
 
 import { dto_user } from '@module/main/user/user.dto'
 import { service_user } from '@module/main/user/user.service'
 
 export const controller_user = new Elysia({ prefix: '/user' })
 
-  .use(
-    jwt({
-      secret: process.env.JWT_SECRET_KEY!,
-    }),
-  )
+  .use(lib_jwt)
 
   .patch(
     '/',

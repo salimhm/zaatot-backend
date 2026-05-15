@@ -1,8 +1,9 @@
 import { Elysia } from 'elysia'
 
 import { cors } from '@elysiajs/cors'
-import { jwt } from '@elysiajs/jwt'
 import { swagger } from '@elysiajs/swagger'
+
+import { lib_jwt } from '@lib/jwt.lib'
 
 import { controller_auth } from '@module/main/auth/auth.controller'
 import { controller_tenant } from '@module/main/tenant/tenant.controller'
@@ -22,11 +23,7 @@ export const app = new Elysia()
 
   .use(swagger({ path: '/swagger' }))
 
-  .use(
-    jwt({
-      secret: process.env.JWT_SECRET_KEY!,
-    }),
-  )
+  .use(lib_jwt)
 
   .get('/', () => {
     return new Response(`<h1>🔥 ${process.env.NAME} 🔥`, {

@@ -6,6 +6,11 @@ description: Application structure and /src folder tree for our backend.
 # Application Structure
 ```
 public/
+rule/
+├── index.rule.ts
+├── utils.rule.ts
+├── lib/
+│   ├── <rule-name>.rule.ts
 src/
 ├── app.ts
 ├── db/
@@ -29,7 +34,8 @@ src/
 ├── lib/
 │   ├── dto.lib.ts # GLOBAL REUSED DTO's
 │   ├── enum.lib.ts # GLOBAL REUSED ENUM's
-│   └── error.lib.ts # GLOBAL REUSED ERROR's
+│   ├── error.lib.ts # GLOBAL REUSED ERROR's
+│   └── jwt.lib.ts # GLOBAL REUSED JWT CONFIG
 ├── module/
 │   ├── main/ # Shared/Standard backend entities
 │   │   ├── auth/

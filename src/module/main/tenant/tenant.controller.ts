@@ -1,16 +1,12 @@
 import { Elysia } from 'elysia'
 
-import jwt from '@elysiajs/jwt'
+import { lib_jwt } from '@lib/jwt.lib'
 
 import { dto_tenant } from '@module/main/tenant/tenant.dto'
 import { service_tenant } from '@module/main/tenant/tenant.service'
 
 export const controller_tenant = new Elysia({ prefix: '/tenant' })
-  .use(
-    jwt({
-      secret: process.env.JWT_SECRET_KEY!,
-    }),
-  )
+  .use(lib_jwt)
 
   .get(
     '/',

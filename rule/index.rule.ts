@@ -10,6 +10,7 @@ import * as db_extension_violations from './lib/db-extension-violations.rule.ts'
 import * as db_ts_location_violations from './lib/db-ts-location-violations.rule.ts'
 import * as dto_violations from './lib/dto-violations.rule.ts'
 import * as entry_point_violations from './lib/entry-point-violations.rule.ts'
+import * as folder_structure_violations from './lib/folder-structure-violations.rule.ts'
 import * as function_naming_violations from './lib/function-naming-violations.rule.ts'
 import * as kebab_case_violations from './lib/kebab-case-violations.rule.ts'
 import * as lib_extension_violations from './lib/lib-extension-violations.rule.ts'
@@ -49,6 +50,7 @@ export const codebase_rules: CodebaseRuleModule[] = [
   agent_ts_location_violations,
   tool_ts_location_violations,
   db_ts_location_violations,
+  folder_structure_violations,
 ]
 
 export async function run_codebase_rules() {

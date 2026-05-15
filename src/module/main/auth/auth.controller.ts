@@ -1,17 +1,13 @@
 import { Elysia } from 'elysia'
 
-import jwt from '@elysiajs/jwt'
+import { lib_jwt } from '@lib/jwt.lib'
 
 import { dto_auth } from '@module/main/auth/auth.dto'
 import { service_auth } from '@module/main/auth/auth.service'
 
 export const controller_auth = new Elysia({ prefix: '/auth' })
 
-  .use(
-    jwt({
-      secret: process.env.JWT_SECRET_KEY!,
-    }),
-  )
+  .use(lib_jwt)
 
   .post(
     '/otp/send',
