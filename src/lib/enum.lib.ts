@@ -2,7 +2,7 @@ export const enum_otp_action = ['sign_in', 'sign_up'] as const
 
 export const enum_gender = ['male', 'female'] as const
 
-export const enum_tenant_type = ['user', 'tenant'] as const
+export const enum_tenant_type = ['user', 'organization'] as const
 
 export const enum_morocco_city = [
   'tangier',

@@ -1,8 +1,6 @@
 import type { Static } from 'elysia'
 
-import { and, eq } from 'drizzle-orm'
-import { db_client } from '@db/client.db'
-import { table_otp } from '@db/main.schema.db'
+import { db_client, db_redis_main } from '@db/client.db'
 
 import { dto_auth } from '@module/main/auth/auth.dto'
 import { service_user } from '@module/main/user/user.service'
@@ -26,9 +24,9 @@ export const service_auth = {
     }
 
     const otp_code = String(Math.floor(1000 + Math.random() * 9000))
-    const expires_at = new Date(Date.now() + otp_ttl_minutes * 60 * 1000).toISOString()
+    const otp_key = `otp:${user_phone}`
 
-    await db.insert(table_otp).values({ otp_action, otp_code, user_phone, expires_at })
+    await db_redis_main.set(otp_key, JSON.stringify({ otp_code, otp_action }), 'EX', otp_ttl_minutes * 60)
 
     console.log(`[OTP] Sent to ${user_phone}: ${otp_code}`)
 
@@ -65,19 +63,16 @@ export const service_auth = {
   async verify_otp(body: Static<typeof dto_auth.otp_verify.body>, jwt: any): Promise<Static<typeof dto_auth.otp_verify.response>> {
     const { lib_error } = require('@lib/error.lib.ts')
     const { user_phone, otp_code, user_first_name, user_last_name } = body
-    const db = await db_client()
 
-    const [otp] = await db
-      .select()
-      .from(table_otp)
-      .where(and(eq(table_otp.user_phone, user_phone), eq(table_otp.otp_code, otp_code)))
-      .orderBy(table_otp.otp_id)
-      .limit(1)
+    const otp_key = `otp:${user_phone}`
+    const stored_data = await db_redis_main.get(otp_key)
 
-    if (!otp) throw lib_error.invalid_otp_code
-    if (new Date(otp.expires_at) < new Date()) throw lib_error.code_expired
+    if (!stored_data) throw lib_error.invalid_otp_code
 
-    await db.delete(table_otp).where(eq(table_otp.user_phone, user_phone))
+    const otp = JSON.parse(stored_data)
+    if (otp.otp_code !== otp_code) throw lib_error.invalid_otp_code
+
+    await db_redis_main.del(otp_key)
 
     try {
       const { data } = await service_user.find({

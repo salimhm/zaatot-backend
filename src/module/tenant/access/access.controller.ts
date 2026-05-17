@@ -1,17 +1,13 @@
 import { Elysia } from 'elysia'
 
-import jwt from '@elysiajs/jwt'
+import { lib_jwt } from '@lib/jwt.lib'
 
 import { dto_access } from '@module/tenant/access/access.dto'
 import { service_access } from '@module/tenant/access/access.service'
 
 export const controller_access = new Elysia({ prefix: '/access' })
 
-  .use(
-    jwt({
-      secret: process.env.JWT_SECRET_KEY!,
-    }),
-  )
+  .use(lib_jwt)
 
   .get(
     '/',
@@ -52,5 +48,3 @@ export const controller_access = new Elysia({ prefix: '/access' })
     },
     dto_access.delete,
   )
-
-  .onError((error) => ({ error }))

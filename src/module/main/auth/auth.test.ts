@@ -17,6 +17,13 @@ mock.module('@db/client.db', () => ({
       delete: () => ({ where: () => Promise.resolve() }),
     }),
   ),
+  db_redis_main: {
+    set: mock(() => Promise.resolve('OK')),
+    get: mock(() => Promise.resolve(null)),
+    del: mock(() => Promise.resolve(1)),
+    incr: mock(() => Promise.resolve(1)),
+    expire: mock(() => Promise.resolve(1)),
+  },
 }))
 
 describe('Auth Service', () => {
