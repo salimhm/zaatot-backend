@@ -25,4 +25,5 @@ export const lib_error = {
   service_unavailable: { status: 503, code: 'service-unavailable' },
   tenant_schema_update_failed: { status: 500, code: 'tenant-schema-update-failed' },
   user_max_tenants: { status: 400, code: 'user-max-tenants' },
+  too_many_requests: { status: 429, code: 'too-many-requests' },
 }

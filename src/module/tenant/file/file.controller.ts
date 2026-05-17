@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia'
 
+import { check_rate_limit } from '@db/utils.db'
 import { lib_jwt } from '@lib/jwt.lib'
 
 import { dto_file } from '@module/tenant/file/file.dto'
@@ -23,6 +24,8 @@ export const controller_file = new Elysia({ prefix: '/file' })
     '/',
     async (context) => {
       const { body, payload } = context as any
+
+      await check_rate_limit({ key: `rate:file:upload:${payload.user_id}`, limit: 20, duration: 60 })
 
       return await service_file.create(body, payload)
     },

@@ -16,6 +16,8 @@ description: tech stack used in our backend.
 
 * **Database**: TursoDB + @libsql/client version ^0.x.x + @tursodatabase/api version ^1.x.x
 
+* **Memory Database**: Redis (using Bun's built-in RedisClient)
+
 * **ORM**: drizzle-orm version ^0.x.x as dependencies and drizzle-kit version ^0.x.x as devDependencies
 
 * **Object Storage**: Cloudflare R2 + @aws-sdk/client-s3 version ^3.x.x

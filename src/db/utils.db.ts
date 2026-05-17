@@ -3,6 +3,7 @@ import type { AllowedColumns, SelectParams, WhereEntry } from '@db/utils.dto.db'
 import { and, asc, between, desc, eq, gt, gte, inArray, isNull, like, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/sqlite-core'
 
+import { db_redis_main } from '@db/client.db'
 import { lib_error } from '@lib/error.lib'
 
 export const check_allowed_columns = (columns: string[] | undefined, allowed_columns: AllowedColumns) => {
@@ -381,4 +382,23 @@ export const sync_schema = async (db: any, target_schema: any) => {
   for (const table_name of tables_to_remove) {
     await sync_remove_table(db, table_name)
   }
+}
+
+export const check_rate_limit = async (options: {
+  key: string
+  limit: number
+  duration: number
+}): Promise<void> => {
+  const { key, limit, duration } = options
+  const current = await db_redis_main.incr(key)
+  if (current === 1) {
+    await db_redis_main.expire(key, duration)
+  }
+  if (current > limit) {
+    throw lib_error.too_many_requests
+  }
+}
+
+export const get_ip = (request: Request, server?: any) => {
+  return server?.requestIP(request)?.address || '127.0.0.1'
 }

@@ -59,18 +59,3 @@ export const entity_user_tenant = sqliteTable(
     index('user_tenant_deleted_at_idx').on(table.deleted_at),
   ],
 )
-
-export const table_otp = sqliteTable(
-  'otp',
-  {
-    otp_id: integer('otp_id').primaryKey({ autoIncrement: true }),
-    otp_action: text('otp_action').notNull(),
-    otp_code: text('otp_code', { length: 4 }).notNull(),
-    user_phone: text('user_phone', { length: 24 }).notNull(),
-    created_at: text('created_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    expires_at: text('expires_at').notNull(),
-  },
-  (table) => [index('otp_user_phone_idx').on(table.user_phone)],
-)

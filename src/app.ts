@@ -5,6 +5,7 @@ import { swagger } from '@elysiajs/swagger'
 
 import { lib_jwt } from '@lib/jwt.lib'
 
+import { check_rate_limit, get_ip } from '@db/utils.db'
 import { controller_auth } from '@module/main/auth/auth.controller'
 import { controller_tenant } from '@module/main/tenant/tenant.controller'
 import { service_tenant } from '@module/main/tenant/tenant.service'
@@ -24,6 +25,11 @@ export const app = new Elysia()
   .use(swagger({ path: '/swagger' }))
 
   .use(lib_jwt)
+
+  .onBeforeHandle(async ({ request, server }) => {
+    const ip = get_ip(request, server)
+    await check_rate_limit({ key: `rate:global:${ip}`, limit: 120, duration: 60 })
+  })
 
   .get('/', () => {
     return new Response(`<h1>🔥 ${process.env.NAME} 🔥`, {

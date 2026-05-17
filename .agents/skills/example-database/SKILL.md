@@ -5,8 +5,9 @@ description: Required code pattern for all database client or tables schema gene
 
 1. **Client file (client.db.ts)**: Strictly follow this pattern!
 ```typescript
-import { drizzle } from "drizzle-orm/libsql";
-import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql"
+import { createClient } from "@libsql/client"
+import { RedisClient } from "bun"
 
 export function get_tenant_url(organization_id: number): string {
   const db_name = `db-${process.env.NAME}-${process.env.ENV}-organization-${organization_id}`
@@ -31,6 +32,8 @@ export async function db_client(options: { url?: string, token?: string, organiz
     }),
   )
 }
+
+export const db_redis_main = new RedisClient(process.env.REDIS_DB_MAIN_URL!)
 ```
 
 2. **Drizzle Config (drizzle.config.ts)**: Strictly follow this pattern!

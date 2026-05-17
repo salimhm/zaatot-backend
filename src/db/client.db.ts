@@ -1,4 +1,5 @@
 import { createClient } from '@libsql/client'
+import { RedisClient } from 'bun'
 
 import { drizzle } from 'drizzle-orm/libsql'
 
@@ -21,3 +22,5 @@ export async function db_client(options: { url?: string; token?: string; tenant_
     }),
   )
 }
+
+export const db_redis_main = new RedisClient(process.env.REDIS_DB_MAIN_URL!)

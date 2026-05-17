@@ -2,9 +2,8 @@ import type { lib_dto_payload } from '@lib/dto.lib'
 import type { Static } from 'elysia'
 
 import { createClient } from '@tursodatabase/api'
-
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { db_client } from '@db/client.db'
+import { db_client, db_redis_main } from '@db/client.db'
 import { current_tenant_schema_version, entity_user_tenant, table_tenant } from '@db/main.schema.db'
 import * as schema_tenant from '@db/tenant.schema.db'
 import { select, sync_schema } from '@db/utils.db'
@@ -138,6 +137,11 @@ export const service_tenant = {
   },
 
   async migrate_schema(tenant_id: number): Promise<void> {
+    const migration_key = `tenant:${tenant_id}:schema_version`
+    const cached_version = await db_redis_main.get(migration_key)
+
+    if (cached_version === String(current_tenant_schema_version) || cached_version === 'NOT_FOUND') return
+
     const db = await db_client()
 
     const [data] = await db
@@ -148,7 +152,11 @@ export const service_tenant = {
       .from(table_tenant)
       .where(eq(table_tenant.tenant_id, tenant_id))
 
-    if (!data) return
+    if (!data) {
+      // Cache the negative result for 10 minutes to prevent database spamming
+      await db_redis_main.set(migration_key, 'NOT_FOUND', 'EX', 600)
+      return
+    }
 
     if (data.tenant_schema_version !== current_tenant_schema_version) {
       try {
@@ -165,5 +173,7 @@ export const service_tenant = {
         throw lib_error.tenant_schema_update_failed
       }
     }
+
+    await db_redis_main.set(migration_key, String(current_tenant_schema_version))
   },
 }
