@@ -1,4 +1,5 @@
 import type { lib_dto_payload } from '@lib/dto.lib'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import type { Static } from 'elysia'
 
 import { and, eq, isNull, ne } from 'drizzle-orm'
@@ -11,7 +12,7 @@ import { lib_error } from '@lib/error.lib'
 import { dto_user } from '@module/main/user/user.dto'
 
 const check_unique = async (
-  db: any,
+  db: LibSQLDatabase<Record<string, unknown>>,
   opts: {
     user_phone?: string
     exclude_user_id?: number
@@ -63,7 +64,8 @@ export const service_user = {
     })
 
     const [data] = await db.insert(table_user).values(body).returning()
-    return { data }
+    if (!data) throw lib_error.bad_request
+    return { data: data! }
   },
 
   async update(body: Static<typeof dto_user.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_user.update.response>> {
@@ -76,6 +78,7 @@ export const service_user = {
     })
 
     const [data] = await db.update(table_user).set(body).where(eq(table_user.user_id, user_id)).returning()
-    return { data }
+    if (!data) throw lib_error.bad_request
+    return { data: data! }
   },
 }

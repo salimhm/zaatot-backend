@@ -45,7 +45,14 @@ describe('Auth Service', () => {
     const mock_jwt = {
       sign: mock(() => Promise.resolve('mock_token')),
     }
-    const mock_user = { user_id: 1, user_phone: '1234567890' }
+    const mock_user = {
+      user_id: 1,
+      user_phone: '+1234567890',
+      user_first_name: 'John',
+      user_last_name: 'Doe',
+      user_image: null,
+      created_at: new Date().toISOString(),
+    }
 
     const result = await service_auth.sign_in({
       user: mock_user,

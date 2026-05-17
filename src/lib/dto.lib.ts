@@ -26,7 +26,6 @@ export const lib_dto_find_response = {
   pages: t.Union([t.Number(), t.Null()]),
   page: t.Number(),
   take: t.Number(),
-  data: t.Any(),
 }
 
 export const lib_dto_phone = t.String({

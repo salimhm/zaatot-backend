@@ -42,8 +42,10 @@ mock.module('@db/utils.db', () => ({
         data: [{ contact_id: 1, contact_phone: '+1234567890', contact_name: 'Contact One' }],
       })
     }
-    const err = new Error('Not found contact')
-    ;(err as any).code = 'not-found-contact'
+    class NotFoundError extends Error {
+      code = 'not-found-contact'
+    }
+    const err = new NotFoundError('Not found contact')
     return Promise.reject(err)
   }),
 }))

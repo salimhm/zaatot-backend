@@ -50,13 +50,13 @@ export async function ai_create_message(text: string, file_ids?: string[]): Prom
   for (const file of files_data) {
     const ext = file.file_id.split('.').pop()?.toLowerCase() ?? ''
 
-    if (image_extensions.includes(ext as any)) {
+    if ((image_extensions as readonly string[]).includes(ext)) {
       parts.push({
         type: 'image',
         image: file.content,
         mediaType: resolve_media_type(ext),
       } satisfies ImagePart)
-    } else if (audio_extensions.includes(ext as any)) {
+    } else if ((audio_extensions as readonly string[]).includes(ext)) {
       parts.push({
         type: 'file',
         data: file.content,

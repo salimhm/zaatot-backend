@@ -6,6 +6,17 @@ import { enum_tenant_type } from '@lib/enum.lib'
 export const enum_tenant_columns = ['tenant_id', 'tenant_name', 'tenant_type', 'created_at', 'user_id'] as const
 export const enum_tenant_order_by = [...enum_tenant_columns, ...enum_tenant_columns.map((c) => `-${c}`)] as const
 
+export const dto_schema_tenant = t.Object({
+  tenant_id: t.Number(),
+  tenant_type: t.UnionEnum(enum_tenant_type),
+  tenant_schema_version: t.String(),
+  tenant_name: t.String(),
+  tenant_db_id: t.Union([t.String(), t.Null()]),
+  tenant_db_url: t.Union([t.String(), t.Null()]),
+  user_id: t.Number(),
+  created_at: t.String(),
+})
+
 export const dto_tenant = {
   find: {
     query: t.Object({
@@ -19,6 +30,7 @@ export const dto_tenant = {
     }),
     response: t.Object({
       ...lib_dto_find_response,
+      data: t.Array(t.Partial(dto_schema_tenant)),
     }),
   },
   create: {
@@ -27,7 +39,7 @@ export const dto_tenant = {
       tenant_type: t.UnionEnum(enum_tenant_type),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_tenant,
       token: t.Optional(t.String()),
     }),
   },
@@ -37,7 +49,7 @@ export const dto_tenant = {
       tenant_name: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_tenant,
     }),
   },
   delete: {
@@ -45,7 +57,7 @@ export const dto_tenant = {
       tenant_id: t.Number(),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_tenant,
     }),
   },
 }

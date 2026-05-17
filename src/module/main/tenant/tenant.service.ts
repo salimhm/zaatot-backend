@@ -11,11 +11,11 @@ import { select, sync_schema } from '@db/utils.db'
 
 import { lib_error } from '@lib/error.lib'
 
-import { dto_tenant } from '@module/main/tenant/tenant.dto'
+import { dto_schema_tenant, dto_tenant } from '@module/main/tenant/tenant.dto'
 
 export const service_tenant = {
   async find(query: Static<typeof dto_tenant.find.query>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.find.response>> {
-    const { tenant_id, tenant_type, tenant_name } = query as any
+    const { tenant_id, tenant_type, tenant_name } = query
     const db = await db_client()
 
     return await select({
@@ -53,8 +53,9 @@ export const service_tenant = {
       if (user_tenants && user_tenants.count >= 12) {
         throw lib_error.user_max_tenants
       }
-    } catch (error: any) {
-      if (error?.code !== 'not-found-tenant') throw error
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      if (err?.code !== 'not-found-tenant') throw error
     }
 
     const db = await db_client()
@@ -102,7 +103,8 @@ export const service_tenant = {
       tenant_id,
     })
 
-    return { data: result }
+    if (!result) throw lib_error.bad_request
+    return { data: result! as unknown as Static<typeof dto_schema_tenant> }
   },
 
   async update(body: Static<typeof dto_tenant.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.update.response>> {
@@ -117,7 +119,7 @@ export const service_tenant = {
 
     if (!data) throw lib_error.not_found
 
-    return { data }
+    return { data: data! as unknown as Static<typeof dto_schema_tenant> }
   },
 
   async delete(body: Static<typeof dto_tenant.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.delete.response>> {
@@ -132,7 +134,7 @@ export const service_tenant = {
 
     if (!data) throw lib_error.not_found
 
-    return { data }
+    return { data: data! as unknown as Static<typeof dto_schema_tenant> }
   },
 
   async migrate_schema(tenant_id: number): Promise<void> {

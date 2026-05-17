@@ -16,6 +16,10 @@ export const enum_<module_name>_columns = [
 
 export const enum_<module_name>_order_by = [...enum_<module_name>_columns, ...enum_<module_name>_columns.map((c) => `-${c}`)] as const
 
+export const dto_schema_<module_name> = t.Object({
+  // the exact fields...
+})
+
 export const dto_<module_name> = {
   find: {
     query: t.Object({
@@ -28,6 +32,7 @@ export const dto_<module_name> = {
     }),
     response: t.Object({
       ...lib_dto_find_response,
+      data: t.Array(t.Partial(dto_schema_<module_name>)),
     }),
   },
   create: {
@@ -35,7 +40,7 @@ export const dto_<module_name> = {
       // the other values...
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_<module_name>,
     }),
   },
   update: {
@@ -43,7 +48,7 @@ export const dto_<module_name> = {
       // the other values...
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_<module_name>,
     }),
   },
   delete: {
@@ -51,7 +56,7 @@ export const dto_<module_name> = {
       // the other values...
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_<module_name>,
     }),
   },
   <other_function_name>: {
@@ -59,7 +64,7 @@ export const dto_<module_name> = {
       // the other values...
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_<module_name>,
     }),
   },
 }

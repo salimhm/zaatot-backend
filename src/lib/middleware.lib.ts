@@ -10,7 +10,7 @@ import { service_tenant } from '@module/main/tenant/tenant.service'
 const verified_tenants = new Set<number>()
 
 export interface ElysiaJWT {
-  verify: (jwt?: string, options?: any) => Promise<any>
+  verify: (jwt?: string, options?: Record<string, unknown>) => Promise<Record<string, unknown> | string | false | null>
 }
 
 export const apply_security_headers = ({ set }: Pick<Context, 'set'>): void => {
