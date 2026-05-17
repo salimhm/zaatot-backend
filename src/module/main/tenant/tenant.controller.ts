@@ -43,5 +43,3 @@ export const controller_tenant = new Elysia({ prefix: '/tenant' })
     },
     dto_tenant.delete,
   )
-
-  .onError((error) => ({ error }))

@@ -3,9 +3,11 @@ import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 
+import { check_rate_limit, get_ip } from '@db/utils.db'
+
+import { handle_error } from '@lib/error.lib'
 import { lib_jwt } from '@lib/jwt.lib'
 
-import { check_rate_limit, get_ip } from '@db/utils.db'
 import { controller_auth } from '@module/main/auth/auth.controller'
 import { controller_tenant } from '@module/main/tenant/tenant.controller'
 import { service_tenant } from '@module/main/tenant/tenant.service'
@@ -31,6 +33,19 @@ export const app = new Elysia()
     await check_rate_limit({ key: `rate:global:${ip}`, limit: 120, duration: 60 })
   })
 
+  .onBeforeHandle(async ({ params, query, body }) => {
+    const p = (params || {}) as any
+    const q = (query || {}) as any
+    const b = (body || {}) as any
+
+    const tenant_id = p.tenant_id || q.tenant_id || b.tenant_id
+    if (!tenant_id) return
+
+    await service_tenant.migrate_schema(Number(tenant_id))
+  })
+
+  .onError(handle_error)
+
   .get('/', () => {
     return new Response(`<h1>🔥 ${process.env.NAME} 🔥`, {
       headers: {
@@ -45,17 +60,6 @@ export const app = new Elysia()
     return new Response(file, {
       headers: { 'Content-Type': 'application/x-typescript' },
     })
-  })
-
-  .onBeforeHandle(async ({ params, query, body }) => {
-    const p = (params || {}) as any
-    const q = (query || {}) as any
-    const b = (body || {}) as any
-
-    const tenant_id = p.tenant_id || q.tenant_id || b.tenant_id
-    if (!tenant_id) return
-
-    await service_tenant.migrate_schema(Number(tenant_id))
   })
 
   .use(controller_auth)

@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia'
 
 import { check_rate_limit } from '@db/utils.db'
+
 import { lib_jwt } from '@lib/jwt.lib'
 
 import { dto_file } from '@module/tenant/file/file.dto'
@@ -51,5 +52,3 @@ export const controller_file = new Elysia({ prefix: '/file' })
     },
     dto_file.delete,
   )
-
-  .onError((error) => ({ error }))

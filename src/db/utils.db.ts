@@ -2,8 +2,8 @@ import type { AllowedColumns, SelectParams, WhereEntry } from '@db/utils.dto.db'
 
 import { and, asc, between, desc, eq, gt, gte, inArray, isNull, like, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/sqlite-core'
-
 import { db_redis_main } from '@db/client.db'
+
 import { lib_error } from '@lib/error.lib'
 
 export const check_allowed_columns = (columns: string[] | undefined, allowed_columns: AllowedColumns) => {
@@ -233,8 +233,7 @@ export const sync_add_table = async (db: any, table_name: string, target_table_o
       if (col.notNull) def += ' NOT NULL'
       if (col.default !== undefined) {
         if (typeof col.default === 'string') def += ` DEFAULT '${col.default}'`
-        else if (typeof col.default === 'object')
-          def += ` DEFAULT CURRENT_TIMESTAMP` // Assuming SQL object for CURRENT_TIMESTAMP
+        else if (typeof col.default === 'object') def += ` DEFAULT CURRENT_TIMESTAMP`
         else def += ` DEFAULT ${col.default}`
       } else if (col.hasDefault && col.defaultFn) {
         def += ` DEFAULT CURRENT_TIMESTAMP`
@@ -304,7 +303,6 @@ export const sync_add_column = async (db: any, table_name: string, target_col: a
 }
 
 export const sync_remove_column = async (db: any, table_name: string, column_name: string) => {
-  // Safe-Drop: Remove any indexes referencing this column before dropping it
   const indexes = (await db.run(sql`PRAGMA index_list(${sql.raw(table_name)})`)) as any
   for (const index of indexes.rows) {
     const index_info = (await db.run(sql`PRAGMA index_info(${sql.raw(String(index.name))})`)) as any
@@ -384,11 +382,7 @@ export const sync_schema = async (db: any, target_schema: any) => {
   }
 }
 
-export const check_rate_limit = async (options: {
-  key: string
-  limit: number
-  duration: number
-}): Promise<void> => {
+export const check_rate_limit = async (options: { key: string; limit: number; duration: number }): Promise<void> => {
   const { key, limit, duration } = options
   const current = await db_redis_main.incr(key)
   if (current === 1) {

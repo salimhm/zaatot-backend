@@ -48,5 +48,3 @@ export const controller_access = new Elysia({ prefix: '/access' })
     },
     dto_access.delete,
   )
-
-  .onError((error) => ({ error }))

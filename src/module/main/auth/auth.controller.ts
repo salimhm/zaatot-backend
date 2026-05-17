@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia'
 
 import { check_rate_limit, get_ip } from '@db/utils.db'
+
 import { lib_jwt } from '@lib/jwt.lib'
 
 import { dto_auth } from '@module/main/auth/auth.dto'
@@ -41,5 +42,3 @@ export const controller_auth = new Elysia({ prefix: '/auth' })
     },
     dto_auth.otp_verify,
   )
-
-  .onError((error) => ({ error }))

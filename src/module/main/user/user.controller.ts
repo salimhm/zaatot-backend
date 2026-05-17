@@ -18,5 +18,3 @@ export const controller_user = new Elysia({ prefix: '/user' })
     },
     dto_user.update,
   )
-
-  .onError((error) => ({ error }))

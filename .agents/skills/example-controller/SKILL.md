@@ -34,6 +34,4 @@ export const controller_<module_name> = new Elysia({ prefix: '/<module_name>' })
     },
     dto_<module_name>.<function_name>
   )
-
-  .onError((error) => ({ error }))
 ```

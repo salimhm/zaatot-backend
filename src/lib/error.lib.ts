@@ -27,3 +27,49 @@ export const lib_error = {
   user_max_tenants: { status: 400, code: 'user-max-tenants' },
   too_many_requests: { status: 429, code: 'too-many-requests' },
 }
+
+export const handle_error = ({ code, error, set }: any) => {
+  const err = error as any
+  let status = 500
+  let response_code = 'internal-server-error'
+  let details: any = undefined
+  let is_custom_error = false
+
+  if (err && typeof err === 'object') {
+    if ('status' in err && typeof err.status === 'number') {
+      status = err.status
+      is_custom_error = true
+    }
+    if ('code' in err && typeof err.code === 'string') {
+      response_code = err.code
+      is_custom_error = true
+    }
+  }
+
+  if (!is_custom_error) {
+    if (code === 'VALIDATION') {
+      status = 422
+      response_code = 'validation-failed'
+      details = err.message
+    } else if (code === 'NOT_FOUND') {
+      status = 404
+      response_code = 'not-found'
+    } else if (code === 'PARSE') {
+      status = 400
+      response_code = 'parse-error'
+    } else if (code === 'INTERNAL_SERVER_ERROR') {
+      status = 500
+      response_code = 'internal-server-error'
+    } else if (code === 'UNKNOWN') {
+      status = 500
+      response_code = 'internal-server-error'
+    }
+  }
+
+  set.status = status
+
+  return {
+    code: response_code,
+    error: details || err.message || response_code,
+  }
+}

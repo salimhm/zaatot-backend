@@ -2,6 +2,7 @@ import type { lib_dto_payload } from '@lib/dto.lib'
 import type { Static } from 'elysia'
 
 import { createClient } from '@tursodatabase/api'
+
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { db_client, db_redis_main } from '@db/client.db'
 import { current_tenant_schema_version, entity_user_tenant, table_tenant } from '@db/main.schema.db'
@@ -153,7 +154,6 @@ export const service_tenant = {
       .where(eq(table_tenant.tenant_id, tenant_id))
 
     if (!data) {
-      // Cache the negative result for 10 minutes to prevent database spamming
       await db_redis_main.set(migration_key, 'NOT_FOUND', 'EX', 600)
       return
     }

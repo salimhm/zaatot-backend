@@ -48,5 +48,3 @@ export const controller_contact = new Elysia({ prefix: '/contact' })
     },
     dto_contact.delete,
   )
-
-  .onError((error) => ({ error }))
