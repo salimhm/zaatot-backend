@@ -9,6 +9,10 @@ import { service_tenant } from '@module/main/tenant/tenant.service'
 
 const verified_tenants = new Set<number>()
 
+export interface ElysiaJWT {
+  verify: (jwt?: string, options?: any) => Promise<any>
+}
+
 export const apply_security_headers = ({ set }: Pick<Context, 'set'>): void => {
   set.headers['X-Content-Type-Options'] = 'nosniff'
   set.headers['X-Frame-Options'] = 'DENY'
@@ -30,7 +34,7 @@ export const apply_rate_limit = async ({ request, server }: Pick<Context, 'reque
 export const apply_tenant_migration = async ({ params, query, body }: Pick<Context, 'params' | 'query' | 'body'>): Promise<void> => {
   const p = (params || {}) as Record<string, string | undefined>
   const q = (query || {}) as Record<string, string | undefined>
-  const b = (body || {}) as Record<string, any>
+  const b = (body || {}) as Record<string, unknown>
 
   const tenant_id = p.tenant_id || q.tenant_id || b.tenant_id
   if (!tenant_id) return
@@ -45,7 +49,7 @@ export const apply_tenant_migration = async ({ params, query, body }: Pick<Conte
 export const derive_auth = async ({
   headers: { authorization },
   jwt,
-}: Pick<Context, 'headers'> & { jwt: any }): Promise<{ payload: lib_dto_payload }> => {
+}: Pick<Context, 'headers'> & { jwt: ElysiaJWT }): Promise<{ payload: lib_dto_payload }> => {
   if (!authorization) throw lib_error.invalid_token
 
   const token = authorization.split(' ')[1]
@@ -61,7 +65,7 @@ export const derive_auth = async ({
   }
 }
 
-export const guard_auth = async ({ headers: { authorization }, jwt }: Pick<Context, 'headers'> & { jwt: any }): Promise<void> => {
+export const guard_auth = async ({ headers: { authorization }, jwt }: Pick<Context, 'headers'> & { jwt: ElysiaJWT }): Promise<void> => {
   if (!authorization) throw lib_error.invalid_token
 
   const token = authorization.split(' ')[1]
