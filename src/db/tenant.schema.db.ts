@@ -15,7 +15,7 @@ export const table_file = sqliteTable(
   (table) => [index('file_deleted_at_idx').on(table.deleted_at)],
 )
 
-export const entity_access = sqliteTable(
+export const table_access = sqliteTable(
   'access',
   {
     access_id: integer('access_id').primaryKey({ autoIncrement: true }),

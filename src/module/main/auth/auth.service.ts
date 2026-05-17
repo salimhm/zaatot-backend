@@ -1,6 +1,8 @@
 import type { Static } from 'elysia'
 
-import { db_client, db_redis_main } from '@db/client.db'
+import { db_redis_main } from '@db/client.db'
+
+import { lib_error } from '@lib/error.lib'
 
 import { dto_auth } from '@module/main/auth/auth.dto'
 import { service_user } from '@module/main/user/user.service'
@@ -10,13 +12,11 @@ const otp_ttl_minutes = 5
 export const service_auth = {
   async send_otp(body: Static<typeof dto_auth.otp_send.body>): Promise<Static<typeof dto_auth.otp_send.response>> {
     const { user_phone, otp_action } = body
-    const db = await db_client()
 
     if (otp_action === 'sign_in') await service_user.find({ columns: ['user_id'], user_phone: [user_phone], take: 1 })
     if (otp_action === 'sign_up') {
       try {
         await service_user.find({ columns: ['user_id'], user_phone: [user_phone], take: 1 })
-        const { lib_error } = require('@lib/error.lib.ts')
         throw lib_error.phone_already_exist
       } catch (error: any) {
         if (error?.code !== 'not-found-user') throw error
@@ -61,7 +61,6 @@ export const service_auth = {
   },
 
   async verify_otp(body: Static<typeof dto_auth.otp_verify.body>, jwt: any): Promise<Static<typeof dto_auth.otp_verify.response>> {
-    const { lib_error } = require('@lib/error.lib.ts')
     const { user_phone, otp_code, user_first_name, user_last_name } = body
 
     const otp_key = `otp:${user_phone}`

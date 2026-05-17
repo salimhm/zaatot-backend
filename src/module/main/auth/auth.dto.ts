@@ -17,7 +17,6 @@ export const dto_auth = {
     body: t.Object({
       user_phone: lib_dto_phone,
       otp_code: t.String({ minLength: 4, maxLength: 4 }),
-      // Required only for 'register' action
       user_first_name: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
       user_last_name: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
     }),

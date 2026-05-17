@@ -1,9 +1,109 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, mock } from 'bun:test'
 
 import { service_access } from '@module/tenant/access/access.service'
 
+const mock_db = {
+  insert: mock(() => ({
+    values: mock(() => ({
+      returning: mock(() => Promise.resolve([{ access_id: 1, user_id: 1, actions: ['full_access'] }])),
+    })),
+  })),
+  select: mock(() => ({
+    from: mock(() => ({
+      where: mock(() => ({
+        limit: mock(() => Promise.resolve([{ actions: ['owner'] }])),
+      })),
+    })),
+  })),
+  update: mock(() => ({
+    set: mock(() => ({
+      where: mock(() => ({
+        returning: mock(() => Promise.resolve([{ access_id: 1, user_id: 1, actions: ['full_access'] }])),
+      })),
+      returning: mock(() => Promise.resolve([{ access_id: 1, user_id: 1, actions: ['full_access'] }])),
+    })),
+  })),
+}
+
+mock.module('@db/client.db', () => ({
+  db_client: mock(() => Promise.resolve(mock_db)),
+}))
+
+mock.module('@db/utils.db', () => ({
+  select: mock(() =>
+    Promise.resolve({
+      rows: null,
+      pages: null,
+      page: 1,
+      take: 12,
+      data: [{ access_id: 1, user_id: 1, actions: ['owner'] }],
+    }),
+  ),
+}))
+
 describe('Access Service', () => {
-  it('should exist', () => {
-    expect(service_access).toBeDefined()
+  it('should find access permissions successfully', async () => {
+    const result = await service_access.find(
+      {
+        columns: ['access_id', 'actions'],
+        tenant_id: 1,
+        user_id: [1],
+        take: 12,
+      },
+      { user_id: 1 },
+    )
+
+    expect(result.data).toBeDefined()
+    expect(result.data[0]?.access_id).toBe(1)
+  })
+
+  it('should create access permissions successfully', async () => {
+    const body = {
+      tenant_id: 1,
+      user_id: 2,
+      actions: ['full_access' as const],
+    }
+    const payload = {
+      user_id: 1,
+    }
+
+    const result = await service_access.create(body, payload)
+
+    expect(result.data).toBeDefined()
+    expect(result.data.actions).toContain('full_access')
+  })
+
+  it('should update access permissions successfully', async () => {
+    const body = {
+      tenant_id: 1,
+      user_id: 2,
+      actions: ['full_access' as const],
+    }
+    const payload = {
+      user_id: 1,
+    }
+
+    const result = await service_access.update(body, payload)
+
+    expect(result.data).toBeDefined()
+    expect(result.data.actions).toContain('full_access')
+  })
+
+  it('should delete access permissions successfully', async () => {
+    const body = {
+      tenant_id: 1,
+      user_id: 2,
+    }
+    const payload = {
+      user_id: 1,
+    }
+
+    const result = await service_access.delete(body, payload)
+
+    expect(result.data).toBeDefined()
+  })
+
+  it('should check access successfully', async () => {
+    await service_access.check_access(1, { user_id: 1 })
   })
 })

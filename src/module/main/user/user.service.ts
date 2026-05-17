@@ -10,12 +10,6 @@ import { lib_error } from '@lib/error.lib'
 
 import { dto_user } from '@module/main/user/user.dto'
 
-// ---------------------------------------------------------------------------
-// Uniqueness check helper
-// Throws 409 if phone already belongs to an existing (non-deleted) user.
-// Pass exclude_user_id to skip the current user on update checks.
-// ---------------------------------------------------------------------------
-
 const check_unique = async (
   db: any,
   opts: {
@@ -36,8 +30,6 @@ const check_unique = async (
     if (existing) throw lib_error.phone_already_exist
   }
 }
-
-// ---------------------------------------------------------------------------
 
 export const service_user = {
   async find(query: Static<typeof dto_user.find.query>): Promise<Static<typeof dto_user.find.response>> {

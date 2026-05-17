@@ -57,7 +57,7 @@ export const service_contact = {
       await this.find({ columns: ['contact_phone'], tenant_id, contact_phone: [body.contact_phone] }, payload)
       throw lib_error.phone_already_exist
     } catch (error: any) {
-      if (error?.code !== 'not-found-contact') throw lib_error.internal_server_error
+      if (error?.code !== 'not-found-contact') throw error
     }
 
     const db = await db_client({ tenant_id })

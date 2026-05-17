@@ -18,9 +18,7 @@ export const controller_auth = new Elysia({ prefix: '/auth' })
       const ip = get_ip(request, server)
       const phone = body.user_phone
 
-      // Limit phone number to max 3 sends per 5 minutes
       await check_rate_limit({ key: `rate:otp:send:phone:${phone}`, limit: 3, duration: 300 })
-      // Limit IP to max 5 sends per 10 minutes
       await check_rate_limit({ key: `rate:otp:send:ip:${ip}`, limit: 5, duration: 600 })
 
       return await service_auth.send_otp(body)
@@ -35,7 +33,6 @@ export const controller_auth = new Elysia({ prefix: '/auth' })
       const ip = get_ip(request, server)
       const phone = body.user_phone
 
-      // Limit verification attempts to prevent brute-forcing (max 5 attempts per 5 minutes)
       await check_rate_limit({ key: `rate:otp:verify:${phone}:${ip}`, limit: 5, duration: 300 })
 
       return await service_auth.verify_otp(body, jwt)
