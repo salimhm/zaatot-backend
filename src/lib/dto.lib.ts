@@ -4,6 +4,16 @@ export type lib_dto_payload = {
   user_id: number
 }
 
+export type lib_dto_context<
+  T extends {
+    body?: unknown
+    query?: unknown
+    params?: unknown
+  } = {},
+> = {
+  payload: lib_dto_payload
+} & T
+
 export const lib_dto_find_query = {
   page: t.Optional(t.Numeric({ minimum: 1 })),
   take: t.Optional(t.Numeric({ minimum: 1, maximum: 12 })),

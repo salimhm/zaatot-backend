@@ -14,7 +14,7 @@ export const controller_auth = new Elysia({ prefix: '/auth' })
   .post(
     '/otp/send',
     async (context) => {
-      const { body, request, server } = context as any
+      const { body, request, server } = context
       const ip = get_ip(request, server)
       const phone = body.user_phone
 
@@ -29,7 +29,7 @@ export const controller_auth = new Elysia({ prefix: '/auth' })
   .post(
     '/otp/verify',
     async (context) => {
-      const { body, jwt, request, server } = context as any
+      const { body, jwt, request, server } = context
       const ip = get_ip(request, server)
       const phone = body.user_phone
 
