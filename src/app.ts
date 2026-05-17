@@ -3,14 +3,12 @@ import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 
-import { check_rate_limit, get_ip } from '@db/utils.db'
-
 import { handle_error } from '@lib/error.lib'
 import { lib_jwt } from '@lib/jwt.lib'
+import { apply_rate_limit, apply_security_headers, apply_tenant_migration, derive_auth, guard_auth } from '@lib/middleware.lib'
 
 import { controller_auth } from '@module/main/auth/auth.controller'
 import { controller_tenant } from '@module/main/tenant/tenant.controller'
-import { service_tenant } from '@module/main/tenant/tenant.service'
 import { controller_user } from '@module/main/user/user.controller'
 import { controller_access } from '@module/tenant/access/access.controller'
 import { controller_contact } from '@module/tenant/contact/contact.controller'
@@ -28,21 +26,11 @@ export const app = new Elysia()
 
   .use(lib_jwt)
 
-  .onBeforeHandle(async ({ request, server }) => {
-    const ip = get_ip(request, server)
-    await check_rate_limit({ key: `rate:global:${ip}`, limit: 120, duration: 60 })
-  })
+  .onBeforeHandle(apply_rate_limit)
 
-  .onBeforeHandle(async ({ params, query, body }) => {
-    const p = (params || {}) as any
-    const q = (query || {}) as any
-    const b = (body || {}) as any
+  .onBeforeHandle(apply_tenant_migration)
 
-    const tenant_id = p.tenant_id || q.tenant_id || b.tenant_id
-    if (!tenant_id) return
-
-    await service_tenant.migrate_schema(Number(tenant_id))
-  })
+  .onAfterHandle(apply_security_headers)
 
   .onError(handle_error)
 
@@ -66,34 +54,8 @@ export const app = new Elysia()
 
   .group('', (app) =>
     app
-      .onBeforeHandle(async ({ headers: { authorization }, jwt }) => {
-        if (!authorization) throw { code: 'invalid token', status: 401 }
-
-        const token = authorization.split(' ')[1]
-
-        if (!token) throw { code: 'invalid token', status: 401 }
-
-        const payload = await jwt.verify(token)
-
-        if (!payload) throw { code: 'invalid token', status: 401 }
-      })
-
-      .derive(async ({ headers: { authorization }, jwt }) => {
-        if (!authorization) throw { code: 'invalid token', status: 401 }
-
-        const token = authorization.split(' ')[1]
-
-        if (!token) throw { code: 'invalid token', status: 401 }
-
-        const payload = await jwt.verify(token)
-
-        if (!payload) throw { code: 'invalid token', status: 401 }
-
-        return {
-          payload,
-        }
-      })
-
+      .derive(derive_auth)
+      .onBeforeHandle(guard_auth)
       .use(controller_user)
       .use(controller_file)
       .use(controller_contact)

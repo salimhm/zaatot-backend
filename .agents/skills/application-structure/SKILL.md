@@ -35,7 +35,8 @@ src/
 │   ├── dto.lib.ts # GLOBAL REUSED DTO's
 │   ├── enum.lib.ts # GLOBAL REUSED ENUM's
 │   ├── error.lib.ts # GLOBAL REUSED ERROR's
-│   └── jwt.lib.ts # GLOBAL REUSED JWT CONFIG
+│   ├── jwt.lib.ts # GLOBAL REUSED JWT CONFIG
+│   └── middleware.lib.ts # GLOBAL REUSED MIDDLEWARE & HOOKS
 ├── module/
 │   ├── main/ # Shared/Standard backend entities
 │   │   ├── auth/

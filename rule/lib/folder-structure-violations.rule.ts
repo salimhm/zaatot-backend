@@ -58,7 +58,7 @@ export async function check() {
   await checkDir(`${SRC_DIR}/storage`, [], ['client.storage.ts'], true)
 
   // 8. lib folder same striclty only have the four files dto enum error and jwt
-  await checkDir(`${SRC_DIR}/lib`, [], ['dto.lib.ts', 'enum.lib.ts', 'error.lib.ts', 'jwt.lib.ts'], true)
+  await checkDir(`${SRC_DIR}/lib`, [], ['dto.lib.ts', 'enum.lib.ts', 'error.lib.ts', 'jwt.lib.ts', 'middleware.lib.ts'], true)
 
   // 9. db folder strictly only have the five files there
   await checkDir(`${SRC_DIR}/db`, [], ['client.db.ts', 'main.schema.db.ts', 'tenant.schema.db.ts', 'utils.db.ts', 'utils.dto.db.ts'], true)
