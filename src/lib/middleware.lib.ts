@@ -1,3 +1,4 @@
+import type { lib_dto_payload } from '@lib/dto.lib'
 import type { Context } from 'elysia'
 
 import { check_rate_limit, get_ip } from '@db/utils.db'
@@ -44,14 +45,14 @@ export const apply_tenant_migration = async ({ params, query, body }: Pick<Conte
 export const derive_auth = async ({
   headers: { authorization },
   jwt,
-}: Pick<Context, 'headers'> & { jwt: { verify: (token: string) => Promise<any> } }): Promise<{ payload: any }> => {
+}: Pick<Context, 'headers'> & { jwt: any }): Promise<{ payload: lib_dto_payload }> => {
   if (!authorization) throw lib_error.invalid_token
 
   const token = authorization.split(' ')[1]
 
   if (!token) throw lib_error.invalid_token
 
-  const payload = await jwt.verify(token)
+  const payload = (await jwt.verify(token)) as lib_dto_payload | false
 
   if (!payload) throw lib_error.invalid_token
 
@@ -60,17 +61,14 @@ export const derive_auth = async ({
   }
 }
 
-export const guard_auth = async ({
-  headers: { authorization },
-  jwt,
-}: Pick<Context, 'headers'> & { jwt: { verify: (token: string) => Promise<any> } }): Promise<void> => {
+export const guard_auth = async ({ headers: { authorization }, jwt }: Pick<Context, 'headers'> & { jwt: any }): Promise<void> => {
   if (!authorization) throw lib_error.invalid_token
 
   const token = authorization.split(' ')[1]
 
   if (!token) throw lib_error.invalid_token
 
-  const payload = await jwt.verify(token)
+  const payload = (await jwt.verify(token)) as lib_dto_payload | false
 
   if (!payload) throw lib_error.invalid_token
 }
