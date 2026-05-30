@@ -50,7 +50,8 @@ export const service_tenant = {
         .from(table_tenant)
         .where(and(eq(table_tenant.user_id, user_id), isNull(table_tenant.deleted_at)))
 
-      if (user_tenants && user_tenants.count >= 12) {
+      const max_tenants = Number(process.env.USER_MAX_TENANTS) || 12
+      if (user_tenants && user_tenants.count >= max_tenants) {
         throw lib_error.user_max_tenants
       }
     } catch (error: unknown) {
@@ -78,7 +79,8 @@ export const service_tenant = {
 
     void this.provision_tenant_db(tenant_id, user_id)
 
-    return { data: data! as unknown as Static<typeof dto_schema_tenant> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_tenant> }
   },
 
   async provision_tenant_db(tenant_id: number, user_id: number): Promise<void> {
@@ -125,7 +127,8 @@ export const service_tenant = {
 
     if (!data) throw lib_error.not_found
 
-    return { data: data! as unknown as Static<typeof dto_schema_tenant> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_tenant> }
   },
 
   async delete(body: Static<typeof dto_tenant.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.delete.response>> {
@@ -140,7 +143,8 @@ export const service_tenant = {
 
     if (!data) throw lib_error.not_found
 
-    return { data: data! as unknown as Static<typeof dto_schema_tenant> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_tenant> }
   },
 
   async migrate_schema(tenant_id: number): Promise<void> {

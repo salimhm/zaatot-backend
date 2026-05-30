@@ -3,6 +3,9 @@ name: example-database
 description: Required code pattern for all database client or tables schema generated outputs.
 ---
 
+> [!IMPORTANT]
+> **Database Schema Enum Rule**: Do NOT import or specify application enums (from `@lib/enum.lib`) in the database schema files. Use generic string or integer types for database columns, and let the DTO layer handle the enum validation. Coupling database schemas to application enums causes migration issues in SQLite when enums change.
+
 1. **Client file (client.db.ts)**: Strictly follow this pattern!
 ```typescript
 import { drizzle } from "drizzle-orm/libsql"

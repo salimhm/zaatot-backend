@@ -26,7 +26,9 @@ export const apply_security_headers = ({ set }: Pick<Context, 'set'>): void => {
 
 export const apply_rate_limit = async ({ request, server }: Pick<Context, 'request' | 'server'>): Promise<void> => {
   const ip = get_ip(request, server)
-  await check_rate_limit({ key: `rate:global:${ip}`, limit: 120, duration: 60 })
+  const limit = Number(process.env.RATE_LIMIT_GLOBAL_LIMIT) || 120
+  const duration = Number(process.env.RATE_LIMIT_GLOBAL_DURATION) || 60
+  await check_rate_limit({ key: `rate:global:${ip}`, limit, duration })
 }
 
 export const apply_tenant_migration = async ({ params, query, body }: Pick<Context, 'params' | 'query' | 'body'>): Promise<void> => {

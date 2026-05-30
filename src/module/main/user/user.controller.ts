@@ -14,9 +14,9 @@ export const controller_user = new Elysia({ prefix: '/user' })
   .patch(
     '/',
     async (context) => {
-      const { body, payload } = context as unknown as lib_dto_context<{
+      const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_user.update.body>
-      }>
+      }> & typeof context
 
       return await service_user.update(body, payload)
     },

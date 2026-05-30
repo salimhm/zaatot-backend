@@ -8,7 +8,7 @@ import { dto_auth } from '@module/main/auth/auth.dto'
 import { dto_schema_user } from '@module/main/user/user.dto'
 import { service_user } from '@module/main/user/user.service'
 
-const otp_ttl_minutes = 5
+const otp_ttl_minutes = Number(process.env.OTP_TTL_MINUTES) || 5
 
 type JWTHelper = {
   sign: (payload: Record<string, string | number | boolean | null | undefined>) => Promise<string>
@@ -65,7 +65,7 @@ export const service_auth = {
       user_last_name,
     })
 
-    return await this.sign_in({ user: user as Static<typeof dto_schema_user>, jwt })
+    return await this.sign_in({ user, jwt })
   },
 
   async verify_otp(body: Static<typeof dto_auth.otp_verify.body>, jwt: JWTHelper): Promise<Static<typeof dto_auth.otp_verify.response>> {

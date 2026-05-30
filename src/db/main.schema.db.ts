@@ -8,7 +8,7 @@ export const table_user = sqliteTable(
     user_phone: text('user_phone', { length: 24 }).notNull(),
     user_first_name: text('user_first_name', { length: 32 }).notNull(),
     user_last_name: text('user_last_name', { length: 32 }).notNull(),
-    user_image: text('user_image', { length: 32 }),
+    user_image: text('user_image', { length: 64 }),
     created_at: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -30,7 +30,7 @@ export const table_tenant = sqliteTable(
     tenant_id: integer('tenant_id').primaryKey({ autoIncrement: true }),
     tenant_type: text('tenant_type').notNull(),
     tenant_schema_version: text('tenant_schema_version').notNull().default('0.0.0'),
-    tenant_name: text('tenant_name', { length: 32 }).notNull(),
+    tenant_name: text('tenant_name', { length: 128 }).notNull(),
     tenant_db_id: text('tenant_db_id', { length: 512 }),
     tenant_db_url: text('tenant_db_url', { length: 512 }),
     user_id: integer('user_id').notNull(),

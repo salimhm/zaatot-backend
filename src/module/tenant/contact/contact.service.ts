@@ -66,7 +66,8 @@ export const service_contact = {
     const [data] = await db.insert(table_contact).values(contact_data).returning()
 
     if (!data) throw lib_error.bad_request
-    return { data: data! as unknown as Static<typeof dto_schema_contact> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_contact> }
   },
 
   async update(body: Static<typeof dto_contact.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.update.response>> {
@@ -84,7 +85,8 @@ export const service_contact = {
       .returning()
 
     if (!data) throw lib_error.not_found
-    return { data: data! as unknown as Static<typeof dto_schema_contact> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_contact> }
   },
 
   async delete(body: Static<typeof dto_contact.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.delete.response>> {
@@ -102,6 +104,7 @@ export const service_contact = {
       .returning()
 
     if (!data) throw lib_error.not_found
-    return { data: data! as unknown as Static<typeof dto_schema_contact> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_contact> }
   },
 }

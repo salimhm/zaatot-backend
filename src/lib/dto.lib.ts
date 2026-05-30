@@ -16,7 +16,7 @@ export type lib_dto_context<
 
 export const lib_dto_find_query = {
   page: t.Optional(t.Numeric({ minimum: 1 })),
-  take: t.Optional(t.Numeric({ minimum: 1, maximum: 12 })),
+  take: t.Optional(t.Numeric({ minimum: 1, maximum: Number(process.env.QUERY_TAKE_MAX) || 12 })),
   count: t.Optional(t.UnionEnum(['false', 'true'])),
   combination_type: t.Optional(t.UnionEnum(['AND', 'OR'])),
 }

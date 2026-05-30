@@ -35,7 +35,7 @@ export const dto_tenant = {
   },
   create: {
     body: t.Object({
-      tenant_name: t.String({ minLength: 1, maxLength: 32 }),
+      tenant_name: t.String({ minLength: 1, maxLength: 128 }),
       tenant_type: t.UnionEnum(enum_tenant_type),
     }),
     response: t.Object({
@@ -46,7 +46,7 @@ export const dto_tenant = {
   update: {
     body: t.Object({
       tenant_id: t.Number(),
-      tenant_name: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
+      tenant_name: t.Optional(t.String({ minLength: 1, maxLength: 128 })),
     }),
     response: t.Object({
       data: dto_schema_tenant,

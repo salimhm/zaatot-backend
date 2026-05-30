@@ -18,9 +18,9 @@ const mock_db = {
   update: mock(() => ({
     set: mock(() => ({
       where: mock(() => ({
-        returning: mock(() => Promise.resolve([{ file_id: 'user-1/file.jpg', file_name: 'file.jpg', user_id: 1 }])),
+        returning: mock(() => Promise.resolve([{ file_id: 'user-1/file.jpg', file_name: 'file_new.jpg', user_id: 1 }])),
       })),
-      returning: mock(() => Promise.resolve([{ file_id: 'user-1/file.jpg', file_name: 'file.jpg', user_id: 1 }])),
+      returning: mock(() => Promise.resolve([{ file_id: 'user-1/file.jpg', file_name: 'file_new.jpg', user_id: 1 }])),
     })),
   })),
 }
@@ -39,6 +39,7 @@ mock.module('@db/utils.db', () => ({
       data: [{ file_id: 'user-1/file.jpg', file_name: 'file.jpg', user_id: 1 }],
     }),
   ),
+  check_rate_limit: mock(() => Promise.resolve()),
 }))
 
 mock.module('@storage/client.storage', () => ({
@@ -83,6 +84,7 @@ describe('File Service', () => {
 
     expect(result.data).toBeDefined()
     expect(result.data.file_id).toBeDefined()
+    expect(result.data.user_id).toBe(1)
   })
 
   it('should update a file successfully', async () => {
@@ -98,7 +100,7 @@ describe('File Service', () => {
     const result = await service_file.update(body, payload)
 
     expect(result.data).toBeDefined()
-    expect(result.data.file_name).toBe('file.jpg')
+    expect(result.data.file_name).toBe('file_new.jpg')
   })
 
   it('should delete a file successfully', async () => {
@@ -113,5 +115,6 @@ describe('File Service', () => {
     const result = await service_file.delete(body, payload)
 
     expect(result.data).toBeDefined()
+    expect(result.data.file_id).toBe('user-1/file.jpg')
   })
 })

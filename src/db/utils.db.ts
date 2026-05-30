@@ -186,14 +186,7 @@ export const select = async ({ db, table, allowed_columns, where, query, joins }
   }
 
   const table_name = getTableConfig(table).name
-
-  if (table_name === 'user') throw lib_error.not_found_user
-  if (table_name === 'tenant') throw lib_error.not_found_tenant
-  if (table_name === 'contact') throw lib_error.not_found_contact
-  if (table_name === 'access') throw lib_error.not_found_access
-  if (table_name === 'file') throw lib_error.not_found_file
-
-  throw lib_error.not_found
+  throw lib_error.not_found_table[table_name] ?? lib_error.not_found
 }
 
 export const get_schema_info = async (db: LibSQLDatabase<Record<string, unknown>>) => {
