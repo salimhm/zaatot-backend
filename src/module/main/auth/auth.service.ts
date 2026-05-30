@@ -29,7 +29,9 @@ export const service_auth = {
       }
     }
 
-    const otp_code = String(Math.floor(1000 + Math.random() * 9000))
+    const array = new Uint32Array(1)
+    crypto.getRandomValues(array)
+    const otp_code = String(1000 + ((array[0] ?? 0) % 9000))
     const otp_key = `otp:${user_phone}`
 
     await db_redis_main.set(otp_key, JSON.stringify({ otp_code, otp_action }), 'EX', otp_ttl_minutes * 60)

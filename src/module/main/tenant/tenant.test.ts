@@ -10,7 +10,7 @@ const mock_db = {
   })),
   select: mock(() => ({
     from: mock(() => ({
-      where: mock(() => Promise.resolve([{ count: 0, tenant_schema_version: '0.0.0', tenant_type: 'user' }])),
+      where: mock(() => Promise.resolve([{ count: 0, tenant_schema_version: '0.0.0', tenant_type: 'user', tenant_db_id: 'db-id' as string | null }])),
     })),
   })),
   update: mock(() => ({
@@ -28,6 +28,7 @@ mock.module('@db/client.db', () => ({
   db_redis_main: {
     get: mock(() => Promise.resolve(null)),
     set: mock(() => Promise.resolve('OK')),
+    del: mock(() => Promise.resolve(1)),
   },
   current_tenant_schema_version: '0.0.5',
 }))
@@ -113,5 +114,32 @@ describe('Tenant Service', () => {
 
   it('should run migrate_schema successfully', async () => {
     await service_tenant.migrate_schema(1)
+  })
+
+  it('should throw tenant-not-ready if tenant_db_id is null', async () => {
+    mock_db.select.mockImplementationOnce(() => ({
+      from: mock(() => ({
+        where: mock(() => Promise.resolve([{ count: 0, tenant_schema_version: '0.0.0', tenant_type: 'user', tenant_db_id: null }])),
+      })),
+    }))
+
+    try {
+      await service_tenant.migrate_schema(1)
+      expect(true).toBe(false)
+    } catch (error: any) {
+      expect(error.code).toBe('tenant-not-ready')
+    }
+  })
+
+  it('should throw tenant-not-ready if migration lock is already held', async () => {
+    const { db_redis_main } = require('@db/client.db')
+    db_redis_main.set.mockImplementationOnce(() => Promise.resolve(null))
+
+    try {
+      await service_tenant.migrate_schema(1)
+      expect(true).toBe(false)
+    } catch (error: any) {
+      expect(error.code).toBe('tenant-not-ready')
+    }
   })
 })

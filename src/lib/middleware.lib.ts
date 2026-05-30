@@ -7,8 +7,6 @@ import { lib_error } from '@lib/error.lib'
 
 import { service_tenant } from '@module/main/tenant/tenant.service'
 
-const verified_tenants = new Set<number>()
-
 export interface ElysiaJWT {
   verify: (jwt?: string, options?: Record<string, unknown>) => Promise<Record<string, unknown> | string | false | null>
 }
@@ -40,10 +38,7 @@ export const apply_tenant_migration = async ({ params, query, body }: Pick<Conte
   if (!tenant_id) return
 
   const parsed_id = Number(tenant_id)
-  if (verified_tenants.has(parsed_id)) return
-
   await service_tenant.migrate_schema(parsed_id)
-  verified_tenants.add(parsed_id)
 }
 
 export const derive_auth = async ({

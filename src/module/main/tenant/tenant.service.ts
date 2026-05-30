@@ -71,40 +71,46 @@ export const service_tenant = {
 
     const { tenant_id } = data
 
-    const turso = createClient({
-      org: process.env.TURSO_ORG_NAME!,
-      token: process.env.TURSO_API_TOKEN!,
-    })
-
-    const { id: tenant_db_id, hostname: tenant_db_url } = await turso.databases.create(
-      `db-${process.env.NAME}-${process.env.ENV}-tenant-${tenant_id}`,
-      {
-        group: process.env.TURSO_GROUP_NAME!,
-      },
-    )
-
-    const [result] = await db
-      .update(table_tenant)
-      .set({
-        ...body,
-        tenant_db_id,
-        tenant_db_url,
-      })
-      .where(eq(table_tenant.tenant_id, tenant_id))
-      .returning()
-
-    await this.migrate_schema(tenant_id)
-
-    const { service_access } = await import('@module/tenant/access/access.service')
-    await service_access.create_access_for_owner(tenant_id, user_id)
-
     await db.insert(table_user_tenant).values({
       user_id,
       tenant_id,
     })
 
-    if (!result) throw lib_error.bad_request
-    return { data: result! as unknown as Static<typeof dto_schema_tenant> }
+    void this.provision_tenant_db(tenant_id, user_id)
+
+    return { data: data! as unknown as Static<typeof dto_schema_tenant> }
+  },
+
+  async provision_tenant_db(tenant_id: number, user_id: number): Promise<void> {
+    try {
+      const turso = createClient({
+        org: process.env.TURSO_ORG_NAME!,
+        token: process.env.TURSO_API_TOKEN!,
+      })
+
+      const { id: tenant_db_id, hostname: tenant_db_url } = await turso.databases.create(
+        `db-${process.env.NAME}-${process.env.ENV}-tenant-${tenant_id}`,
+        {
+          group: process.env.TURSO_GROUP_NAME!,
+        },
+      )
+
+      const db = await db_client()
+      await db
+        .update(table_tenant)
+        .set({
+          tenant_db_id,
+          tenant_db_url,
+        })
+        .where(eq(table_tenant.tenant_id, tenant_id))
+
+      await this.migrate_schema(tenant_id)
+
+      const { service_access } = await import('@module/tenant/access/access.service')
+      await service_access.create_access_for_owner(tenant_id, user_id)
+    } catch (error) {
+      console.error(error)
+    }
   },
 
   async update(body: Static<typeof dto_tenant.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.update.response>> {
@@ -141,6 +147,10 @@ export const service_tenant = {
     const migration_key = `tenant:${tenant_id}:schema_version`
     const cached_version = await db_redis_main.get(migration_key)
 
+    if (cached_version === 'NOT_READY') {
+      throw lib_error.tenant_not_ready
+    }
+
     if (cached_version === String(current_tenant_schema_version) || cached_version === 'NOT_FOUND') return
 
     const db = await db_client()
@@ -149,6 +159,7 @@ export const service_tenant = {
       .select({
         tenant_schema_version: table_tenant.tenant_schema_version,
         tenant_type: table_tenant.tenant_type,
+        tenant_db_id: table_tenant.tenant_db_id,
       })
       .from(table_tenant)
       .where(eq(table_tenant.tenant_id, tenant_id))
@@ -158,7 +169,18 @@ export const service_tenant = {
       return
     }
 
+    if (!data.tenant_db_id) {
+      await db_redis_main.set(migration_key, 'NOT_READY', 'EX', 5)
+      throw lib_error.tenant_not_ready
+    }
+
     if (data.tenant_schema_version !== current_tenant_schema_version) {
+      const lock_key = `lock:tenant:${tenant_id}:migration`
+      const is_locked = await db_redis_main.set(lock_key, '1', 'NX', 'PX', '30000')
+      if (is_locked !== 'OK') {
+        throw lib_error.tenant_not_ready
+      }
+
       try {
         console.log(`🚀 Updating tenant ${tenant_id} schema to version ${current_tenant_schema_version}...`)
         const db_tenant = await db_client({ tenant_id })
@@ -170,6 +192,8 @@ export const service_tenant = {
       } catch (error) {
         console.error(`❌ Migration failed for tenant ${tenant_id}:`, error)
         throw lib_error.tenant_schema_update_failed
+      } finally {
+        await db_redis_main.del(lock_key)
       }
     }
 
