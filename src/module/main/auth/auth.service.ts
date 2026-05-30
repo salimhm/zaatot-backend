@@ -1,29 +1,37 @@
 import type { Static } from 'elysia'
 
-import { db_client, db_redis_main } from '@db/client.db'
+import { db_redis_main } from '@db/client.db'
+
+import { lib_error } from '@lib/error.lib'
 
 import { dto_auth } from '@module/main/auth/auth.dto'
+import { dto_schema_user } from '@module/main/user/user.dto'
 import { service_user } from '@module/main/user/user.service'
 
 const otp_ttl_minutes = 5
 
+type JWTHelper = {
+  sign: (payload: Record<string, string | number | boolean | null | undefined>) => Promise<string>
+}
+
 export const service_auth = {
   async send_otp(body: Static<typeof dto_auth.otp_send.body>): Promise<Static<typeof dto_auth.otp_send.response>> {
     const { user_phone, otp_action } = body
-    const db = await db_client()
 
     if (otp_action === 'sign_in') await service_user.find({ columns: ['user_id'], user_phone: [user_phone], take: 1 })
     if (otp_action === 'sign_up') {
       try {
         await service_user.find({ columns: ['user_id'], user_phone: [user_phone], take: 1 })
-        const { lib_error } = require('@lib/error.lib.ts')
         throw lib_error.phone_already_exist
-      } catch (error: any) {
-        if (error?.code !== 'not-found-user') throw error
+      } catch (error: unknown) {
+        const err = error as { code?: string }
+        if (err?.code !== 'not-found-user') throw error
       }
     }
 
-    const otp_code = String(Math.floor(1000 + Math.random() * 9000))
+    const array = new Uint32Array(1)
+    crypto.getRandomValues(array)
+    const otp_code = String(1000 + ((array[0] ?? 0) % 9000))
     const otp_key = `otp:${user_phone}`
 
     await db_redis_main.set(otp_key, JSON.stringify({ otp_code, otp_action }), 'EX', otp_ttl_minutes * 60)
@@ -33,7 +41,7 @@ export const service_auth = {
     return { success: true }
   },
 
-  async sign_in(args: { user: any; jwt: any }): Promise<Static<typeof dto_auth.otp_verify.response>> {
+  async sign_in(args: { user: Static<typeof dto_schema_user>; jwt: JWTHelper }): Promise<Static<typeof dto_auth.otp_verify.response>> {
     const { user, jwt } = args
     const user_id = user.user_id
 
@@ -48,7 +56,7 @@ export const service_auth = {
     user_phone: string
     user_first_name: string
     user_last_name: string
-    jwt: any
+    jwt: JWTHelper
   }): Promise<Static<typeof dto_auth.otp_verify.response>> {
     const { user_phone, user_first_name, user_last_name, jwt } = args
     const { data: user } = await service_user.create({
@@ -57,11 +65,10 @@ export const service_auth = {
       user_last_name,
     })
 
-    return await this.sign_in({ user, jwt })
+    return await this.sign_in({ user: user as Static<typeof dto_schema_user>, jwt })
   },
 
-  async verify_otp(body: Static<typeof dto_auth.otp_verify.body>, jwt: any): Promise<Static<typeof dto_auth.otp_verify.response>> {
-    const { lib_error } = require('@lib/error.lib.ts')
+  async verify_otp(body: Static<typeof dto_auth.otp_verify.body>, jwt: JWTHelper): Promise<Static<typeof dto_auth.otp_verify.response>> {
     const { user_phone, otp_code, user_first_name, user_last_name } = body
 
     const otp_key = `otp:${user_phone}`
@@ -69,19 +76,19 @@ export const service_auth = {
 
     if (!stored_data) throw lib_error.invalid_otp_code
 
-    const otp = JSON.parse(stored_data)
+    const otp = JSON.parse(stored_data) as { otp_code: string; otp_action: string }
     if (otp.otp_code !== otp_code) throw lib_error.invalid_otp_code
 
     await db_redis_main.del(otp_key)
 
     try {
       const { data } = await service_user.find({
-        columns: ['user_id', 'user_phone', 'user_first_name', 'user_last_name'],
+        columns: ['user_id', 'user_phone', 'user_first_name', 'user_last_name', 'user_image', 'created_at'],
         user_phone: [user_phone],
         take: 1,
       })
-      return await this.sign_in({ user: data[0], jwt })
-    } catch (error: any) {
+      return await this.sign_in({ user: data[0] as Static<typeof dto_schema_user>, jwt })
+    } catch (error: unknown) {
       if (otp.otp_action === 'sign_up') {
         if (!user_first_name || !user_last_name) throw lib_error.bad_request
         return await this.sign_up({ user_phone, user_first_name, user_last_name, jwt })

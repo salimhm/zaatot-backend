@@ -5,6 +5,13 @@ import { lib_dto_find_query, lib_dto_find_response } from '@lib/dto.lib'
 export const enum_file_columns = ['file_id', 'file_name', 'user_id', 'created_at'] as const
 export const enum_file_order_by = [...enum_file_columns, ...enum_file_columns.map((c) => `-${c}`)] as const
 
+export const dto_schema_file = t.Object({
+  file_id: t.String(),
+  file_name: t.Union([t.String(), t.Null()]),
+  user_id: t.Number(),
+  created_at: t.String(),
+})
+
 export const dto_file = {
   find: {
     query: t.Object({
@@ -18,6 +25,7 @@ export const dto_file = {
     }),
     response: t.Object({
       ...lib_dto_find_response,
+      data: t.Array(t.Partial(dto_schema_file)),
     }),
   },
   create: {
@@ -27,7 +35,7 @@ export const dto_file = {
       file_name: t.Optional(t.String({ maxLength: 127 })),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_file,
     }),
   },
   update: {
@@ -37,7 +45,7 @@ export const dto_file = {
       file_name: t.Optional(t.String({ maxLength: 127 })),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_file,
     }),
   },
   delete: {
@@ -46,7 +54,7 @@ export const dto_file = {
       file_id: t.String({ minLength: 1, maxLength: 64 }),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_file,
     }),
   },
 }

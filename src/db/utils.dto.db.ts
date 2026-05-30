@@ -1,9 +1,10 @@
-import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
+import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 
 export type AllowedColumns = { [key: string]: AnySQLiteColumn }
 
 export type WhereCondition = '[]' | '%%' | '%' | '<>' | '>' | '>=' | '<' | '<=' | '=' | '!='
-export type WhereEntry = [column: AnySQLiteColumn, value: any, condition: WhereCondition]
+export type WhereEntry = [column: AnySQLiteColumn, value: unknown, condition: WhereCondition]
 
 export type CombinationType = 'AND' | 'OR'
 
@@ -18,13 +19,13 @@ export type SelectQueryProps = {
 }
 
 export type JoinConfig = {
-  table_to_join: any
+  table_to_join: SQLiteTable
   column_to_join: string
 }
 
 export type SelectParams = {
-  db: any
-  table: any
+  db: LibSQLDatabase<Record<string, unknown>>
+  table: SQLiteTable
   allowed_columns: AllowedColumns
   where: WhereEntry[]
   query: SelectQueryProps

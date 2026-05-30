@@ -3,31 +3,31 @@ import type { Static } from 'elysia'
 
 import { and, eq, isNull } from 'drizzle-orm'
 import { db_client } from '@db/client.db'
-import { entity_access } from '@db/tenant.schema.db'
+import { table_access } from '@db/tenant.schema.db'
 import { select } from '@db/utils.db'
 
 import { enum_access_action } from '@lib/enum.lib'
 import { lib_error } from '@lib/error.lib'
 
-import { dto_access } from '@module/tenant/access/access.dto'
+import { dto_access, dto_schema_access } from '@module/tenant/access/access.dto'
 
 export const service_access = {
   async find(query: Static<typeof dto_access.find.query>, payload: lib_dto_payload): Promise<Static<typeof dto_access.find.response>> {
-    const { tenant_id, user_id } = query as any
+    const { tenant_id, user_id } = query
     await this.check_access(tenant_id, payload)
 
     const db = await db_client({ tenant_id })
 
     return await select({
       db,
-      table: entity_access,
+      table: table_access,
       allowed_columns: {
-        access_id: entity_access.access_id,
-        user_id: entity_access.user_id,
-        actions: entity_access.actions,
-        created_at: entity_access.created_at,
+        access_id: table_access.access_id,
+        user_id: table_access.user_id,
+        actions: table_access.actions,
+        created_at: table_access.created_at,
       },
-      where: [[entity_access.user_id, user_id, '[]']],
+      where: [[table_access.user_id, user_id, '[]']],
       query,
     })
   },
@@ -38,14 +38,15 @@ export const service_access = {
 
     const db_tenant = await db_client({ tenant_id })
     const [data] = await db_tenant
-      .insert(entity_access)
+      .insert(table_access)
       .values({
         user_id,
         actions,
       })
       .returning()
 
-    return { data }
+    if (!data) throw lib_error.bad_request
+    return { data: data! as unknown as Static<typeof dto_schema_access> }
   },
 
   async update(body: Static<typeof dto_access.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_access.update.response>> {
@@ -54,14 +55,13 @@ export const service_access = {
 
     const db = await db_client({ tenant_id })
     const [data] = await db
-      .update(entity_access)
+      .update(table_access)
       .set({ actions })
-      .where(and(eq(entity_access.user_id, user_id), isNull(entity_access.deleted_at)))
+      .where(and(eq(table_access.user_id, user_id), isNull(table_access.deleted_at)))
       .returning()
 
     if (!data) throw lib_error.not_found
-
-    return { data }
+    return { data: data! as unknown as Static<typeof dto_schema_access> }
   },
 
   async delete(body: Static<typeof dto_access.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_access.delete.response>> {
@@ -70,17 +70,18 @@ export const service_access = {
 
     const db_tenant = await db_client({ tenant_id })
     const [data] = await db_tenant
-      .update(entity_access)
+      .update(table_access)
       .set({ deleted_at: new Date().toISOString() })
-      .where(and(eq(entity_access.user_id, user_id), isNull(entity_access.deleted_at)))
+      .where(and(eq(table_access.user_id, user_id), isNull(table_access.deleted_at)))
       .returning()
 
-    return { data }
+    if (!data) throw lib_error.not_found
+    return { data: data! as unknown as Static<typeof dto_schema_access> }
   },
 
   async create_access_for_owner(tenant_id: number, user_id: number): Promise<void> {
     const db_tenant = await db_client({ tenant_id })
-    await db_tenant.insert(entity_access).values({
+    await db_tenant.insert(table_access).values({
       user_id,
       actions: ['owner'],
     })
@@ -91,9 +92,9 @@ export const service_access = {
     try {
       const db = await db_client({ tenant_id })
       const [access] = await db
-        .select({ actions: entity_access.actions })
-        .from(entity_access)
-        .where(and(eq(entity_access.user_id, payload.user_id), isNull(entity_access.deleted_at)))
+        .select({ actions: table_access.actions })
+        .from(table_access)
+        .where(and(eq(table_access.user_id, payload.user_id), isNull(table_access.deleted_at)))
         .limit(1)
 
       if (!access?.actions?.length) throw lib_error.unauthorized

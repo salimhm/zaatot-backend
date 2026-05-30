@@ -9,7 +9,7 @@ import { select } from '@db/utils.db'
 import { lib_error } from '@lib/error.lib'
 
 import { service_access } from '@module/tenant/access/access.service'
-import { dto_contact } from '@module/tenant/contact/contact.dto'
+import { dto_contact, dto_schema_contact } from '@module/tenant/contact/contact.dto'
 
 export const service_contact = {
   async find(query: Static<typeof dto_contact.find.query>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.find.response>> {
@@ -56,15 +56,17 @@ export const service_contact = {
     try {
       await this.find({ columns: ['contact_phone'], tenant_id, contact_phone: [body.contact_phone] }, payload)
       throw lib_error.phone_already_exist
-    } catch (error: any) {
-      if (error?.code !== 'not-found-contact') throw lib_error.internal_server_error
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      if (err?.code !== 'not-found-contact') throw error
     }
 
     const db = await db_client({ tenant_id })
 
     const [data] = await db.insert(table_contact).values(contact_data).returning()
 
-    return { data }
+    if (!data) throw lib_error.bad_request
+    return { data: data! as unknown as Static<typeof dto_schema_contact> }
   },
 
   async update(body: Static<typeof dto_contact.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.update.response>> {
@@ -81,7 +83,8 @@ export const service_contact = {
       .where(and(eq(table_contact.contact_id, contact_id), isNull(table_contact.deleted_at)))
       .returning()
 
-    return { data }
+    if (!data) throw lib_error.not_found
+    return { data: data! as unknown as Static<typeof dto_schema_contact> }
   },
 
   async delete(body: Static<typeof dto_contact.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.delete.response>> {
@@ -98,6 +101,7 @@ export const service_contact = {
       .where(and(eq(table_contact.contact_id, contact_id), isNull(table_contact.deleted_at)))
       .returning()
 
-    return { data }
+    if (!data) throw lib_error.not_found
+    return { data: data! as unknown as Static<typeof dto_schema_contact> }
   },
 }

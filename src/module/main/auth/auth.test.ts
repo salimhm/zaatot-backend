@@ -2,21 +2,23 @@ import { describe, expect, it, mock } from 'bun:test'
 
 import { service_auth } from '@module/main/auth/auth.service'
 
-mock.module('@module/main/user/user.service', () => ({
-  service_user: {
-    find: mock(() => Promise.resolve({ data: [{ user_id: 1 }] })),
-    create: mock(() => Promise.resolve({ data: { user_id: 1, user_phone: '1234567890' } })),
-  },
-}))
+const mock_db = {
+  insert: mock(() => ({
+    values: mock(() => ({
+      returning: mock(() => Promise.resolve([{ user_id: 1, user_phone: '1234567890' }])),
+    })),
+  })),
+  select: mock(() => ({
+    from: mock(() => ({
+      where: mock(() => ({
+        limit: mock(() => Promise.resolve([{ user_id: 1, user_phone: '1234567890' }])),
+      })),
+    })),
+  })),
+}
 
 mock.module('@db/client.db', () => ({
-  db_client: mock(() =>
-    Promise.resolve({
-      insert: () => ({ values: () => Promise.resolve() }),
-      select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }),
-      delete: () => ({ where: () => Promise.resolve() }),
-    }),
-  ),
+  db_client: mock(() => Promise.resolve(mock_db)),
   db_redis_main: {
     set: mock(() => Promise.resolve('OK')),
     get: mock(() => Promise.resolve(null)),
@@ -26,12 +28,31 @@ mock.module('@db/client.db', () => ({
   },
 }))
 
+mock.module('@db/utils.db', () => ({
+  select: mock(() =>
+    Promise.resolve({
+      rows: null,
+      pages: null,
+      page: 1,
+      take: 12,
+      data: [{ user_id: 1, user_phone: '1234567890' }],
+    }),
+  ),
+}))
+
 describe('Auth Service', () => {
   it('should sign in a user and return a token', async () => {
     const mock_jwt = {
       sign: mock(() => Promise.resolve('mock_token')),
     }
-    const mock_user = { user_id: 1, user_phone: '1234567890' }
+    const mock_user = {
+      user_id: 1,
+      user_phone: '+1234567890',
+      user_first_name: 'John',
+      user_last_name: 'Doe',
+      user_image: null,
+      created_at: new Date().toISOString(),
+    }
 
     const result = await service_auth.sign_in({
       user: mock_user,

@@ -1,4 +1,5 @@
 import type { lib_dto_payload } from '@lib/dto.lib'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import type { Static } from 'elysia'
 
 import { and, eq, isNull, ne } from 'drizzle-orm'
@@ -10,14 +11,8 @@ import { lib_error } from '@lib/error.lib'
 
 import { dto_user } from '@module/main/user/user.dto'
 
-// ---------------------------------------------------------------------------
-// Uniqueness check helper
-// Throws 409 if phone already belongs to an existing (non-deleted) user.
-// Pass exclude_user_id to skip the current user on update checks.
-// ---------------------------------------------------------------------------
-
 const check_unique = async (
-  db: any,
+  db: LibSQLDatabase<Record<string, unknown>>,
   opts: {
     user_phone?: string
     exclude_user_id?: number
@@ -36,8 +31,6 @@ const check_unique = async (
     if (existing) throw lib_error.phone_already_exist
   }
 }
-
-// ---------------------------------------------------------------------------
 
 export const service_user = {
   async find(query: Static<typeof dto_user.find.query>): Promise<Static<typeof dto_user.find.response>> {
@@ -71,7 +64,8 @@ export const service_user = {
     })
 
     const [data] = await db.insert(table_user).values(body).returning()
-    return { data }
+    if (!data) throw lib_error.bad_request
+    return { data: data! }
   },
 
   async update(body: Static<typeof dto_user.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_user.update.response>> {
@@ -84,6 +78,7 @@ export const service_user = {
     })
 
     const [data] = await db.update(table_user).set(body).where(eq(table_user.user_id, user_id)).returning()
-    return { data }
+    if (!data) throw lib_error.bad_request
+    return { data: data! }
   },
 }

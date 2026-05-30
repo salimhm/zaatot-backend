@@ -21,6 +21,23 @@ export const enum_contact_columns = [
 ] as const
 export const enum_contact_order_by = [...enum_contact_columns, ...enum_contact_columns.map((c) => `-${c}`)] as const
 
+export const dto_schema_contact = t.Object({
+  contact_id: t.Number(),
+  contact_phone: lib_dto_phone,
+  contact_name: t.Union([t.String(), t.Null()]),
+  contact_gender: t.Union([t.UnionEnum(enum_gender), t.Null()]),
+  contact_birthday: t.Union([t.String(), t.Null()]),
+  contact_national_id: t.Union([t.String(), t.Null()]),
+  contact_passport_id: t.Union([t.String(), t.Null()]),
+  contact_address: t.Union([t.String(), t.Null()]),
+  contact_city: t.Union([t.UnionEnum(enum_morocco_city), t.Null()]),
+  contact_country: t.Union([t.UnionEnum(enum_country), t.Null()]),
+  contact_nationality: t.Union([t.UnionEnum(enum_country), t.Null()]),
+  contact_metadata: t.Union([t.Record(t.String(), t.Unknown()), t.Null()]),
+  contact_status: t.Number(),
+  created_at: t.String(),
+})
+
 export const dto_contact = {
   find: {
     query: t.Object({
@@ -36,6 +53,7 @@ export const dto_contact = {
     }),
     response: t.Object({
       ...lib_dto_find_response,
+      data: t.Array(t.Partial(dto_schema_contact)),
     }),
   },
   create: {
@@ -51,11 +69,11 @@ export const dto_contact = {
       contact_city: t.Optional(t.UnionEnum(enum_morocco_city)),
       contact_country: t.Optional(t.UnionEnum(enum_country)),
       contact_nationality: t.Optional(t.UnionEnum(enum_country)),
-      contact_metadata: t.Optional(t.Any()),
+      contact_metadata: t.Optional(t.Union([t.Record(t.String(), t.Unknown()), t.Null()])),
       contact_status: t.Optional(t.Integer({ minimum: 0, maximum: 1 })),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_contact,
     }),
   },
   update: {
@@ -72,11 +90,11 @@ export const dto_contact = {
       contact_city: t.Optional(t.UnionEnum(enum_morocco_city)),
       contact_country: t.Optional(t.UnionEnum(enum_country)),
       contact_nationality: t.Optional(t.UnionEnum(enum_country)),
-      contact_metadata: t.Optional(t.Any()),
+      contact_metadata: t.Optional(t.Union([t.Record(t.String(), t.Unknown()), t.Null()])),
       contact_status: t.Optional(t.Integer({ minimum: 0, maximum: 1 })),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_contact,
     }),
   },
   delete: {
@@ -85,7 +103,7 @@ export const dto_contact = {
       contact_id: t.Numeric(),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_contact,
     }),
   },
 }

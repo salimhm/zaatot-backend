@@ -13,8 +13,8 @@ export async function check() {
   for (const relativePath of scanResult) {
     const fullPath = join(process.cwd(), SRC_DIR, relativePath)
     const filename = basename(relativePath)
-    const entity_name = filename.split('.')[0]!
-    const expected = `service_${entity_name.replace(/-/g, '_')}`
+    const table_name = filename.split('.')[0]!
+    const expected = `service_${table_name.replace(/-/g, '_')}`
     const module = await import(fullPath)
     if (module.default !== undefined) violations.push(`  ${relativePath} → has a default export (not allowed)`)
     if (!(expected in module)) violations.push(`  ${relativePath} → missing named export '${expected}'`)

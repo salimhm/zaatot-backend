@@ -1,7 +1,7 @@
 export const lib_error = {
   bad_request: { status: 400, code: 'bad-request' },
   file_max_size: { status: 400, code: 'file-max-size' },
-  company_max_contact: { status: 400, code: 'company-max-contact' },
+  user_max_tenants: { status: 400, code: 'user-max-tenants' },
   invalid_token: { status: 401, code: 'invalid-token' },
   invalid_otp_code: { status: 401, code: 'invalid-otp-code' },
   code_expired: { status: 401, code: 'code-expired' },
@@ -21,18 +21,18 @@ export const lib_error = {
   invalid_column: { status: 422, code: 'invalid-column' },
   action_not_defined: { status: 422, code: 'action-not-defined' },
   phone_is_required: { status: 422, code: 'phone-is-required' },
+  too_many_requests: { status: 429, code: 'too-many-requests' },
   internal_server_error: { status: 500, code: 'internal-server-error' },
   service_unavailable: { status: 503, code: 'service-unavailable' },
   tenant_schema_update_failed: { status: 500, code: 'tenant-schema-update-failed' },
-  user_max_tenants: { status: 400, code: 'user-max-tenants' },
-  too_many_requests: { status: 429, code: 'too-many-requests' },
+  tenant_not_ready: { status: 503, code: 'tenant-not-ready' },
 }
 
-export const handle_error = ({ code, error, set }: any) => {
-  const err = error as any
+export const handle_error = ({ code, error, set }: { code: string | number | unknown; error: unknown; set: { status?: number | string } }) => {
+  const err = error as { status?: number; code?: string; message?: string }
   let status = 500
   let response_code = 'internal-server-error'
-  let details: any = undefined
+  let details: string | undefined = undefined
   let is_custom_error = false
 
   if (err && typeof err === 'object') {

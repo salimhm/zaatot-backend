@@ -1,3 +1,6 @@
+import type { lib_dto_context } from '@lib/dto.lib'
+import type { Static } from 'elysia'
+
 import { Elysia } from 'elysia'
 
 import { lib_jwt } from '@lib/jwt.lib'
@@ -11,7 +14,9 @@ export const controller_tenant = new Elysia({ prefix: '/tenant' })
   .get(
     '/',
     async (context) => {
-      const { query, payload } = context as any
+      const { query, payload } = context as unknown as lib_dto_context<{
+        query: Static<typeof dto_tenant.find.query>
+      }>
       return await service_tenant.find(query, payload)
     },
     dto_tenant.find,
@@ -20,7 +25,9 @@ export const controller_tenant = new Elysia({ prefix: '/tenant' })
   .post(
     '/',
     async (context) => {
-      const { body, payload } = context as any
+      const { body, payload } = context as unknown as lib_dto_context<{
+        body: Static<typeof dto_tenant.create.body>
+      }>
       return await service_tenant.create(body, payload)
     },
     dto_tenant.create,
@@ -29,7 +36,9 @@ export const controller_tenant = new Elysia({ prefix: '/tenant' })
   .put(
     '/',
     async (context) => {
-      const { body, payload } = context as any
+      const { body, payload } = context as unknown as lib_dto_context<{
+        body: Static<typeof dto_tenant.update.body>
+      }>
       return await service_tenant.update(body, payload)
     },
     dto_tenant.update,
@@ -38,7 +47,9 @@ export const controller_tenant = new Elysia({ prefix: '/tenant' })
   .delete(
     '/',
     async (context) => {
-      const { body, payload } = context as any
+      const { body, payload } = context as unknown as lib_dto_context<{
+        body: Static<typeof dto_tenant.delete.body>
+      }>
       return await service_tenant.delete(body, payload)
     },
     dto_tenant.delete,

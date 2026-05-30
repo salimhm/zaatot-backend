@@ -42,7 +42,7 @@ export const table_tenant = sqliteTable(
   (table) => [index('tenant_user_id_idx').on(table.user_id)],
 )
 
-export const entity_user_tenant = sqliteTable(
+export const table_user_tenant = sqliteTable(
   'user_tenant',
   {
     user_tenant_id: integer('user_tenant_id').primaryKey({ autoIncrement: true }),

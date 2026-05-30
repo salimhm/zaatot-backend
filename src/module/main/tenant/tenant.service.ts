@@ -5,15 +5,17 @@ import { createClient } from '@tursodatabase/api'
 
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { db_client, db_redis_main } from '@db/client.db'
-import { current_tenant_schema_version, entity_user_tenant, table_tenant } from '@db/main.schema.db'
+import { current_tenant_schema_version, table_tenant, table_user_tenant } from '@db/main.schema.db'
 import * as schema_tenant from '@db/tenant.schema.db'
 import { select, sync_schema } from '@db/utils.db'
 
-import { dto_tenant } from '@module/main/tenant/tenant.dto'
+import { lib_error } from '@lib/error.lib'
+
+import { dto_schema_tenant, dto_tenant } from '@module/main/tenant/tenant.dto'
 
 export const service_tenant = {
   async find(query: Static<typeof dto_tenant.find.query>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.find.response>> {
-    const { tenant_id, tenant_type, tenant_name } = query as any
+    const { tenant_id, tenant_type, tenant_name } = query
     const db = await db_client()
 
     return await select({
@@ -28,12 +30,12 @@ export const service_tenant = {
         user_id: table_tenant.user_id,
         created_at: table_tenant.created_at,
       },
-      joins: [{ table_to_join: entity_user_tenant, column_to_join: 'tenant_id' }],
+      joins: [{ table_to_join: table_user_tenant, column_to_join: 'tenant_id' }],
       where: [
         [table_tenant.tenant_id, tenant_id, '[]'],
         [table_tenant.tenant_type, tenant_type, '[]'],
         [table_tenant.tenant_name, tenant_name, '%'],
-        [entity_user_tenant.user_id, [String(payload.user_id)], '[]'],
+        [table_user_tenant.user_id, [String(payload.user_id)], '[]'],
       ],
       query,
     })
@@ -49,11 +51,11 @@ export const service_tenant = {
         .where(and(eq(table_tenant.user_id, user_id), isNull(table_tenant.deleted_at)))
 
       if (user_tenants && user_tenants.count >= 12) {
-        const { lib_error } = require('@lib/error.lib.ts')
         throw lib_error.user_max_tenants
       }
-    } catch (error: any) {
-      if (error?.code !== 'not-found-tenant') throw error
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      if (err?.code !== 'not-found-tenant') throw error
     }
 
     const db = await db_client()
@@ -64,49 +66,54 @@ export const service_tenant = {
       .returning()
 
     if (!data) {
-      const { lib_error } = require('@lib/error.lib.ts')
       throw lib_error.bad_request
     }
 
     const { tenant_id } = data
 
-    const turso = createClient({
-      org: process.env.TURSO_ORG_NAME!,
-      token: process.env.TURSO_API_TOKEN!,
-    })
-
-    const { id: tenant_db_id, hostname: tenant_db_url } = await turso.databases.create(
-      `db-${process.env.NAME}-${process.env.ENV}-tenant-${tenant_id}`,
-      {
-        group: process.env.TURSO_GROUP_NAME!,
-      },
-    )
-
-    const [result] = await db
-      .update(table_tenant)
-      .set({
-        ...body,
-        tenant_db_id,
-        tenant_db_url,
-      })
-      .where(eq(table_tenant.tenant_id, tenant_id))
-      .returning()
-
-    await this.migrate_schema(tenant_id)
-
-    const { service_access } = await import('@module/tenant/access/access.service')
-    await service_access.create_access_for_owner(tenant_id, user_id)
-
-    await db.insert(entity_user_tenant).values({
+    await db.insert(table_user_tenant).values({
       user_id,
       tenant_id,
     })
 
-    return { data: result }
+    void this.provision_tenant_db(tenant_id, user_id)
+
+    return { data: data! as unknown as Static<typeof dto_schema_tenant> }
+  },
+
+  async provision_tenant_db(tenant_id: number, user_id: number): Promise<void> {
+    try {
+      const turso = createClient({
+        org: process.env.TURSO_ORG_NAME!,
+        token: process.env.TURSO_API_TOKEN!,
+      })
+
+      const { id: tenant_db_id, hostname: tenant_db_url } = await turso.databases.create(
+        `db-${process.env.NAME}-${process.env.ENV}-tenant-${tenant_id}`,
+        {
+          group: process.env.TURSO_GROUP_NAME!,
+        },
+      )
+
+      const db = await db_client()
+      await db
+        .update(table_tenant)
+        .set({
+          tenant_db_id,
+          tenant_db_url,
+        })
+        .where(eq(table_tenant.tenant_id, tenant_id))
+
+      await this.migrate_schema(tenant_id)
+
+      const { service_access } = await import('@module/tenant/access/access.service')
+      await service_access.create_access_for_owner(tenant_id, user_id)
+    } catch (error) {
+      console.error(error)
+    }
   },
 
   async update(body: Static<typeof dto_tenant.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.update.response>> {
-    const { lib_error } = require('@lib/error.lib.ts')
     const { tenant_id, ...updates } = body
     const db = await db_client()
 
@@ -118,11 +125,10 @@ export const service_tenant = {
 
     if (!data) throw lib_error.not_found
 
-    return { data }
+    return { data: data! as unknown as Static<typeof dto_schema_tenant> }
   },
 
   async delete(body: Static<typeof dto_tenant.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.delete.response>> {
-    const { lib_error } = require('@lib/error.lib.ts')
     const { tenant_id } = body
     const db = await db_client()
 
@@ -134,12 +140,16 @@ export const service_tenant = {
 
     if (!data) throw lib_error.not_found
 
-    return { data }
+    return { data: data! as unknown as Static<typeof dto_schema_tenant> }
   },
 
   async migrate_schema(tenant_id: number): Promise<void> {
     const migration_key = `tenant:${tenant_id}:schema_version`
     const cached_version = await db_redis_main.get(migration_key)
+
+    if (cached_version === 'NOT_READY') {
+      throw lib_error.tenant_not_ready
+    }
 
     if (cached_version === String(current_tenant_schema_version) || cached_version === 'NOT_FOUND') return
 
@@ -149,6 +159,7 @@ export const service_tenant = {
       .select({
         tenant_schema_version: table_tenant.tenant_schema_version,
         tenant_type: table_tenant.tenant_type,
+        tenant_db_id: table_tenant.tenant_db_id,
       })
       .from(table_tenant)
       .where(eq(table_tenant.tenant_id, tenant_id))
@@ -158,7 +169,18 @@ export const service_tenant = {
       return
     }
 
+    if (!data.tenant_db_id) {
+      await db_redis_main.set(migration_key, 'NOT_READY', 'EX', 5)
+      throw lib_error.tenant_not_ready
+    }
+
     if (data.tenant_schema_version !== current_tenant_schema_version) {
+      const lock_key = `lock:tenant:${tenant_id}:migration`
+      const is_locked = await db_redis_main.set(lock_key, '1', 'NX', 'PX', '30000')
+      if (is_locked !== 'OK') {
+        throw lib_error.tenant_not_ready
+      }
+
       try {
         console.log(`🚀 Updating tenant ${tenant_id} schema to version ${current_tenant_schema_version}...`)
         const db_tenant = await db_client({ tenant_id })
@@ -169,8 +191,9 @@ export const service_tenant = {
         console.log(`✅ Tenant ${tenant_id} schema updated successfully.`)
       } catch (error) {
         console.error(`❌ Migration failed for tenant ${tenant_id}:`, error)
-        const { lib_error } = require('@lib/error.lib.ts')
         throw lib_error.tenant_schema_update_failed
+      } finally {
+        await db_redis_main.del(lock_key)
       }
     }
 

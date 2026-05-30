@@ -3,6 +3,8 @@ import { t } from 'elysia'
 import { lib_dto_phone } from '@lib/dto.lib'
 import { enum_otp_action } from '@lib/enum.lib'
 
+import { dto_schema_user } from '@module/main/user/user.dto'
+
 export const dto_auth = {
   otp_send: {
     body: t.Object({
@@ -17,12 +19,11 @@ export const dto_auth = {
     body: t.Object({
       user_phone: lib_dto_phone,
       otp_code: t.String({ minLength: 4, maxLength: 4 }),
-      // Required only for 'register' action
       user_first_name: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
       user_last_name: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_user,
       token: t.String(),
     }),
   },

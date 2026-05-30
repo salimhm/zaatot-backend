@@ -1,3 +1,6 @@
+import type { lib_dto_context } from '@lib/dto.lib'
+import type { Static } from 'elysia'
+
 import { Elysia } from 'elysia'
 
 import { lib_jwt } from '@lib/jwt.lib'
@@ -6,13 +9,14 @@ import { dto_contact } from '@module/tenant/contact/contact.dto'
 import { service_contact } from '@module/tenant/contact/contact.service'
 
 export const controller_contact = new Elysia({ prefix: '/contact' })
-
   .use(lib_jwt)
 
   .get(
     '/',
     async (context) => {
-      const { query, payload } = context as any
+      const { query, payload } = context as unknown as lib_dto_context<{
+        query: Static<typeof dto_contact.find.query>
+      }>
 
       return await service_contact.find(query, payload)
     },
@@ -22,7 +26,9 @@ export const controller_contact = new Elysia({ prefix: '/contact' })
   .post(
     '/',
     async (context) => {
-      const { body, payload } = context as any
+      const { body, payload } = context as unknown as lib_dto_context<{
+        body: Static<typeof dto_contact.create.body>
+      }>
 
       return await service_contact.create(body, payload)
     },
@@ -32,7 +38,9 @@ export const controller_contact = new Elysia({ prefix: '/contact' })
   .patch(
     '/',
     async (context) => {
-      const { body, payload } = context as any
+      const { body, payload } = context as unknown as lib_dto_context<{
+        body: Static<typeof dto_contact.update.body>
+      }>
 
       return await service_contact.update(body, payload)
     },
@@ -42,7 +50,9 @@ export const controller_contact = new Elysia({ prefix: '/contact' })
   .delete(
     '/',
     async (context) => {
-      const { body, payload } = context as any
+      const { body, payload } = context as unknown as lib_dto_context<{
+        body: Static<typeof dto_contact.delete.body>
+      }>
 
       return await service_contact.delete(body, payload)
     },

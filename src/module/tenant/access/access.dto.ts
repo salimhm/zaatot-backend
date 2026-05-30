@@ -6,6 +6,13 @@ import { enum_access_action } from '@lib/enum.lib'
 export const enum_access_columns = ['access_id', 'user_id', 'actions', 'created_at'] as const
 export const enum_access_order_by = [...enum_access_columns, ...enum_access_columns.map((c) => `-${c}`)] as const
 
+export const dto_schema_access = t.Object({
+  access_id: t.Number(),
+  user_id: t.Number(),
+  actions: t.Array(t.UnionEnum(enum_access_action)),
+  created_at: t.String(),
+})
+
 export const dto_access = {
   find: {
     query: t.Object({
@@ -18,6 +25,7 @@ export const dto_access = {
     }),
     response: t.Object({
       ...lib_dto_find_response,
+      data: t.Array(t.Partial(dto_schema_access)),
     }),
   },
   create: {
@@ -27,7 +35,7 @@ export const dto_access = {
       actions: t.Array(t.UnionEnum(enum_access_action)),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_access,
     }),
   },
   update: {
@@ -37,7 +45,7 @@ export const dto_access = {
       actions: t.Array(t.UnionEnum(enum_access_action)),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_access,
     }),
   },
   delete: {
@@ -46,7 +54,7 @@ export const dto_access = {
       user_id: t.Numeric(),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_access,
     }),
   },
   check_tenant: {
@@ -54,7 +62,7 @@ export const dto_access = {
       tenant_id: t.Numeric(),
     }),
     response: t.Object({
-      data: t.Any(),
+      data: dto_schema_access,
     }),
   },
 }

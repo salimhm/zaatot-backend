@@ -13,7 +13,7 @@ import { lib_error } from '@lib/error.lib'
 import { storage_object_main } from '@storage/client.storage'
 
 import { service_access } from '@module/tenant/access/access.service'
-import { dto_file } from '@module/tenant/file/file.dto'
+import { dto_file, dto_schema_file } from '@module/tenant/file/file.dto'
 
 export const service_file = {
   async find(query: Static<typeof dto_file.find.query>, payload: lib_dto_payload): Promise<Static<typeof dto_file.find.response>> {
@@ -79,7 +79,8 @@ export const service_file = {
       const db = await db_client({ tenant_id })
       const [data] = await db.insert(table_file).values({ file_id, file_name: resolved_file_name, user_id }).returning()
 
-      return { data }
+      if (!data) throw lib_error.bad_request
+      return { data: data! as unknown as Static<typeof dto_schema_file> }
     } catch (error) {
       throw lib_error.internal_server_error
     }
@@ -96,7 +97,9 @@ export const service_file = {
       .set({ file_name })
       .where(and(eq(table_file.file_id, file_id), eq(table_file.user_id, user_id)))
       .returning()
-    return { data }
+
+    if (!data) throw lib_error.not_found
+    return { data: data! as unknown as Static<typeof dto_schema_file> }
   },
 
   async delete(body: Static<typeof dto_file.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_file.delete.response>> {
@@ -112,6 +115,7 @@ export const service_file = {
       .where(and(eq(table_file.file_id, file_id), eq(table_file.user_id, user_id)))
       .returning()
 
-    return { data }
+    if (!data) throw lib_error.not_found
+    return { data: data! as unknown as Static<typeof dto_schema_file> }
   },
 }
