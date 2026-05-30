@@ -15,7 +15,9 @@ export async function check() {
         const import_path = node.moduleSpecifier.text
         if (import_path === '@lib/enum.lib') {
           const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart())
-          violations.push(`  src/${relativePath}:${line + 1} → '${import_path}' (Do not import application enums in database files to prevent migration issues)`)
+          violations.push(
+            `  src/${relativePath}:${line + 1} → '${import_path}' (Do not import application enums in database files to prevent migration issues)`,
+          )
         }
       }
     })

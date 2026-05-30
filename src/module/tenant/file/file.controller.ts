@@ -16,7 +16,8 @@ export const controller_file = new Elysia({ prefix: '/file' })
     async (context) => {
       const { query, payload } = context as lib_dto_context<{
         query: Static<typeof dto_file.find.query>
-      }> & typeof context
+      }> &
+        typeof context
 
       return await service_file.find(query, payload)
     },
@@ -28,7 +29,8 @@ export const controller_file = new Elysia({ prefix: '/file' })
     async (context) => {
       const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_file.create.body>
-      }> & typeof context
+      }> &
+        typeof context
       return await service_file.create(body, payload)
     },
     dto_file.create,
@@ -39,7 +41,8 @@ export const controller_file = new Elysia({ prefix: '/file' })
     async (context) => {
       const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_file.update.body>
-      }> & typeof context
+      }> &
+        typeof context
 
       return await service_file.update(body, payload)
     },
@@ -51,7 +54,8 @@ export const controller_file = new Elysia({ prefix: '/file' })
     async (context) => {
       const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_file.delete.body>
-      }> & typeof context
+      }> &
+        typeof context
 
       return await service_file.delete(body, payload)
     },

@@ -16,7 +16,8 @@ export const controller_contact = new Elysia({ prefix: '/contact' })
     async (context) => {
       const { query, payload } = context as lib_dto_context<{
         query: Static<typeof dto_contact.find.query>
-      }> & typeof context
+      }> &
+        typeof context
 
       return await service_contact.find(query, payload)
     },
@@ -28,7 +29,8 @@ export const controller_contact = new Elysia({ prefix: '/contact' })
     async (context) => {
       const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_contact.create.body>
-      }> & typeof context
+      }> &
+        typeof context
 
       return await service_contact.create(body, payload)
     },
@@ -40,7 +42,8 @@ export const controller_contact = new Elysia({ prefix: '/contact' })
     async (context) => {
       const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_contact.update.body>
-      }> & typeof context
+      }> &
+        typeof context
 
       return await service_contact.update(body, payload)
     },
@@ -52,7 +55,8 @@ export const controller_contact = new Elysia({ prefix: '/contact' })
     async (context) => {
       const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_contact.delete.body>
-      }> & typeof context
+      }> &
+        typeof context
 
       return await service_contact.delete(body, payload)
     },

@@ -16,7 +16,8 @@ export const controller_tenant = new Elysia({ prefix: '/tenant' })
     async (context) => {
       const { query, payload } = context as lib_dto_context<{
         query: Static<typeof dto_tenant.find.query>
-      }> & typeof context
+      }> &
+        typeof context
       return await service_tenant.find(query, payload)
     },
     dto_tenant.find,
@@ -27,18 +28,20 @@ export const controller_tenant = new Elysia({ prefix: '/tenant' })
     async (context) => {
       const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_tenant.create.body>
-      }> & typeof context
+      }> &
+        typeof context
       return await service_tenant.create(body, payload)
     },
     dto_tenant.create,
   )
 
-  .put(
+  .patch(
     '/',
     async (context) => {
       const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_tenant.update.body>
-      }> & typeof context
+      }> &
+        typeof context
       return await service_tenant.update(body, payload)
     },
     dto_tenant.update,
@@ -49,7 +52,8 @@ export const controller_tenant = new Elysia({ prefix: '/tenant' })
     async (context) => {
       const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_tenant.delete.body>
-      }> & typeof context
+      }> &
+        typeof context
       return await service_tenant.delete(body, payload)
     },
     dto_tenant.delete,
