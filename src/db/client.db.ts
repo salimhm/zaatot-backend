@@ -13,7 +13,7 @@ interface cached_connection {
 }
 
 const main_cache = new Map<string, cached_connection>()
-const max_cached_tenants = Number(process.env.DB_MAX_CACHED_TENANTS) || 720
+const max_cached_tenants = Number(process.env.DB_MAX_CACHED_TENANTS) || 1200
 const tenant_cache = new Map<number, cached_connection>()
 
 export function get_tenant_url(tenant_id: number): string {
@@ -66,3 +66,23 @@ export function db_client(options: { url?: string; token?: string; tenant_id?: n
 }
 
 export const db_redis_main = new RedisClient(process.env.REDIS_DB_MAIN_URL!)
+
+export function close_all_connections() {
+  for (const cached of tenant_cache.values()) {
+    try {
+      cached.client.close()
+    } catch {}
+  }
+  tenant_cache.clear()
+
+  for (const cached of main_cache.values()) {
+    try {
+      cached.client.close()
+    } catch {}
+  }
+  main_cache.clear()
+
+  try {
+    db_redis_main.close()
+  } catch {}
+}

@@ -52,6 +52,10 @@ mock.module('@aws-sdk/client-s3', () => ({
   PutObjectCommand: class {},
 }))
 
+mock.module('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: mock(() => Promise.resolve('https://mock-presigned-url.com/file.jpg')),
+}))
+
 describe('File Service', () => {
   it('should find files successfully', async () => {
     const result = await service_file.find(
@@ -68,13 +72,11 @@ describe('File Service', () => {
   })
 
   it('should create a file successfully', async () => {
-    const file_content = new Blob(['mock-data'], { type: 'image/jpeg' })
-    const mock_file = new File([file_content], 'file.jpg', { type: 'image/jpeg' })
-
     const body = {
       tenant_id: 1,
-      file: mock_file,
       file_name: 'file.jpg',
+      file_type: 'image/jpeg',
+      file_size: 1024,
     }
     const payload = {
       user_id: 1,
@@ -82,6 +84,7 @@ describe('File Service', () => {
 
     const result = await service_file.create(body, payload)
 
+    expect(result.upload_url).toBe('https://mock-presigned-url.com/file.jpg')
     expect(result.data).toBeDefined()
     expect(result.data.file_id).toBeDefined()
     expect(result.data.user_id).toBe(1)

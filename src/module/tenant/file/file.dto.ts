@@ -31,10 +31,12 @@ export const dto_file = {
   create: {
     body: t.Object({
       tenant_id: t.Numeric(),
-      file: t.File({ format: 'image/*,video/*,audio/*' }),
-      file_name: t.Optional(t.String({ maxLength: 127 })),
+      file_name: t.String({ maxLength: 127 }),
+      file_type: t.String(),
+      file_size: t.Number(),
     }),
     response: t.Object({
+      upload_url: t.String(),
       data: dto_schema_file,
     }),
   },
