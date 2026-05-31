@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const table_user = sqliteTable(
   'user',
@@ -15,14 +15,16 @@ export const table_user = sqliteTable(
     deleted_at: text('deleted_at'),
   },
   (table) => [
-    index('user_phone_idx').on(table.user_phone),
+    uniqueIndex('user_phone_idx')
+      .on(table.user_phone)
+      .where(sql`deleted_at IS NULL`),
     index('user_first_name_idx').on(table.user_first_name),
     index('user_last_name_idx').on(table.user_last_name),
     index('user_deleted_at_idx').on(table.deleted_at),
   ],
 )
 
-export const current_tenant_schema_version = '0.0.5'
+export const current_tenant_schema_version = '0.0.6'
 
 export const table_tenant = sqliteTable(
   'tenant',
@@ -56,6 +58,9 @@ export const table_user_tenant = sqliteTable(
   (table) => [
     index('user_tenant_user_id_idx').on(table.user_id),
     index('user_tenant_tenant_id_idx').on(table.tenant_id),
+    uniqueIndex('user_tenant_user_id_tenant_id_idx')
+      .on(table.user_id, table.tenant_id)
+      .where(sql`deleted_at IS NULL`),
     index('user_tenant_deleted_at_idx').on(table.deleted_at),
   ],
 )

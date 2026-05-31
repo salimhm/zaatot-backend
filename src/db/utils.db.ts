@@ -4,7 +4,7 @@ import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 
 import { and, asc, between, desc, eq, gt, gte, inArray, isNull, like, lt, lte, ne, or, sql } from 'drizzle-orm'
-import { getTableConfig } from 'drizzle-orm/sqlite-core'
+import { getTableConfig, SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import { db_redis_main } from '@db/client.db'
 
 import { lib_error } from '@lib/error.lib'
@@ -261,11 +261,16 @@ export const sync_add_table = async (db: LibSQLDatabase<Record<string, unknown>>
     await db.run(sql.raw(query))
 
     if (table_config.indexes && table_config.indexes.length > 0) {
+      const dialect = new SQLiteSyncDialect()
       for (const index of table_config.indexes) {
-        const idx = index as { config: { columns: { name: string }[]; unique: boolean; name: string } }
+        const idx = index as { config: { columns: { name: string }[]; unique: boolean; name: string; where?: SQL } }
         const col_names = idx.config.columns.map((c) => c.name).join(', ')
         const unique = idx.config.unique ? 'UNIQUE ' : ''
-        const idx_query = `CREATE ${unique}INDEX IF NOT EXISTS ${idx.config.name} ON ${table_name} (${col_names})`
+        let where_clause = ''
+        if (idx.config.where) {
+          where_clause = ` WHERE ${dialect.sqlToQuery(idx.config.where).sql}`
+        }
+        const idx_query = `CREATE ${unique}INDEX IF NOT EXISTS ${idx.config.name} ON ${table_name} (${col_names})${where_clause}`
         console.log(`[SYNC] ADD INDEX >>`, idx_query)
         await db.run(sql.raw(idx_query))
       }
@@ -314,13 +319,18 @@ export const sync_add_column = async (
     console.log(`[SYNC] ADD COLUMN >>`, query)
     await db.run(sql.raw(query))
 
+    const dialect = new SQLiteSyncDialect()
     for (const index of indexes) {
-      const idx = index as { config: { columns: { name: string }[]; unique: boolean; name: string } }
+      const idx = index as { config: { columns: { name: string }[]; unique: boolean; name: string; where?: SQL } }
       const is_dependent = idx.config.columns.some((c) => c.name === col.name)
       if (is_dependent) {
         const col_names = idx.config.columns.map((c) => c.name).join(', ')
         const unique = idx.config.unique ? 'UNIQUE ' : ''
-        const idx_query = `CREATE ${unique}INDEX IF NOT EXISTS ${idx.config.name} ON ${table_name} (${col_names})`
+        let where_clause = ''
+        if (idx.config.where) {
+          where_clause = ` WHERE ${dialect.sqlToQuery(idx.config.where).sql}`
+        }
+        const idx_query = `CREATE ${unique}INDEX IF NOT EXISTS ${idx.config.name} ON ${table_name} (${col_names})${where_clause}`
         console.log(`[SYNC] ADD INDEX (NEW COLUMN) >>`, idx_query)
         await db.run(sql.raw(idx_query))
       }
@@ -393,6 +403,30 @@ export const sync_schema = async (db: LibSQLDatabase<Record<string, unknown>>, t
       }
       for (const col_name of columns_to_remove) {
         await sync_remove_column(db, table_name, col_name)
+      }
+
+      const current_indexes_res = (await db.run(sql`PRAGMA index_list(${sql.raw(table_name)})`)) as unknown as {
+        rows: { name: string; origin: string }[]
+      }
+
+      for (const row of current_indexes_res.rows) {
+        if (row.origin === 'c') {
+          await db.run(sql.raw(`DROP INDEX IF EXISTS ${row.name}`))
+        }
+      }
+
+      const dialect = new SQLiteSyncDialect()
+      for (const index of table_config.indexes || []) {
+        const idx = index as { config: { columns: { name: string }[]; unique: boolean; name: string; where?: SQL } }
+        const col_names = idx.config.columns.map((c) => c.name).join(', ')
+        const unique = idx.config.unique ? 'UNIQUE ' : ''
+        let where_clause = ''
+        if (idx.config.where) {
+          where_clause = ` WHERE ${dialect.sqlToQuery(idx.config.where).sql}`
+        }
+        const idx_query = `CREATE ${unique}INDEX IF NOT EXISTS ${idx.config.name} ON ${table_name} (${col_names})${where_clause}`
+        console.log(`[SYNC] RECREATE INDEX >>`, idx_query)
+        await db.run(sql.raw(idx_query))
       }
     }
   }
