@@ -450,10 +450,8 @@ export const sync_schema = async (db: LibSQLDatabase<Record<string, unknown>>, t
 
 export const check_rate_limit = async (options: { key: string; limit: number; duration: number }): Promise<void> => {
   const { key, limit, duration } = options
+  await db_redis_main.set(key, '0', 'NX', 'EX', String(duration))
   const current = await db_redis_main.incr(key)
-  if (current === 1) {
-    await db_redis_main.expire(key, duration)
-  }
   if (current > limit) {
     throw lib_error.too_many_requests
   }

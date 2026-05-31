@@ -17,7 +17,7 @@ export const service_contact = {
 
     await service_access.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     return await select({
       db,
@@ -61,7 +61,7 @@ export const service_contact = {
       if (err?.code !== 'not-found-contact') throw error
     }
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     const [data] = await db.insert(table_contact).values(contact_data).returning()
 
@@ -76,7 +76,7 @@ export const service_contact = {
     await service_access.check_access(tenant_id, payload)
     await this.find({ columns: ['contact_id'], tenant_id, contact_id: [contact_id] }, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     const [data] = await db
       .update(table_contact)
@@ -95,7 +95,7 @@ export const service_contact = {
     await service_access.check_access(tenant_id, payload)
     await this.find({ columns: ['contact_id'], tenant_id, contact_id: [contact_id] }, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     const [data] = await db
       .update(table_contact)

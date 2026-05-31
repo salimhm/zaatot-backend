@@ -21,7 +21,7 @@ export const service_file = {
 
     await service_access.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     return await select({
       db,
@@ -81,7 +81,7 @@ export const service_file = {
 
       await storage_object_main.send(command)
 
-      const db = await db_client({ tenant_id })
+      const db = db_client({ tenant_id })
       const [data] = await db.insert(table_file).values({ file_id, file_name: resolved_file_name, user_id }).returning()
 
       if (!data) throw lib_error.bad_request
@@ -99,7 +99,7 @@ export const service_file = {
     const { user_id } = payload
     await service_access.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
     const [data] = await db
       .update(table_file)
       .set({ file_name })
@@ -116,7 +116,7 @@ export const service_file = {
     const { user_id } = payload
     await service_access.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     const [data] = await db
       .update(table_file)

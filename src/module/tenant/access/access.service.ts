@@ -16,7 +16,7 @@ export const service_access = {
     const { tenant_id, user_id } = query
     await this.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     return await select({
       db,
@@ -36,7 +36,7 @@ export const service_access = {
     const { tenant_id, user_id, actions } = body
     await this.check_access(tenant_id, payload)
 
-    const db_tenant = await db_client({ tenant_id })
+    const db_tenant = db_client({ tenant_id })
     const [data] = await db_tenant
       .insert(table_access)
       .values({
@@ -54,7 +54,7 @@ export const service_access = {
     const { tenant_id, user_id, actions } = body
     await this.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
     const [data] = await db
       .update(table_access)
       .set({ actions })
@@ -70,7 +70,7 @@ export const service_access = {
     const { tenant_id, user_id } = body
     await this.check_access(tenant_id, payload)
 
-    const db_tenant = await db_client({ tenant_id })
+    const db_tenant = db_client({ tenant_id })
     const [data] = await db_tenant
       .update(table_access)
       .set({ deleted_at: new Date().toISOString() })
@@ -83,7 +83,7 @@ export const service_access = {
   },
 
   async create_access_for_owner(tenant_id: number, user_id: number): Promise<void> {
-    const db_tenant = await db_client({ tenant_id })
+    const db_tenant = db_client({ tenant_id })
     await db_tenant.insert(table_access).values({
       user_id,
       actions: ['owner'],
@@ -93,7 +93,7 @@ export const service_access = {
   async check_access(tenant_id: number, payload: lib_dto_payload, required_access: ((typeof enum_access_action)[number] | 'owner')[] = ['owner']) {
     if (payload.user_id <= -1) return
     try {
-      const db = await db_client({ tenant_id })
+      const db = db_client({ tenant_id })
       const [access] = await db
         .select({ actions: table_access.actions })
         .from(table_access)

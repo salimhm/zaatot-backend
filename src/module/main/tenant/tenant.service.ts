@@ -16,7 +16,7 @@ import { dto_schema_tenant, dto_tenant } from '@module/main/tenant/tenant.dto'
 export const service_tenant = {
   async find(query: Static<typeof dto_tenant.find.query>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.find.response>> {
     const { tenant_id, tenant_type, tenant_name } = query
-    const db = await db_client()
+    const db = db_client()
 
     return await select({
       db,
@@ -44,7 +44,7 @@ export const service_tenant = {
   async create(body: Static<typeof dto_tenant.create.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.create.response>> {
     const { user_id } = payload
     try {
-      const db = await db_client()
+      const db = db_client()
       const [user_tenants] = await db
         .select({ count: sql<number>`cast(count(*) as integer)` })
         .from(table_tenant)
@@ -59,7 +59,7 @@ export const service_tenant = {
       if (err?.code !== 'not-found-tenant') throw error
     }
 
-    const db = await db_client()
+    const db = db_client()
 
     const [data] = await db
       .insert(table_tenant)
@@ -97,7 +97,7 @@ export const service_tenant = {
         },
       )
 
-      const db = await db_client()
+      const db = db_client()
       await db
         .update(table_tenant)
         .set({
@@ -117,7 +117,7 @@ export const service_tenant = {
 
   async update(body: Static<typeof dto_tenant.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.update.response>> {
     const { tenant_id, ...updates } = body
-    const db = await db_client()
+    const db = db_client()
 
     const [data] = await db
       .update(table_tenant)
@@ -133,7 +133,7 @@ export const service_tenant = {
 
   async delete(body: Static<typeof dto_tenant.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.delete.response>> {
     const { tenant_id } = body
-    const db = await db_client()
+    const db = db_client()
 
     const [data] = await db
       .update(table_tenant)
@@ -157,7 +157,7 @@ export const service_tenant = {
 
     if (cached_version === String(current_tenant_schema_version) || cached_version === 'NOT_FOUND') return
 
-    const db = await db_client()
+    const db = db_client()
 
     const [data] = await db
       .select({
@@ -187,7 +187,7 @@ export const service_tenant = {
 
       try {
         console.log(`🚀 Updating tenant ${tenant_id} schema to version ${current_tenant_schema_version}...`)
-        const db_tenant = await db_client({ tenant_id })
+        const db_tenant = db_client({ tenant_id })
 
         await sync_schema(db_tenant, schema_tenant)
 

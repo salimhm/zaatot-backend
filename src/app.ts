@@ -1,3 +1,5 @@
+import '@lib/env.lib'
+
 import { Elysia } from 'elysia'
 
 import { cors } from '@elysiajs/cors'

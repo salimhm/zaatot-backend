@@ -8,32 +8,70 @@ description: Required code pattern for all database client or tables schema gene
 
 1. **Client file (client.db.ts)**: Strictly follow this pattern!
 ```typescript
-import { drizzle } from "drizzle-orm/libsql"
-import { createClient } from "@libsql/client"
-import { RedisClient } from "bun"
+import type { Client } from '@libsql/client'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 
-export function get_tenant_url(organization_id: number): string {
-  const db_name = `db-${process.env.NAME}-${process.env.ENV}-organization-${organization_id}`
-  return `libsql://${db_name}-${process.env.TURSO_ORG_NAME}.turso.io`
+import { RedisClient } from 'bun'
+
+import { createClient } from '@libsql/client'
+
+import { drizzle } from 'drizzle-orm/libsql'
+
+interface cached_connection {
+  db: LibSQLDatabase<Record<string, unknown>>
+  client: Client
 }
 
-export async function db_client(options: { url?: string, token?: string, organization_id?: number } = {}) {
-  const { url, token, organization_id } = options;
+const main_cache = new Map<string, cached_connection>()
+const max_cached_tenants = Number(process.env.DB_MAX_CACHED_TENANTS) || 720
+const tenant_cache = new Map<number, cached_connection>()
 
-  const resolved_url = organization_id 
-    ? get_tenant_url(organization_id)
-    : (url || process.env.TURSO_DB_MAIN_URL!)
+export function get_tenant_url(tenant_id: number): string {
+  const db_name = `db-${process.env.NAME}-${process.env.ENV}-tenant-${tenant_id}`
+  return `https://${db_name}-${process.env.TURSO_ORG_NAME}.turso.io`
+}
 
-  const resolved_token = organization_id
-    ? (token || process.env.TURSO_GROUP_TOKEN!)
-    : (token || process.env.TURSO_DB_MAIN_TOKEN!)
+export async function db_client(options: { url?: string; token?: string; tenant_id?: number } = {}) {
+  const { url, token, tenant_id } = options
 
-  return drizzle(
-    createClient({
-      url: resolved_url,
-      authToken: resolved_token,
-    }),
-  )
+  if (tenant_id != null) {
+    if (tenant_cache.has(tenant_id)) {
+      const cached = tenant_cache.get(tenant_id)!
+      tenant_cache.delete(tenant_id)
+      tenant_cache.set(tenant_id, cached)
+      return cached.db
+    }
+
+    if (tenant_cache.size >= max_cached_tenants) {
+      const oldest_key = tenant_cache.keys().next().value
+      if (oldest_key !== undefined) {
+        const oldest = tenant_cache.get(oldest_key)
+        if (oldest) {
+          oldest.client.close()
+        }
+        tenant_cache.delete(oldest_key)
+      }
+    }
+
+    const resolved_url = get_tenant_url(tenant_id)
+    const resolved_token = token || process.env.TURSO_GROUP_TOKEN!
+    const client = createClient({ url: resolved_url, authToken: resolved_token })
+    const db = drizzle(client) as LibSQLDatabase<Record<string, unknown>>
+    tenant_cache.set(tenant_id, { db, client })
+    return db
+  }
+
+  const resolved_url = url || process.env.TURSO_DB_MAIN_URL!
+  const resolved_token = token || process.env.TURSO_DB_MAIN_TOKEN!
+  const main_key = `${resolved_url}:${resolved_token}`
+
+  const cached = main_cache.get(main_key)
+  if (cached) return cached.db
+
+  const client = createClient({ url: resolved_url, authToken: resolved_token })
+  const db = drizzle(client) as LibSQLDatabase<Record<string, unknown>>
+  main_cache.set(main_key, { db, client })
+  return db
 }
 
 export const db_redis_main = new RedisClient(process.env.REDIS_DB_MAIN_URL!)

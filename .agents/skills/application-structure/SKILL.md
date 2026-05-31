@@ -34,6 +34,7 @@ src/
 ├── lib/
 │   ├── dto.lib.ts # GLOBAL REUSED DTO's
 │   ├── enum.lib.ts # GLOBAL REUSED ENUM's
+│   ├── env.lib.ts # STARTUP ENV VALIDATION
 │   ├── error.lib.ts # GLOBAL REUSED ERROR's
 │   ├── jwt.lib.ts # GLOBAL REUSED JWT CONFIG
 │   └── middleware.lib.ts # GLOBAL REUSED MIDDLEWARE & HOOKS
