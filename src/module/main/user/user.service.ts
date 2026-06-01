@@ -35,7 +35,7 @@ const check_unique = async (
 export const service_user = {
   async find(query: Static<typeof dto_user.find.query>): Promise<Static<typeof dto_user.find.response>> {
     const { user_id, user_phone, user_first_name, user_last_name } = query
-    const db = await db_client()
+    const db = db_client()
     return await select({
       db,
       table: table_user,
@@ -57,7 +57,7 @@ export const service_user = {
   },
 
   async create(body: Static<typeof dto_user.create.body>): Promise<Static<typeof dto_user.create.response>> {
-    const db = await db_client()
+    const db = db_client()
 
     await check_unique(db, {
       user_phone: body.user_phone,
@@ -65,12 +65,13 @@ export const service_user = {
 
     const [data] = await db.insert(table_user).values(body).returning()
     if (!data) throw lib_error.bad_request
-    return { data: data! }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data }
   },
 
   async update(body: Static<typeof dto_user.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_user.update.response>> {
     const { user_id } = payload
-    const db = await db_client()
+    const db = db_client()
 
     await check_unique(db, {
       user_phone: body.user_phone,
@@ -79,6 +80,7 @@ export const service_user = {
 
     const [data] = await db.update(table_user).set(body).where(eq(table_user.user_id, user_id)).returning()
     if (!data) throw lib_error.bad_request
-    return { data: data! }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data }
   },
 }

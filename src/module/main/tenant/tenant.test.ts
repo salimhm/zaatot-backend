@@ -23,13 +23,15 @@ const mock_db = {
   })),
 }
 
+const mock_redis = {
+  get: mock(() => Promise.resolve(null)),
+  set: mock(() => Promise.resolve('OK')),
+  del: mock(() => Promise.resolve(1)),
+}
+
 mock.module('@db/client.db', () => ({
-  db_client: mock(() => Promise.resolve(mock_db)),
-  db_redis_main: {
-    get: mock(() => Promise.resolve(null)),
-    set: mock(() => Promise.resolve('OK')),
-    del: mock(() => Promise.resolve(1)),
-  },
+  db_client: mock(() => mock_db),
+  db_redis_main: mock_redis,
   current_tenant_schema_version: '0.0.5',
 }))
 
@@ -83,6 +85,22 @@ describe('Tenant Service', () => {
     expect(result.data.tenant_name).toBe('Acme')
   })
 
+  it('should throw user-max-tenants when limit is reached', async () => {
+    mock_db.select.mockImplementationOnce(() => ({
+      from: mock(() => ({
+        where: mock(() => Promise.resolve([{ count: 12, tenant_schema_version: '0.0.0', tenant_type: 'user', tenant_db_id: 'db-id' }])),
+      })),
+    }))
+
+    try {
+      await service_tenant.create({ tenant_name: 'Over Limit', tenant_type: 'user' as const }, { user_id: 1 })
+      expect(true).toBe(false)
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      expect(err.code).toBe('user-max-tenants')
+    }
+  })
+
   it('should update a tenant successfully', async () => {
     const body = {
       tenant_id: 1,
@@ -126,20 +144,21 @@ describe('Tenant Service', () => {
     try {
       await service_tenant.migrate_schema(1)
       expect(true).toBe(false)
-    } catch (error: any) {
-      expect(error.code).toBe('tenant-not-ready')
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      expect(err.code).toBe('tenant-not-ready')
     }
   })
 
   it('should throw tenant-not-ready if migration lock is already held', async () => {
-    const { db_redis_main } = require('@db/client.db')
-    db_redis_main.set.mockImplementationOnce(() => Promise.resolve(null))
+    mock_redis.set.mockImplementationOnce(() => Promise.resolve(null as unknown as string))
 
     try {
       await service_tenant.migrate_schema(1)
       expect(true).toBe(false)
-    } catch (error: any) {
-      expect(error.code).toBe('tenant-not-ready')
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      expect(err.code).toBe('tenant-not-ready')
     }
   })
 })

@@ -14,9 +14,10 @@ export const controller_access = new Elysia({ prefix: '/access' })
   .get(
     '/',
     async (context) => {
-      const { query, payload } = context as unknown as lib_dto_context<{
+      const { query, payload } = context as lib_dto_context<{
         query: Static<typeof dto_access.find.query>
-      }>
+      }> &
+        typeof context
 
       return await service_access.find(query, payload)
     },
@@ -26,9 +27,10 @@ export const controller_access = new Elysia({ prefix: '/access' })
   .post(
     '/',
     async (context) => {
-      const { body, payload } = context as unknown as lib_dto_context<{
+      const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_access.create.body>
-      }>
+      }> &
+        typeof context
 
       return await service_access.create(body, payload)
     },
@@ -38,9 +40,10 @@ export const controller_access = new Elysia({ prefix: '/access' })
   .patch(
     '/',
     async (context) => {
-      const { body, payload } = context as unknown as lib_dto_context<{
+      const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_access.update.body>
-      }>
+      }> &
+        typeof context
 
       return await service_access.update(body, payload)
     },
@@ -50,9 +53,10 @@ export const controller_access = new Elysia({ prefix: '/access' })
   .delete(
     '/',
     async (context) => {
-      const { body, payload } = context as unknown as lib_dto_context<{
+      const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_access.delete.body>
-      }>
+      }> &
+        typeof context
 
       return await service_access.delete(body, payload)
     },

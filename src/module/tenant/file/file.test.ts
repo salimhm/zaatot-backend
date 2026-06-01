@@ -18,15 +18,15 @@ const mock_db = {
   update: mock(() => ({
     set: mock(() => ({
       where: mock(() => ({
-        returning: mock(() => Promise.resolve([{ file_id: 'user-1/file.jpg', file_name: 'file.jpg', user_id: 1 }])),
+        returning: mock(() => Promise.resolve([{ file_id: 'user-1/file.jpg', file_name: 'file_new.jpg', user_id: 1 }])),
       })),
-      returning: mock(() => Promise.resolve([{ file_id: 'user-1/file.jpg', file_name: 'file.jpg', user_id: 1 }])),
+      returning: mock(() => Promise.resolve([{ file_id: 'user-1/file.jpg', file_name: 'file_new.jpg', user_id: 1 }])),
     })),
   })),
 }
 
 mock.module('@db/client.db', () => ({
-  db_client: mock(() => Promise.resolve(mock_db)),
+  db_client: mock(() => mock_db),
 }))
 
 mock.module('@db/utils.db', () => ({
@@ -39,6 +39,7 @@ mock.module('@db/utils.db', () => ({
       data: [{ file_id: 'user-1/file.jpg', file_name: 'file.jpg', user_id: 1 }],
     }),
   ),
+  check_rate_limit: mock(() => Promise.resolve()),
 }))
 
 mock.module('@storage/client.storage', () => ({
@@ -49,6 +50,10 @@ mock.module('@storage/client.storage', () => ({
 
 mock.module('@aws-sdk/client-s3', () => ({
   PutObjectCommand: class {},
+}))
+
+mock.module('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: mock(() => Promise.resolve('https://mock-presigned-url.com/file.jpg')),
 }))
 
 describe('File Service', () => {
@@ -67,13 +72,11 @@ describe('File Service', () => {
   })
 
   it('should create a file successfully', async () => {
-    const file_content = new Blob(['mock-data'], { type: 'image/jpeg' })
-    const mock_file = new File([file_content], 'file.jpg', { type: 'image/jpeg' })
-
     const body = {
       tenant_id: 1,
-      file: mock_file,
       file_name: 'file.jpg',
+      file_type: 'image/jpeg',
+      file_size: 1024,
     }
     const payload = {
       user_id: 1,
@@ -81,8 +84,10 @@ describe('File Service', () => {
 
     const result = await service_file.create(body, payload)
 
+    expect(result.upload_url).toBe('https://mock-presigned-url.com/file.jpg')
     expect(result.data).toBeDefined()
     expect(result.data.file_id).toBeDefined()
+    expect(result.data.user_id).toBe(1)
   })
 
   it('should update a file successfully', async () => {
@@ -98,7 +103,7 @@ describe('File Service', () => {
     const result = await service_file.update(body, payload)
 
     expect(result.data).toBeDefined()
-    expect(result.data.file_name).toBe('file.jpg')
+    expect(result.data.file_name).toBe('file_new.jpg')
   })
 
   it('should delete a file successfully', async () => {
@@ -113,5 +118,6 @@ describe('File Service', () => {
     const result = await service_file.delete(body, payload)
 
     expect(result.data).toBeDefined()
+    expect(result.data.file_id).toBe('user-1/file.jpg')
   })
 })

@@ -2,11 +2,12 @@ import type { lib_dto_payload } from '@lib/dto.lib'
 import type { Static } from 'elysia'
 
 import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { db_client } from '@db/client.db'
 import { table_file } from '@db/tenant.schema.db'
-import { select } from '@db/utils.db'
+import { check_rate_limit, select } from '@db/utils.db'
 
 import { lib_error } from '@lib/error.lib'
 
@@ -21,7 +22,7 @@ export const service_file = {
 
     await service_access.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     return await select({
       db,
@@ -39,49 +40,58 @@ export const service_file = {
   },
 
   async create(body: Static<typeof dto_file.create.body>, payload: lib_dto_payload): Promise<Static<typeof dto_file.create.response>> {
-    const { tenant_id, file, file_name } = body
+    const { tenant_id, file_name, file_type, file_size } = body
     const { user_id } = payload
 
     await service_access.check_access(tenant_id, payload)
 
-    const is_image = file.type.startsWith('image/')
-    const is_audio = file.type.startsWith('audio/')
-    const is_video = file.type.startsWith('video/')
-    const max_image_size = 4 * 1024 * 1024
-    const max_audio_size = 12 * 1024 * 1024
-    const max_video_size = 100 * 1024 * 1024
+    const limit = Number(process.env.RATE_LIMIT_FILE_UPLOAD_LIMIT) || 20
+    const duration = Number(process.env.RATE_LIMIT_FILE_UPLOAD_DURATION) || 60
+    await check_rate_limit({ key: `rate:file:upload:${user_id}`, limit, duration })
 
-    if (is_image && file.size > max_image_size) throw lib_error.file_max_size
-    if (is_audio && file.size > max_audio_size) throw lib_error.file_max_size
-    if (is_video && file.size > max_video_size) throw lib_error.file_max_size
+    const is_image = file_type.startsWith('image/')
+    const is_audio = file_type.startsWith('audio/')
+    const is_video = file_type.startsWith('video/')
+    const max_image_size = Number(process.env.MAX_IMAGE_SIZE_BYTES) || 4 * 1024 * 1024
+    const max_audio_size = Number(process.env.MAX_AUDIO_SIZE_BYTES) || 12 * 1024 * 1024
+    const max_video_size = Number(process.env.MAX_VIDEO_SIZE_BYTES) || 100 * 1024 * 1024
+
+    if (!is_image && !is_audio && !is_video) throw lib_error.bad_request
+
+    if (is_image && file_size > max_image_size) throw lib_error.file_max_size
+    if (is_audio && file_size > max_audio_size) throw lib_error.file_max_size
+    if (is_video && file_size > max_video_size) throw lib_error.file_max_size
 
     const current_time = Date.now().toString()
-    const random = Math.floor(Math.random() * (2_000_000 - 1_000_000 + 1)) + 1_000_000
+    const random_bytes = new Uint32Array(1)
+    crypto.getRandomValues(random_bytes)
+    const random = 1_000_000 + ((random_bytes[0] ?? 0) % 1_000_000)
 
-    const file_extension = file.name ? `.${file.name.split('.').pop()}` : ''
+    const file_extension = file_name ? `.${file_name.split('.').pop()}` : ''
     const folder_name = `user-${user_id}`
     const file_id = `${folder_name}/${current_time}${random}${file_extension}`
-    console.log('create file', user_id, folder_name)
-    const resolved_file_name = (file_name ? file_name : file.name).slice(0, 127)
+    const resolved_file_name = file_name.slice(0, 127)
 
     try {
-      const file_buffer = await file.arrayBuffer()
-
       const command = new PutObjectCommand({
         Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
         Key: file_id,
-        Body: Buffer.from(file_buffer),
-        ContentType: file.type,
+        ContentType: file_type,
       })
 
-      await storage_object_main.send(command)
+      const upload_url = await getSignedUrl(storage_object_main, command, {
+        expiresIn: Number(process.env.CLOUDFLARE_R2_PRESIGNED_URL_EXPIRES_IN) || 720,
+      })
 
-      const db = await db_client({ tenant_id })
+      const db = db_client({ tenant_id })
       const [data] = await db.insert(table_file).values({ file_id, file_name: resolved_file_name, user_id }).returning()
 
       if (!data) throw lib_error.bad_request
-      return { data: data! as unknown as Static<typeof dto_schema_file> }
+      const { deleted_at, ...response_data } = data
+      return { upload_url, data: response_data as Static<typeof dto_schema_file> }
     } catch (error) {
+      const err = error as { status?: number }
+      if (err?.status) throw error
       throw lib_error.internal_server_error
     }
   },
@@ -91,15 +101,16 @@ export const service_file = {
     const { user_id } = payload
     await service_access.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
     const [data] = await db
       .update(table_file)
       .set({ file_name })
-      .where(and(eq(table_file.file_id, file_id), eq(table_file.user_id, user_id)))
+      .where(and(eq(table_file.file_id, file_id), eq(table_file.user_id, user_id), isNull(table_file.deleted_at)))
       .returning()
 
     if (!data) throw lib_error.not_found
-    return { data: data! as unknown as Static<typeof dto_schema_file> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_file> }
   },
 
   async delete(body: Static<typeof dto_file.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_file.delete.response>> {
@@ -107,7 +118,7 @@ export const service_file = {
     const { user_id } = payload
     await service_access.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     const [data] = await db
       .update(table_file)
@@ -116,6 +127,7 @@ export const service_file = {
       .returning()
 
     if (!data) throw lib_error.not_found
-    return { data: data! as unknown as Static<typeof dto_schema_file> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_file> }
   },
 }

@@ -26,7 +26,7 @@ const mock_db = {
 }
 
 mock.module('@db/client.db', () => ({
-  db_client: mock(() => Promise.resolve(mock_db)),
+  db_client: mock(() => mock_db),
 }))
 
 mock.module('@db/utils.db', () => ({
@@ -103,7 +103,78 @@ describe('Access Service', () => {
     expect(result.data).toBeDefined()
   })
 
-  it('should check access successfully', async () => {
+  it('should check access successfully when user is owner', async () => {
     await service_access.check_access(1, { user_id: 1 })
+  })
+
+  it('should bypass check_access for system user (user_id <= -1)', async () => {
+    await service_access.check_access(1, { user_id: -1 })
+    await service_access.check_access(1, { user_id: -999 })
+  })
+
+  it('should throw unauthorized when user has no access record', async () => {
+    mock_db.select.mockImplementationOnce(() => ({
+      from: mock(() => ({
+        where: mock(() => ({
+          limit: mock(() => Promise.resolve([])),
+        })),
+      })),
+    }))
+
+    try {
+      await service_access.check_access(1, { user_id: 99 })
+      expect(true).toBe(false)
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      expect(err.code).toBe('unauthorized')
+    }
+  })
+
+  it('should throw unauthorized when user has empty actions array', async () => {
+    mock_db.select.mockImplementationOnce(() => ({
+      from: mock(() => ({
+        where: mock(() => ({
+          limit: mock(() => Promise.resolve([{ actions: [] }])),
+        })),
+      })),
+    }))
+
+    try {
+      await service_access.check_access(1, { user_id: 99 })
+      expect(true).toBe(false)
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      expect(err.code).toBe('unauthorized')
+    }
+  })
+
+  it('should throw unauthorized when user has full_access but owner is required', async () => {
+    mock_db.select.mockImplementationOnce(() => ({
+      from: mock(() => ({
+        where: mock(() => ({
+          limit: mock(() => Promise.resolve([{ actions: ['full_access'] }])),
+        })),
+      })),
+    }))
+
+    try {
+      await service_access.check_access(1, { user_id: 2 }, ['owner'])
+      expect(true).toBe(false)
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      expect(err.code).toBe('unauthorized')
+    }
+  })
+
+  it('should allow full_access user when owner is not required', async () => {
+    mock_db.select.mockImplementationOnce(() => ({
+      from: mock(() => ({
+        where: mock(() => ({
+          limit: mock(() => Promise.resolve([{ actions: ['full_access'] }])),
+        })),
+      })),
+    }))
+
+    await service_access.check_access(1, { user_id: 2 }, ['full_access'])
   })
 })

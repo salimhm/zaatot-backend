@@ -16,7 +16,7 @@ export const service_access = {
     const { tenant_id, user_id } = query
     await this.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
 
     return await select({
       db,
@@ -36,7 +36,7 @@ export const service_access = {
     const { tenant_id, user_id, actions } = body
     await this.check_access(tenant_id, payload)
 
-    const db_tenant = await db_client({ tenant_id })
+    const db_tenant = db_client({ tenant_id })
     const [data] = await db_tenant
       .insert(table_access)
       .values({
@@ -46,14 +46,15 @@ export const service_access = {
       .returning()
 
     if (!data) throw lib_error.bad_request
-    return { data: data! as unknown as Static<typeof dto_schema_access> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_access> }
   },
 
   async update(body: Static<typeof dto_access.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_access.update.response>> {
     const { tenant_id, user_id, actions } = body
     await this.check_access(tenant_id, payload)
 
-    const db = await db_client({ tenant_id })
+    const db = db_client({ tenant_id })
     const [data] = await db
       .update(table_access)
       .set({ actions })
@@ -61,14 +62,15 @@ export const service_access = {
       .returning()
 
     if (!data) throw lib_error.not_found
-    return { data: data! as unknown as Static<typeof dto_schema_access> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_access> }
   },
 
   async delete(body: Static<typeof dto_access.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_access.delete.response>> {
     const { tenant_id, user_id } = body
     await this.check_access(tenant_id, payload)
 
-    const db_tenant = await db_client({ tenant_id })
+    const db_tenant = db_client({ tenant_id })
     const [data] = await db_tenant
       .update(table_access)
       .set({ deleted_at: new Date().toISOString() })
@@ -76,11 +78,12 @@ export const service_access = {
       .returning()
 
     if (!data) throw lib_error.not_found
-    return { data: data! as unknown as Static<typeof dto_schema_access> }
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_access> }
   },
 
   async create_access_for_owner(tenant_id: number, user_id: number): Promise<void> {
-    const db_tenant = await db_client({ tenant_id })
+    const db_tenant = db_client({ tenant_id })
     await db_tenant.insert(table_access).values({
       user_id,
       actions: ['owner'],
@@ -90,7 +93,7 @@ export const service_access = {
   async check_access(tenant_id: number, payload: lib_dto_payload, required_access: ((typeof enum_access_action)[number] | 'owner')[] = ['owner']) {
     if (payload.user_id <= -1) return
     try {
-      const db = await db_client({ tenant_id })
+      const db = db_client({ tenant_id })
       const [access] = await db
         .select({ actions: table_access.actions })
         .from(table_access)
@@ -102,6 +105,9 @@ export const service_access = {
       if (access.actions.includes('full_access') && !required_access.includes('owner')) return
       if (!required_access.some((r) => access.actions.includes(r))) throw lib_error.unauthorized
     } catch (error) {
+      const err = error as { code?: string }
+      const is_not_found = !err?.code || err.code.startsWith('not-found')
+      if (!is_not_found) throw error
       throw lib_error.unauthorized
     }
   },

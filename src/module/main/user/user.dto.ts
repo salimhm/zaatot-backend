@@ -36,7 +36,7 @@ export const dto_user = {
       user_first_name: t.String({ minLength: 1, maxLength: 32 }),
       user_last_name: t.String({ minLength: 1, maxLength: 32 }),
       user_phone: lib_dto_phone,
-      user_image: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
+      user_image: t.Optional(t.String({ minLength: 1, maxLength: 64 })),
     }),
     response: t.Object({
       data: dto_schema_user,
@@ -47,7 +47,7 @@ export const dto_user = {
       user_first_name: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
       user_last_name: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
       user_phone: t.Optional(lib_dto_phone),
-      user_image: t.Optional(t.String({ minLength: 1, maxLength: 32 })),
+      user_image: t.Optional(t.String({ minLength: 1, maxLength: 64 })),
     }),
     response: t.Object({
       data: dto_schema_user,

@@ -3,8 +3,6 @@ import type { Static } from 'elysia'
 
 import { Elysia } from 'elysia'
 
-import { check_rate_limit } from '@db/utils.db'
-
 import { lib_jwt } from '@lib/jwt.lib'
 
 import { dto_file } from '@module/tenant/file/file.dto'
@@ -16,9 +14,10 @@ export const controller_file = new Elysia({ prefix: '/file' })
   .get(
     '/',
     async (context) => {
-      const { query, payload } = context as unknown as lib_dto_context<{
+      const { query, payload } = context as lib_dto_context<{
         query: Static<typeof dto_file.find.query>
-      }>
+      }> &
+        typeof context
 
       return await service_file.find(query, payload)
     },
@@ -28,12 +27,10 @@ export const controller_file = new Elysia({ prefix: '/file' })
   .post(
     '/',
     async (context) => {
-      const { body, payload } = context as unknown as lib_dto_context<{
+      const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_file.create.body>
-      }>
-
-      await check_rate_limit({ key: `rate:file:upload:${payload.user_id}`, limit: 20, duration: 60 })
-
+      }> &
+        typeof context
       return await service_file.create(body, payload)
     },
     dto_file.create,
@@ -42,9 +39,10 @@ export const controller_file = new Elysia({ prefix: '/file' })
   .patch(
     '/',
     async (context) => {
-      const { body, payload } = context as unknown as lib_dto_context<{
+      const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_file.update.body>
-      }>
+      }> &
+        typeof context
 
       return await service_file.update(body, payload)
     },
@@ -54,9 +52,10 @@ export const controller_file = new Elysia({ prefix: '/file' })
   .delete(
     '/',
     async (context) => {
-      const { body, payload } = context as unknown as lib_dto_context<{
+      const { body, payload } = context as lib_dto_context<{
         body: Static<typeof dto_file.delete.body>
-      }>
+      }> &
+        typeof context
 
       return await service_file.delete(body, payload)
     },

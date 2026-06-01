@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const table_user = sqliteTable(
   'user',
@@ -8,21 +8,23 @@ export const table_user = sqliteTable(
     user_phone: text('user_phone', { length: 24 }).notNull(),
     user_first_name: text('user_first_name', { length: 32 }).notNull(),
     user_last_name: text('user_last_name', { length: 32 }).notNull(),
-    user_image: text('user_image', { length: 32 }),
+    user_image: text('user_image', { length: 64 }),
     created_at: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     deleted_at: text('deleted_at'),
   },
   (table) => [
-    index('user_phone_idx').on(table.user_phone),
+    uniqueIndex('user_phone_idx')
+      .on(table.user_phone)
+      .where(sql`deleted_at IS NULL`),
     index('user_first_name_idx').on(table.user_first_name),
     index('user_last_name_idx').on(table.user_last_name),
     index('user_deleted_at_idx').on(table.deleted_at),
   ],
 )
 
-export const current_tenant_schema_version = '0.0.5'
+export const current_tenant_schema_version = '0.0.6'
 
 export const table_tenant = sqliteTable(
   'tenant',
@@ -30,7 +32,7 @@ export const table_tenant = sqliteTable(
     tenant_id: integer('tenant_id').primaryKey({ autoIncrement: true }),
     tenant_type: text('tenant_type').notNull(),
     tenant_schema_version: text('tenant_schema_version').notNull().default('0.0.0'),
-    tenant_name: text('tenant_name', { length: 32 }).notNull(),
+    tenant_name: text('tenant_name', { length: 128 }).notNull(),
     tenant_db_id: text('tenant_db_id', { length: 512 }),
     tenant_db_url: text('tenant_db_url', { length: 512 }),
     user_id: integer('user_id').notNull(),
@@ -56,6 +58,9 @@ export const table_user_tenant = sqliteTable(
   (table) => [
     index('user_tenant_user_id_idx').on(table.user_id),
     index('user_tenant_tenant_id_idx').on(table.tenant_id),
+    uniqueIndex('user_tenant_user_id_tenant_id_idx')
+      .on(table.user_id, table.tenant_id)
+      .where(sql`deleted_at IS NULL`),
     index('user_tenant_deleted_at_idx').on(table.deleted_at),
   ],
 )

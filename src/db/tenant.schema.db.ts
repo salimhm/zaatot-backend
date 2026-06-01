@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const table_file = sqliteTable(
   'file',
@@ -29,7 +29,12 @@ export const table_access = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
     deleted_at: text('deleted_at'),
   },
-  (table) => [index('access_user_id_idx').on(table.user_id), index('access_deleted_at_idx').on(table.deleted_at)],
+  (table) => [
+    uniqueIndex('access_user_id_idx')
+      .on(table.user_id)
+      .where(sql`deleted_at IS NULL`),
+    index('access_deleted_at_idx').on(table.deleted_at),
+  ],
 )
 
 export const table_contact = sqliteTable(
@@ -54,7 +59,9 @@ export const table_contact = sqliteTable(
     deleted_at: text('deleted_at'),
   },
   (table) => [
-    index('contact_phone_idx').on(table.contact_phone),
+    uniqueIndex('contact_phone_idx')
+      .on(table.contact_phone)
+      .where(sql`deleted_at IS NULL`),
     index('contact_name_idx').on(table.contact_name),
     index('contact_deleted_at_idx').on(table.deleted_at),
   ],
