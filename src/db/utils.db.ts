@@ -216,13 +216,6 @@ export const get_schema_info = async (db: LibSQLDatabase<Record<string, unknown>
   return schema_info
 }
 
-export const normalize_default = (val: unknown) => {
-  if (val == null) return null
-  const s = String(val)
-  if (s.startsWith("'") && s.endsWith("'")) return s.slice(1, -1)
-  return s
-}
-
 export const sync_add_table = async (db: LibSQLDatabase<Record<string, unknown>>, table_name: string, target_table_obj: SQLiteTable) => {
   const table_config = getTableConfig(target_table_obj)
   const columns = table_config.columns

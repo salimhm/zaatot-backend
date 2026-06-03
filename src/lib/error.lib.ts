@@ -28,6 +28,7 @@ export const lib_error = {
   service_unavailable: { status: 503, code: 'service-unavailable' },
   tenant_schema_update_failed: { status: 500, code: 'tenant-schema-update-failed' },
   tenant_not_ready: { status: 503, code: 'tenant-not-ready' },
+  tenant_provision_failed: { status: 500, code: 'tenant-provision-failed' },
 }
 
 export const handle_error = ({ code, error, set }: { code: string | number | unknown; error: unknown; set: { status?: number | string } }) => {
