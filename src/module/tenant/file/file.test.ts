@@ -1,5 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test'
 
+import { service_file } from '@module/tenant/file/file.service'
+
 const mock_db = {
   insert: mock(() => ({
     values: mock(() => ({
@@ -33,8 +35,6 @@ mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
   db_redis_main: mock_redis,
 }))
-
-import { service_file } from '@module/tenant/file/file.service'
 
 mock.module('@db/utils.db', () => ({
   select: mock(() =>
