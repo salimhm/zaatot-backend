@@ -77,7 +77,43 @@ export const service_tenant = {
       tenant_id,
     })
 
-    void this.provision_tenant_db(tenant_id, user_id)
+    try {
+      await this.provision_tenant_db(tenant_id, user_id)
+    } catch (error) {
+      throw lib_error.tenant_provision_failed
+    }
+
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_tenant> }
+  },
+
+  async update(body: Static<typeof dto_tenant.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.update.response>> {
+    const { tenant_id, ...updates } = body
+    const db = db_client()
+
+    const [data] = await db
+      .update(table_tenant)
+      .set(updates)
+      .where(and(eq(table_tenant.tenant_id, tenant_id), eq(table_tenant.user_id, payload.user_id), isNull(table_tenant.deleted_at)))
+      .returning()
+
+    if (!data) throw lib_error.not_found
+
+    const { deleted_at, ...response_data } = data
+    return { data: response_data as Static<typeof dto_schema_tenant> }
+  },
+
+  async delete(body: Static<typeof dto_tenant.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.delete.response>> {
+    const { tenant_id } = body
+    const db = db_client()
+
+    const [data] = await db
+      .update(table_tenant)
+      .set({ deleted_at: new Date().toISOString() })
+      .where(and(eq(table_tenant.tenant_id, tenant_id), eq(table_tenant.user_id, payload.user_id), isNull(table_tenant.deleted_at)))
+      .returning()
+
+    if (!data) throw lib_error.not_found
 
     const { deleted_at, ...response_data } = data
     return { data: response_data as Static<typeof dto_schema_tenant> }
@@ -112,39 +148,8 @@ export const service_tenant = {
       await service_access.create_access_for_owner(tenant_id, user_id)
     } catch (error) {
       console.error(error)
+      throw error
     }
-  },
-
-  async update(body: Static<typeof dto_tenant.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.update.response>> {
-    const { tenant_id, ...updates } = body
-    const db = db_client()
-
-    const [data] = await db
-      .update(table_tenant)
-      .set(updates)
-      .where(and(eq(table_tenant.tenant_id, tenant_id), eq(table_tenant.user_id, payload.user_id), isNull(table_tenant.deleted_at)))
-      .returning()
-
-    if (!data) throw lib_error.not_found
-
-    const { deleted_at, ...response_data } = data
-    return { data: response_data as Static<typeof dto_schema_tenant> }
-  },
-
-  async delete(body: Static<typeof dto_tenant.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_tenant.delete.response>> {
-    const { tenant_id } = body
-    const db = db_client()
-
-    const [data] = await db
-      .update(table_tenant)
-      .set({ deleted_at: new Date().toISOString() })
-      .where(and(eq(table_tenant.tenant_id, tenant_id), eq(table_tenant.user_id, payload.user_id), isNull(table_tenant.deleted_at)))
-      .returning()
-
-    if (!data) throw lib_error.not_found
-
-    const { deleted_at, ...response_data } = data
-    return { data: response_data as Static<typeof dto_schema_tenant> }
   },
 
   async migrate_schema(tenant_id: number): Promise<void> {

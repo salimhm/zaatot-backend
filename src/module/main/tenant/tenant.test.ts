@@ -21,6 +21,9 @@ const mock_db = {
       returning: mock(() => Promise.resolve([{ tenant_id: 1, tenant_name: 'Acme', tenant_type: 'user', user_id: 1 }])),
     })),
   })),
+  delete: mock(() => ({
+    where: mock(() => Promise.resolve()),
+  })),
 }
 
 const mock_redis = {
@@ -48,10 +51,12 @@ mock.module('@db/utils.db', () => ({
   sync_schema: mock(() => Promise.resolve()),
 }))
 
+const mock_turso_create = mock(() => Promise.resolve({ id: 'db-id', hostname: 'db-url' }))
+
 mock.module('@tursodatabase/api', () => ({
   createClient: mock(() => ({
     databases: {
-      create: mock(() => Promise.resolve({ id: 'db-id', hostname: 'db-url' })),
+      create: mock_turso_create,
     },
   })),
 }))
@@ -159,6 +164,27 @@ describe('Tenant Service', () => {
     } catch (error: unknown) {
       const err = error as { code?: string }
       expect(err.code).toBe('tenant-not-ready')
+    }
+  })
+
+  it('should throw tenant-provision-failed if database provisioning fails', async () => {
+    mock_turso_create.mockImplementationOnce(() => Promise.reject(new Error('Turso error')))
+
+    const body = {
+      tenant_name: 'Failed Tenant',
+      tenant_type: 'user' as const,
+    }
+    const payload = {
+      user_id: 1,
+    }
+
+    try {
+      await service_tenant.create(body, payload)
+      expect(true).toBe(false)
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      expect(err.code).toBe('tenant-provision-failed')
+      expect(mock_db.delete).not.toHaveBeenCalled()
     }
   })
 })
