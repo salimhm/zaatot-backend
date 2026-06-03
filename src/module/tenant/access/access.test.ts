@@ -25,8 +25,15 @@ const mock_db = {
   })),
 }
 
+const mock_redis = {
+  get: mock(() => Promise.resolve(null as string | null)),
+  set: mock(() => Promise.resolve('OK')),
+  del: mock(() => Promise.resolve(1)),
+}
+
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
+  db_redis_main: mock_redis,
 }))
 
 mock.module('@db/utils.db', () => ({
@@ -107,11 +114,6 @@ describe('Access Service', () => {
     await service_access.check_access(1, { user_id: 1 })
   })
 
-  it('should bypass check_access for system user (user_id <= -1)', async () => {
-    await service_access.check_access(1, { user_id: -1 })
-    await service_access.check_access(1, { user_id: -999 })
-  })
-
   it('should throw unauthorized when user has no access record', async () => {
     mock_db.select.mockImplementationOnce(() => ({
       from: mock(() => ({
@@ -176,5 +178,24 @@ describe('Access Service', () => {
     }))
 
     await service_access.check_access(1, { user_id: 2 }, ['full_access'])
+  })
+
+  it('should get access actions from redis if cached', async () => {
+    mock_redis.get.mockImplementationOnce(() => Promise.resolve(JSON.stringify(['owner'])))
+    await service_access.check_access(1, { user_id: 3 })
+    expect(mock_redis.get).toHaveBeenCalledWith('tenant_access:1:3')
+  })
+
+  it('should delete redis cache key when updating access', async () => {
+    const body = {
+      tenant_id: 1,
+      user_id: 2,
+      actions: ['full_access' as const],
+    }
+    const payload = {
+      user_id: 1,
+    }
+    await service_access.update(body, payload)
+    expect(mock_redis.del).toHaveBeenCalledWith('tenant_access:1:2')
   })
 })

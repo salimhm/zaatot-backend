@@ -2,7 +2,7 @@ import type { lib_dto_payload } from '@lib/dto.lib'
 import type { Static } from 'elysia'
 
 import { and, eq, isNull } from 'drizzle-orm'
-import { db_client } from '@db/client.db'
+import { db_client, db_redis_main } from '@db/client.db'
 import { table_access } from '@db/tenant.schema.db'
 import { select } from '@db/utils.db'
 
@@ -47,6 +47,7 @@ export const service_access = {
 
     if (!data) throw lib_error.bad_request
     const { deleted_at, ...response_data } = data
+    await db_redis_main.del(`tenant_access:${tenant_id}:${user_id}`)
     return { data: response_data as Static<typeof dto_schema_access> }
   },
 
@@ -63,6 +64,7 @@ export const service_access = {
 
     if (!data) throw lib_error.not_found
     const { deleted_at, ...response_data } = data
+    await db_redis_main.del(`tenant_access:${tenant_id}:${user_id}`)
     return { data: response_data as Static<typeof dto_schema_access> }
   },
 
@@ -79,6 +81,7 @@ export const service_access = {
 
     if (!data) throw lib_error.not_found
     const { deleted_at, ...response_data } = data
+    await db_redis_main.del(`tenant_access:${tenant_id}:${user_id}`)
     return { data: response_data as Static<typeof dto_schema_access> }
   },
 
@@ -88,22 +91,33 @@ export const service_access = {
       user_id,
       actions: ['owner'],
     })
+    await db_redis_main.del(`tenant_access:${tenant_id}:${user_id}`)
   },
 
   async check_access(tenant_id: number, payload: lib_dto_payload, required_access: ((typeof enum_access_action)[number] | 'owner')[] = ['owner']) {
-    if (payload.user_id <= -1) return
     try {
-      const db = db_client({ tenant_id })
-      const [access] = await db
-        .select({ actions: table_access.actions })
-        .from(table_access)
-        .where(and(eq(table_access.user_id, payload.user_id), isNull(table_access.deleted_at)))
-        .limit(1)
+      const cache_key = `tenant_access:${tenant_id}:${payload.user_id}`
+      const cached = await db_redis_main.get(cache_key)
+      let actions: ((typeof enum_access_action)[number] | 'owner')[]
 
-      if (!access?.actions?.length) throw lib_error.unauthorized
-      if (access.actions.includes('owner')) return
-      if (access.actions.includes('full_access') && !required_access.includes('owner')) return
-      if (!required_access.some((r) => access.actions.includes(r))) throw lib_error.unauthorized
+      if (cached) {
+        actions = JSON.parse(cached)
+      } else {
+        const db = db_client({ tenant_id })
+        const [access] = await db
+          .select({ actions: table_access.actions })
+          .from(table_access)
+          .where(and(eq(table_access.user_id, payload.user_id), isNull(table_access.deleted_at)))
+          .limit(1)
+
+        actions = (access?.actions || []) as ((typeof enum_access_action)[number] | 'owner')[]
+        await db_redis_main.set(cache_key, JSON.stringify(actions), 'EX', 3600)
+      }
+
+      if (!actions.length) throw lib_error.unauthorized
+      if (actions.includes('owner')) return
+      if (actions.includes('full_access') && !required_access.includes('owner')) return
+      if (!required_access.some((r) => actions.includes(r))) throw lib_error.unauthorized
     } catch (error) {
       const err = error as { code?: string }
       const is_not_found = !err?.code || err.code.startsWith('not-found')
