@@ -25,8 +25,15 @@ const mock_db = {
   })),
 }
 
+const mock_redis = {
+  get: mock(() => Promise.resolve(null as string | null)),
+  set: mock(() => Promise.resolve('OK')),
+  del: mock(() => Promise.resolve(1)),
+}
+
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
+  db_redis_main: mock_redis,
 }))
 
 let should_find_exist = false
