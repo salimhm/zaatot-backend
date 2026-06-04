@@ -13,6 +13,7 @@ Default to concise responses:
 3. Avoid long preambles, repetition, and unnecessary background.
 4. Keep examples minimal unless the user asks for more detail.
 5. Expand depth only when explicitly requested or when brevity would hide critical risk.
+6. **Strictly never commit or push changes to git. The user is responsible for git operations.**
 
 ## Response Style
 
