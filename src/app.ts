@@ -31,7 +31,11 @@ export const app = new Elysia({
   },
 })
 
-  .use(cors())
+  .use(
+    cors({
+      exposeHeaders: ['X-Refresh-Token'],
+    }),
+  )
 
   .use(swagger({ path: '/swagger' }))
 

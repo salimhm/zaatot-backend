@@ -8,11 +8,20 @@ const mock_db = {
       returning: mock(() => Promise.resolve([{ tenant_id: 1, tenant_name: 'Acme', tenant_type: 'user', user_id: 1 }])),
     })),
   })),
-  select: mock(() => ({
-    from: mock(() => ({
-      where: mock(() => Promise.resolve([{ count: 0, tenant_schema_version: '0.0.0', tenant_type: 'user', tenant_db_id: 'db-id' as string | null }])),
-    })),
-  })),
+  select: mock(
+    (..._args: any[]) =>
+      ({
+        from: mock((..._args: any[]) => ({
+          where: mock(
+            (..._args: any[]) =>
+              Promise.resolve([{ count: 0, tenant_schema_version: '0.0.0', tenant_type: 'user', tenant_db_url: 'db-url' }]) as Promise<any>,
+          ),
+          innerJoin: mock((..._args: any[]) => ({
+            where: mock((..._args: any[]) => Promise.resolve([{ tenant_id: 1, tenant_schema_version: '0.0.6' }]) as Promise<any>),
+          })),
+        })),
+      }) as any,
+  ),
   update: mock(() => ({
     set: mock(() => ({
       where: mock(() => ({
@@ -35,7 +44,12 @@ const mock_redis = {
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
   db_redis_main: mock_redis,
-  current_tenant_schema_version: '0.0.5',
+}))
+
+mock.module('@db/main.schema.db', () => ({
+  current_tenant_schema_version: '0.0.6',
+  table_tenant: {},
+  table_user_tenant: {},
 }))
 
 mock.module('@db/utils.db', () => ({
@@ -136,13 +150,25 @@ describe('Tenant Service', () => {
   })
 
   it('should run migrate_schema successfully', async () => {
-    await service_tenant.migrate_schema(1)
+    const migrated = await service_tenant.migrate_schema(1)
+    expect(migrated).toBe(true)
   })
 
-  it('should throw tenant-not-ready if tenant_db_id is null', async () => {
+  it('should skip migration when schema version is already current', async () => {
     mock_db.select.mockImplementationOnce(() => ({
       from: mock(() => ({
-        where: mock(() => Promise.resolve([{ count: 0, tenant_schema_version: '0.0.0', tenant_type: 'user', tenant_db_id: null }])),
+        where: mock(() => Promise.resolve([{ tenant_schema_version: '0.0.6', tenant_db_url: 'db-url' }])),
+      })),
+    }))
+
+    const migrated = await service_tenant.migrate_schema(1)
+    expect(migrated).toBe(false)
+  })
+
+  it('should throw tenant-not-ready if tenant_db_url is null', async () => {
+    mock_db.select.mockImplementationOnce(() => ({
+      from: mock(() => ({
+        where: mock(() => Promise.resolve([{ count: 0, tenant_schema_version: '0.0.0', tenant_type: 'user', tenant_db_url: null }])),
       })),
     }))
 

@@ -24,6 +24,7 @@ export const service_tenant = {
       allowed_columns: {
         tenant_id: table_tenant.tenant_id,
         tenant_type: table_tenant.tenant_type,
+        tenant_schema_version: table_tenant.tenant_schema_version,
         tenant_name: table_tenant.tenant_name,
         tenant_db_id: table_tenant.tenant_db_id,
         tenant_db_url: table_tenant.tenant_db_url,
@@ -152,60 +153,39 @@ export const service_tenant = {
     }
   },
 
-  async migrate_schema(tenant_id: number): Promise<void> {
-    const migration_key = `tenant:${tenant_id}:schema_version`
-    const cached_version = await db_redis_main.get(migration_key)
-
-    if (cached_version === 'NOT_READY') {
-      throw lib_error.tenant_not_ready
-    }
-
-    if (cached_version === String(current_tenant_schema_version) || cached_version === 'NOT_FOUND') return
-
+  async migrate_schema(tenant_id: number): Promise<boolean> {
     const db = db_client()
 
     const [data] = await db
       .select({
         tenant_schema_version: table_tenant.tenant_schema_version,
-        tenant_type: table_tenant.tenant_type,
-        tenant_db_id: table_tenant.tenant_db_id,
+        tenant_db_url: table_tenant.tenant_db_url,
       })
       .from(table_tenant)
       .where(eq(table_tenant.tenant_id, tenant_id))
 
-    if (!data) {
-      await db_redis_main.set(migration_key, 'NOT_FOUND', 'EX', 600)
-      return
+    if (!data) return false
+
+    if (!data.tenant_db_url) throw lib_error.tenant_not_ready
+
+    if (data.tenant_schema_version === current_tenant_schema_version) return false
+
+    const lock_key = `lock:tenant:${tenant_id}:migration`
+    const is_locked = await db_redis_main.set(lock_key, '1', 'NX', 'PX', '30000')
+    if (is_locked !== 'OK') throw lib_error.tenant_not_ready
+
+    try {
+      console.log(`🚀 Updating tenant ${tenant_id} schema to version ${current_tenant_schema_version}...`)
+      const db_tenant = db_client({ tenant_id })
+      await sync_schema(db_tenant, schema_tenant)
+      await db.update(table_tenant).set({ tenant_schema_version: current_tenant_schema_version }).where(eq(table_tenant.tenant_id, tenant_id))
+      console.log(`✅ Tenant ${tenant_id} schema updated successfully.`)
+      return true
+    } catch (error) {
+      console.error(`❌ Migration failed for tenant ${tenant_id}:`, error)
+      throw lib_error.tenant_schema_update_failed
+    } finally {
+      await db_redis_main.del(lock_key)
     }
-
-    if (!data.tenant_db_id) {
-      await db_redis_main.set(migration_key, 'NOT_READY', 'EX', 5)
-      throw lib_error.tenant_not_ready
-    }
-
-    if (data.tenant_schema_version !== current_tenant_schema_version) {
-      const lock_key = `lock:tenant:${tenant_id}:migration`
-      const is_locked = await db_redis_main.set(lock_key, '1', 'NX', 'PX', '30000')
-      if (is_locked !== 'OK') {
-        throw lib_error.tenant_not_ready
-      }
-
-      try {
-        console.log(`🚀 Updating tenant ${tenant_id} schema to version ${current_tenant_schema_version}...`)
-        const db_tenant = db_client({ tenant_id })
-
-        await sync_schema(db_tenant, schema_tenant)
-
-        await db.update(table_tenant).set({ tenant_schema_version: current_tenant_schema_version }).where(eq(table_tenant.tenant_id, tenant_id))
-        console.log(`✅ Tenant ${tenant_id} schema updated successfully.`)
-      } catch (error) {
-        console.error(`❌ Migration failed for tenant ${tenant_id}:`, error)
-        throw lib_error.tenant_schema_update_failed
-      } finally {
-        await db_redis_main.del(lock_key)
-      }
-    }
-
-    await db_redis_main.set(migration_key, String(current_tenant_schema_version))
   },
 }

@@ -5,6 +5,7 @@ import { db_redis_main } from '@db/client.db'
 import { lib_error } from '@lib/error.lib'
 
 import { dto_auth } from '@module/main/auth/auth.dto'
+import { service_tenant } from '@module/main/tenant/tenant.service'
 import { dto_schema_user } from '@module/main/user/user.dto'
 import { service_user } from '@module/main/user/user.service'
 
@@ -45,8 +46,15 @@ export const service_auth = {
     const { user, jwt } = args
     const user_id = user.user_id
 
+    const { data } = await service_tenant.find({ columns: ['tenant_id', 'tenant_schema_version'], take: 100 }, { user_id })
+
+    const schemas = Object.fromEntries(
+      data.filter((t) => t.tenant_id && t.tenant_schema_version).map((t) => [String(t.tenant_id), t.tenant_schema_version as string]),
+    )
+
     const token = await jwt.sign({
       user_id,
+      tenant_schemas: JSON.stringify(schemas),
     })
 
     return { data: { ...user }, token }
