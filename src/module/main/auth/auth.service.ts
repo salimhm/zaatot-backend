@@ -46,7 +46,14 @@ export const service_auth = {
     const { user, jwt } = args
     const user_id = user.user_id
 
-    const { data } = await service_tenant.find({ columns: ['tenant_id', 'tenant_schema_version'], take: 100 }, { user_id })
+    let data: { tenant_id?: number | null; tenant_schema_version?: string | null }[] = []
+    try {
+      const res = await service_tenant.find({ columns: ['tenant_id', 'tenant_schema_version'], take: 100 }, { user_id })
+      data = res.data
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      if (err?.code !== 'not-found-tenant') throw error
+    }
 
     const schemas = Object.fromEntries(
       data.filter((t) => t.tenant_id && t.tenant_schema_version).map((t) => [String(t.tenant_id), t.tenant_schema_version as string]),
