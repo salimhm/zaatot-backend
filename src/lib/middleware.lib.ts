@@ -1,6 +1,7 @@
 import type { lib_dto_payload } from '@lib/dto.lib'
 import type { Context } from 'elysia'
 
+import { current_tenant_schema_version } from '@db/main.schema.db'
 import { check_rate_limit, get_ip } from '@db/utils.db'
 
 import { lib_error } from '@lib/error.lib'
@@ -8,6 +9,7 @@ import { lib_error } from '@lib/error.lib'
 import { service_tenant } from '@module/main/tenant/tenant.service'
 
 export interface ElysiaJWT {
+  sign: (payload: Record<string, string | number | boolean | null | undefined>) => Promise<string>
   verify: (jwt?: string, options?: Record<string, unknown>) => Promise<Record<string, unknown> | string | false | null>
 }
 
@@ -31,7 +33,14 @@ export const apply_rate_limit = async ({ request, server }: Pick<Context, 'reque
   await check_rate_limit({ key: `rate:global:${ip}`, limit, duration })
 }
 
-export const apply_tenant_migration = async ({ params, query, body }: Pick<Context, 'params' | 'query' | 'body'>): Promise<void> => {
+export const apply_tenant_migration = async ({
+  params,
+  query,
+  body,
+  set,
+  headers: { authorization },
+  jwt,
+}: Pick<Context, 'params' | 'query' | 'body' | 'set' | 'headers'> & { jwt: ElysiaJWT }): Promise<void> => {
   const p = (params || {}) as Record<string, string | undefined>
   const q = (query || {}) as Record<string, string | undefined>
   const b = (body || {}) as Record<string, unknown>
@@ -39,8 +48,34 @@ export const apply_tenant_migration = async ({ params, query, body }: Pick<Conte
   const tenant_id = p.tenant_id || q.tenant_id || b.tenant_id
   if (!tenant_id) return
 
+  const token = authorization?.split(' ')[1]
+  const payload = token ? ((await jwt.verify(token)) as lib_dto_payload | false) : false
+
+  if (!payload) return
+
+  let schemas: Record<string, string> = {}
+  if (payload.tenant_schemas) {
+    try {
+      schemas = JSON.parse(payload.tenant_schemas)
+    } catch {
+      schemas = {}
+    }
+  }
+  const tenant_key = String(tenant_id)
+
+  if (schemas[tenant_key] === current_tenant_schema_version) return
+
   const parsed_id = Number(tenant_id)
-  await service_tenant.migrate_schema(parsed_id)
+  const migrated = await service_tenant.migrate_schema(parsed_id)
+
+  if (migrated) {
+    schemas[tenant_key] = current_tenant_schema_version
+    const refreshed_token = await jwt.sign({
+      user_id: payload.user_id,
+      tenant_schemas: JSON.stringify(schemas),
+    })
+    set.headers['X-Refresh-Token'] = refreshed_token
+  }
 }
 
 export const derive_auth = async ({

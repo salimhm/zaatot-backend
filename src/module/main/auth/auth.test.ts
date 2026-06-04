@@ -8,13 +8,19 @@ const mock_db = {
       returning: mock(() => Promise.resolve([{ user_id: 1, user_phone: '1234567890' }])),
     })),
   })),
-  select: mock(() => ({
-    from: mock(() => ({
-      where: mock(() => ({
-        limit: mock(() => Promise.resolve([{ user_id: 1, user_phone: '1234567890' }])),
-      })),
-    })),
-  })),
+  select: mock(
+    (..._args: any[]) =>
+      ({
+        from: mock((..._args: any[]) => ({
+          where: mock((..._args: any[]) => ({
+            limit: mock(() => Promise.resolve([{ user_id: 1, user_phone: '1234567890' }])),
+          })),
+          innerJoin: mock((..._args: any[]) => ({
+            where: mock(() => Promise.resolve([])),
+          })),
+        })),
+      }) as any,
+  ),
 }
 
 mock.module('@db/client.db', () => ({
@@ -26,6 +32,12 @@ mock.module('@db/client.db', () => ({
     incr: mock(() => Promise.resolve(1)),
     expire: mock(() => Promise.resolve(1)),
   },
+}))
+
+mock.module('@db/main.schema.db', () => ({
+  current_tenant_schema_version: '0.0.6',
+  table_tenant: {},
+  table_user_tenant: {},
 }))
 
 mock.module('@db/utils.db', () => ({

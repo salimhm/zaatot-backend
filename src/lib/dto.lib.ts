@@ -2,6 +2,7 @@ import { t } from 'elysia'
 
 export type lib_dto_payload = {
   user_id: number
+  tenant_schemas?: string
 }
 
 export type lib_dto_context<

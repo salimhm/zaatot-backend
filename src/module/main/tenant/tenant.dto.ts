@@ -3,7 +3,7 @@ import { t } from 'elysia'
 import { lib_dto_find_query, lib_dto_find_response } from '@lib/dto.lib'
 import { enum_tenant_type } from '@lib/enum.lib'
 
-export const enum_tenant_columns = ['tenant_id', 'tenant_name', 'tenant_type', 'created_at', 'user_id'] as const
+export const enum_tenant_columns = ['tenant_id', 'tenant_name', 'tenant_type', 'tenant_schema_version', 'created_at', 'user_id'] as const
 export const enum_tenant_order_by = [...enum_tenant_columns, ...enum_tenant_columns.map((c) => `-${c}`)] as const
 
 export const dto_schema_tenant = t.Object({
