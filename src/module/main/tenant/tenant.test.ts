@@ -162,7 +162,7 @@ describe('Tenant Service', () => {
     }))
 
     const migrated = await service_tenant.migrate_schema(1)
-    expect(migrated).toBe(false)
+    expect(migrated).toBe(true)
   })
 
   it('should throw tenant-not-ready if tenant_db_url is null', async () => {

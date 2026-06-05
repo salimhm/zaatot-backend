@@ -1,8 +1,8 @@
 import type { lib_dto_payload } from '@lib/dto.lib'
 import type { Context } from 'elysia'
 
+import { db_redis_main } from '@db/client.db'
 import { current_tenant_schema_version } from '@db/main.schema.db'
-import { check_rate_limit, get_ip } from '@db/utils.db'
 
 import { lib_error } from '@lib/error.lib'
 
@@ -107,4 +107,17 @@ export const guard_auth = async ({ headers: { authorization }, jwt }: Pick<Conte
   const payload = (await jwt.verify(token)) as lib_dto_payload | false
 
   if (!payload) throw lib_error.invalid_token
+}
+
+export const check_rate_limit = async (options: { key: string; limit: number; duration: number }): Promise<void> => {
+  const { key, limit, duration } = options
+  await db_redis_main.set(key, '0', 'NX', 'EX', String(duration))
+  const current = await db_redis_main.incr(key)
+  if (current > limit) {
+    throw lib_error.too_many_requests
+  }
+}
+
+export const get_ip = (request: Request, server?: { requestIP: (req: Request) => { address: string } | null } | null) => {
+  return server?.requestIP(request)?.address || '127.0.0.1'
 }

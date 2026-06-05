@@ -168,7 +168,7 @@ export const service_tenant = {
 
     if (!data.tenant_db_url) throw lib_error.tenant_not_ready
 
-    if (data.tenant_schema_version === current_tenant_schema_version) return false
+    if (data.tenant_schema_version === current_tenant_schema_version) return true
 
     const lock_key = `lock:tenant:${tenant_id}:migration`
     const is_locked = await db_redis_main.set(lock_key, '1', 'NX', 'PX', '30000')
