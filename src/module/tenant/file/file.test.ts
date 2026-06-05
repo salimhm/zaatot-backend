@@ -46,6 +46,9 @@ mock.module('@db/utils.db', () => ({
       data: [{ file_id: 'user-1/file.jpg', file_name: 'file.jpg', user_id: 1 }],
     }),
   ),
+}))
+
+mock.module('@lib/middleware.lib', () => ({
   check_rate_limit: mock(() => Promise.resolve()),
 }))
 

@@ -33,11 +33,12 @@ export const app = new Elysia({
 
   .use(
     cors({
+      credentials: true,
       exposeHeaders: ['X-Refresh-Token'],
     }),
   )
 
-  .use(swagger({ path: '/swagger' }))
+  .use(app_env === 'dev' ? swagger({ path: '/swagger' }) : (app) => app)
 
   .use(lib_jwt)
 
@@ -58,7 +59,7 @@ export const app = new Elysia({
   })
 
   .get('/eden', () => {
-    if (app_env === 'production') return new Response('Not Found', { status: 404 })
+    if (app_env !== 'dev') return new Response('Not Found', { status: 404 })
     const file = Bun.file('public/eden.ts')
     return new Response(file, {
       headers: { 'Content-Type': 'application/x-typescript' },

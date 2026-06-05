@@ -1,8 +1,7 @@
 import { Elysia } from 'elysia'
 
-import { check_rate_limit, get_ip } from '@db/utils.db'
-
 import { lib_jwt } from '@lib/jwt.lib'
+import { check_rate_limit, get_ip } from '@lib/middleware.lib'
 
 import { dto_auth } from '@module/main/auth/auth.dto'
 import { service_auth } from '@module/main/auth/auth.service'

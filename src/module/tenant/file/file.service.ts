@@ -7,9 +7,10 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { db_client } from '@db/client.db'
 import { table_file } from '@db/tenant.schema.db'
-import { check_rate_limit, select } from '@db/utils.db'
+import { select } from '@db/utils.db'
 
 import { lib_error } from '@lib/error.lib'
+import { check_rate_limit } from '@lib/middleware.lib'
 
 import { storage_object_main } from '@storage/client.storage'
 

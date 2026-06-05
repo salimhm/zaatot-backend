@@ -5,7 +5,6 @@ import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 
 import { and, asc, between, desc, eq, gt, gte, inArray, isNull, like, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { getTableConfig, SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
-import { db_redis_main } from '@db/client.db'
 
 import { lib_error } from '@lib/error.lib'
 
@@ -439,17 +438,4 @@ export const sync_schema = async (db: LibSQLDatabase<Record<string, unknown>>, t
   for (const table_name of tables_to_remove) {
     await sync_remove_table(db, table_name)
   }
-}
-
-export const check_rate_limit = async (options: { key: string; limit: number; duration: number }): Promise<void> => {
-  const { key, limit, duration } = options
-  await db_redis_main.set(key, '0', 'NX', 'EX', String(duration))
-  const current = await db_redis_main.incr(key)
-  if (current > limit) {
-    throw lib_error.too_many_requests
-  }
-}
-
-export const get_ip = (request: Request, server?: { requestIP: (req: Request) => { address: string } | null } | null) => {
-  return server?.requestIP(request)?.address || '127.0.0.1'
 }
