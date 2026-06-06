@@ -1,7 +1,5 @@
 import { describe, expect, it, mock, spyOn } from 'bun:test'
 
-import { service_tenant } from '@module/main/tenant/tenant.service'
-
 const mock_db = {
   insert: mock(() => ({
     values: mock(() => ({
@@ -41,9 +39,12 @@ const mock_redis = {
   del: mock(() => Promise.resolve(1)),
 }
 
+const mock_turso_create = mock(() => Promise.resolve({ id: 'db-id', hostname: 'db-url' }))
+
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
   db_redis_migration_lock: mock_redis,
+  db_redis_tenant_access: mock_redis,
 }))
 
 mock.module('@db/main.schema.db', () => ({
@@ -65,8 +66,6 @@ mock.module('@db/utils.db', () => ({
   sync_schema: mock(() => Promise.resolve()),
 }))
 
-const mock_turso_create = mock(() => Promise.resolve({ id: 'db-id', hostname: 'db-url' }))
-
 mock.module('@tursodatabase/api', () => ({
   createClient: mock(() => ({
     databases: {
@@ -74,6 +73,8 @@ mock.module('@tursodatabase/api', () => ({
     },
   })),
 }))
+
+const { service_tenant } = await import('@module/main/tenant/tenant.service')
 
 describe('Tenant Service', () => {
   it('should find tenants successfully', async () => {
