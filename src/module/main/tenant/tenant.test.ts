@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 
 import { service_tenant } from '@module/main/tenant/tenant.service'
 
@@ -194,6 +194,7 @@ describe('Tenant Service', () => {
   })
 
   it('should throw tenant-provision-failed if database provisioning fails', async () => {
+    const console_spy = spyOn(console, 'error').mockImplementation(() => {})
     mock_turso_create.mockImplementationOnce(() => Promise.reject(new Error('Turso error')))
 
     const body = {
@@ -211,6 +212,8 @@ describe('Tenant Service', () => {
       const err = error as { code?: string }
       expect(err.code).toBe('tenant-provision-failed')
       expect(mock_db.delete).not.toHaveBeenCalled()
+    } finally {
+      console_spy.mockRestore()
     }
   })
 })
