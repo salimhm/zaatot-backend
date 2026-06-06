@@ -43,7 +43,7 @@ const mock_redis = {
 
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
-  db_redis_main: mock_redis,
+  db_redis_migration_lock: mock_redis,
 }))
 
 mock.module('@db/main.schema.db', () => ({

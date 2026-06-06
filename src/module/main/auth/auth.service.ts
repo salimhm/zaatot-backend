@@ -1,6 +1,6 @@
 import type { Static } from 'elysia'
 
-import { db_redis_main } from '@db/client.db'
+import { db_redis_auth } from '@db/client.db'
 
 import { lib_error } from '@lib/error.lib'
 
@@ -35,7 +35,7 @@ export const service_auth = {
     const otp_code = String(1000 + ((array[0] ?? 0) % 9000))
     const otp_key = `otp:${user_phone}`
 
-    await db_redis_main.set(otp_key, JSON.stringify({ otp_code, otp_action }), 'EX', otp_ttl_minutes * 60)
+    await db_redis_auth.set(otp_key, JSON.stringify({ otp_code, otp_action }), 'EX', otp_ttl_minutes * 60)
 
     console.log(`[OTP] Sent to ${user_phone}: ${otp_code}`)
 
@@ -87,14 +87,14 @@ export const service_auth = {
     const { user_phone, otp_code, user_first_name, user_last_name } = body
 
     const otp_key = `otp:${user_phone}`
-    const stored_data = await db_redis_main.get(otp_key)
+    const stored_data = await db_redis_auth.get(otp_key)
 
     if (!stored_data) throw lib_error.invalid_otp_code
 
     const otp = JSON.parse(stored_data) as { otp_code: string; otp_action: string }
     if (otp.otp_code !== otp_code) throw lib_error.invalid_otp_code
 
-    await db_redis_main.del(otp_key)
+    await db_redis_auth.del(otp_key)
 
     try {
       const { data } = await service_user.find({

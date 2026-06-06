@@ -25,7 +25,7 @@ const mock_db = {
 
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
-  db_redis_main: {
+  db_redis_auth: {
     set: mock(() => Promise.resolve('OK')),
     get: mock(() => Promise.resolve(null)),
     del: mock(() => Promise.resolve(1)),

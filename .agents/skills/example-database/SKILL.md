@@ -74,7 +74,10 @@ export async function db_client(options: { url?: string; token?: string; tenant_
   return db
 }
 
-export const db_redis_main = new RedisClient(process.env.REDIS_DB_MAIN_URL!)
+export const db_redis_auth = new RedisClient(process.env.REDIS_DB_AUTH_URL!)
+export const db_redis_tenant_access = new RedisClient(process.env.REDIS_DB_TENANT_ACCESS_URL!)
+export const db_redis_migration_lock = new RedisClient(process.env.REDIS_DB_MIGRATION_LOCK_URL!)
+export const db_redis_rate_limiting = new RedisClient(process.env.REDIS_DB_RATE_LIMITING_URL!)
 ```
 
 2. **Drizzle Config (drizzle.config.ts)**: Strictly follow this pattern!
