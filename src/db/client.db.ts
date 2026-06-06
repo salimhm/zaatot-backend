@@ -65,7 +65,10 @@ export function db_client(options: { url?: string; token?: string; tenant_id?: n
   return db
 }
 
-export const db_redis_main = new RedisClient(process.env.REDIS_DB_MAIN_URL!)
+export const db_redis_auth = new RedisClient(process.env.REDIS_DB_AUTH_URL!)
+export const db_redis_tenant_access = new RedisClient(process.env.REDIS_DB_TENANT_ACCESS_URL!)
+export const db_redis_migration_lock = new RedisClient(process.env.REDIS_DB_MIGRATION_LOCK_URL!)
+export const db_redis_rate_limiting = new RedisClient(process.env.REDIS_DB_RATE_LIMITING_URL!)
 
 export function close_all_connections() {
   for (const cached of tenant_cache.values()) {
@@ -83,6 +86,18 @@ export function close_all_connections() {
   main_cache.clear()
 
   try {
-    db_redis_main.close()
+    db_redis_auth.close()
+  } catch {}
+
+  try {
+    db_redis_tenant_access.close()
+  } catch {}
+
+  try {
+    db_redis_migration_lock.close()
+  } catch {}
+
+  try {
+    db_redis_rate_limiting.close()
   } catch {}
 }

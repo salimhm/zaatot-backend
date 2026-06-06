@@ -4,7 +4,7 @@ import type { Static } from 'elysia'
 import { createClient } from '@tursodatabase/api'
 
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { db_client, db_redis_main } from '@db/client.db'
+import { db_client, db_redis_migration_lock } from '@db/client.db'
 import { current_tenant_schema_version, table_tenant, table_user_tenant } from '@db/main.schema.db'
 import * as schema_tenant from '@db/tenant.schema.db'
 import { select, sync_schema } from '@db/utils.db'
@@ -171,7 +171,7 @@ export const service_tenant = {
     if (data.tenant_schema_version === current_tenant_schema_version) return true
 
     const lock_key = `lock:tenant:${tenant_id}:migration`
-    const is_locked = await db_redis_main.set(lock_key, '1', 'NX', 'PX', '30000')
+    const is_locked = await db_redis_migration_lock.set(lock_key, '1', 'NX', 'PX', '30000')
     if (is_locked !== 'OK') throw lib_error.tenant_not_ready
 
     try {
@@ -185,7 +185,7 @@ export const service_tenant = {
       console.error(`❌ Migration failed for tenant ${tenant_id}:`, error)
       throw lib_error.tenant_schema_update_failed
     } finally {
-      await db_redis_main.del(lock_key)
+      await db_redis_migration_lock.del(lock_key)
     }
   },
 }

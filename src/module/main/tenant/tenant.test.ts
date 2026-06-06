@@ -1,6 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test'
-
-import { service_tenant } from '@module/main/tenant/tenant.service'
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 
 const mock_db = {
   insert: mock(() => ({
@@ -41,9 +39,12 @@ const mock_redis = {
   del: mock(() => Promise.resolve(1)),
 }
 
+const mock_turso_create = mock(() => Promise.resolve({ id: 'db-id', hostname: 'db-url' }))
+
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
-  db_redis_main: mock_redis,
+  db_redis_migration_lock: mock_redis,
+  db_redis_tenant_access: mock_redis,
 }))
 
 mock.module('@db/main.schema.db', () => ({
@@ -65,8 +66,6 @@ mock.module('@db/utils.db', () => ({
   sync_schema: mock(() => Promise.resolve()),
 }))
 
-const mock_turso_create = mock(() => Promise.resolve({ id: 'db-id', hostname: 'db-url' }))
-
 mock.module('@tursodatabase/api', () => ({
   createClient: mock(() => ({
     databases: {
@@ -74,6 +73,8 @@ mock.module('@tursodatabase/api', () => ({
     },
   })),
 }))
+
+const { service_tenant } = await import('@module/main/tenant/tenant.service')
 
 describe('Tenant Service', () => {
   it('should find tenants successfully', async () => {
@@ -194,6 +195,7 @@ describe('Tenant Service', () => {
   })
 
   it('should throw tenant-provision-failed if database provisioning fails', async () => {
+    const console_spy = spyOn(console, 'error').mockImplementation(() => {})
     mock_turso_create.mockImplementationOnce(() => Promise.reject(new Error('Turso error')))
 
     const body = {
@@ -211,6 +213,8 @@ describe('Tenant Service', () => {
       const err = error as { code?: string }
       expect(err.code).toBe('tenant-provision-failed')
       expect(mock_db.delete).not.toHaveBeenCalled()
+    } finally {
+      console_spy.mockRestore()
     }
   })
 })

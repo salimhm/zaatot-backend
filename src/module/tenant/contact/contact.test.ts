@@ -33,7 +33,7 @@ const mock_redis = {
 
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
-  db_redis_main: mock_redis,
+  db_redis_tenant_access: mock_redis,
 }))
 
 let should_find_exist = false

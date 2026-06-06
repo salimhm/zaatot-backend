@@ -1,7 +1,7 @@
 import type { lib_dto_payload } from '@lib/dto.lib'
 import type { Context } from 'elysia'
 
-import { db_redis_main } from '@db/client.db'
+import { db_redis_rate_limiting } from '@db/client.db'
 import { current_tenant_schema_version } from '@db/main.schema.db'
 
 import { lib_error } from '@lib/error.lib'
@@ -111,8 +111,8 @@ export const guard_auth = async ({ headers: { authorization }, jwt }: Pick<Conte
 
 export const check_rate_limit = async (options: { key: string; limit: number; duration: number }): Promise<void> => {
   const { key, limit, duration } = options
-  await db_redis_main.set(key, '0', 'NX', 'EX', String(duration))
-  const current = await db_redis_main.incr(key)
+  await db_redis_rate_limiting.set(key, '0', 'NX', 'EX', String(duration))
+  const current = await db_redis_rate_limiting.incr(key)
   if (current > limit) {
     throw lib_error.too_many_requests
   }
