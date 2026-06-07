@@ -37,11 +37,13 @@ export async function check() {
 
   await checkDir(SRC_DIR, ['ai', 'db', 'lib', 'module', 'storage'], null, false)
 
-  await checkDir(`${SRC_DIR}/module`, ['main', 'tenant'], [], true)
+  await checkDir(`${SRC_DIR}/module`, ['main', 'tenant', 'organization', 'user'], [], true)
 
   await checkDir(`${SRC_DIR}/module/main`, ['auth', 'tenant', 'user'], [], true)
 
   await checkDir(`${SRC_DIR}/module/tenant`, null, null, false)
+  await checkDir(`${SRC_DIR}/module/organization`, null, null, false)
+  await checkDir(`${SRC_DIR}/module/user`, null, null, false)
 
   await checkDir(`${SRC_DIR}/ai`, ['agent', 'tool'], ['utils.ai.ts'], true)
 
@@ -52,7 +54,12 @@ export async function check() {
 
   await checkDir(`${SRC_DIR}/lib`, [], ['dto.lib.ts', 'enum.lib.ts', 'env.lib.ts', 'error.lib.ts', 'jwt.lib.ts', 'middleware.lib.ts'], true)
 
-  await checkDir(`${SRC_DIR}/db`, [], ['client.db.ts', 'main.schema.db.ts', 'tenant.schema.db.ts', 'utils.db.ts', 'utils.dto.db.ts'], true)
+  await checkDir(
+    `${SRC_DIR}/db`,
+    [],
+    ['client.db.ts', 'main.schema.db.ts', 'tenant.schema.db.ts', 'utils.db.ts', 'utils.dto.db.ts', 'organization.schema.db.ts', 'user.schema.db.ts'],
+    true,
+  )
 
   return violations
 }

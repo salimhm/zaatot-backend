@@ -3,13 +3,13 @@ import type { Static } from 'elysia'
 
 import { and, eq, isNull } from 'drizzle-orm'
 import { db_client } from '@db/client.db'
-import { table_contact } from '@db/tenant.schema.db'
+import { table_contact } from '@db/organization.schema.db'
 import { select } from '@db/utils.db'
 
 import { lib_error } from '@lib/error.lib'
 
+import { dto_contact, dto_schema_contact } from '@module/organization/contact/contact.dto'
 import { service_access } from '@module/tenant/access/access.service'
-import { dto_contact, dto_schema_contact } from '@module/tenant/contact/contact.dto'
 
 export const service_contact = {
   async find(query: Static<typeof dto_contact.find.query>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.find.response>> {

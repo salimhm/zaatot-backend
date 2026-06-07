@@ -5,8 +5,8 @@ import { Elysia } from 'elysia'
 
 import { lib_jwt } from '@lib/jwt.lib'
 
-import { dto_contact } from '@module/tenant/contact/contact.dto'
-import { service_contact } from '@module/tenant/contact/contact.service'
+import { dto_contact } from '@module/organization/contact/contact.dto'
+import { service_contact } from '@module/organization/contact/contact.service'
 
 export const controller_contact = new Elysia({ prefix: '/contact' })
   .use(lib_jwt)
