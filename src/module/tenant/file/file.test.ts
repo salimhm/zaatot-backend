@@ -1,7 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import { service_file } from '@module/tenant/file/file.service'
-
 const mock_db = {
   insert: mock(() => ({
     values: mock(() => ({
@@ -29,11 +27,19 @@ const mock_redis = {
   get: mock(() => Promise.resolve(null as string | null)),
   set: mock(() => Promise.resolve('OK')),
   del: mock(() => Promise.resolve(1)),
+  incr: mock(() => Promise.resolve(1)),
+  expire: mock(() => Promise.resolve(1)),
 }
 
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
+  db_redis_auth: mock_redis,
   db_redis_tenant_access: mock_redis,
+  db_redis_migration_lock: mock_redis,
+  db_redis_rate_limiting: mock_redis,
+  get_tenant_type: (tenant_id: number, payload: any) => payload?.tenants?.find((t: any) => t.tenant_id === tenant_id)?.tenant_type || 'organization',
+  get_tenant_url: () => 'mock-tenant-url',
+  close_all_connections: () => {},
 }))
 
 mock.module('@db/utils.db', () => ({
@@ -46,6 +52,7 @@ mock.module('@db/utils.db', () => ({
       data: [{ file_id: 'user-1/file.jpg', file_name: 'file.jpg', user_id: 1 }],
     }),
   ),
+  sync_schema: mock(() => Promise.resolve()),
 }))
 
 mock.module('@lib/middleware.lib', () => ({
@@ -65,6 +72,8 @@ mock.module('@aws-sdk/client-s3', () => ({
 mock.module('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: mock(() => Promise.resolve('https://mock-presigned-url.com/file.jpg')),
 }))
+
+const { service_file } = await import('@module/tenant/file/file.service')
 
 describe('File Service', () => {
   it('should find files successfully', async () => {

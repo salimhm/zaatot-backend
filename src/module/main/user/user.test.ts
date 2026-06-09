@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
 
-import { service_tenant } from '@module/main/tenant/tenant.service'
-import { service_user } from '@module/main/user/user.service'
-
 const mock_db = {
   insert: mock(() => ({
     values: mock(() => ({
@@ -26,9 +23,27 @@ const mock_db = {
   })),
 }
 
+const mock_redis = {
+  get: mock(() => Promise.resolve(null)),
+  set: mock(() => Promise.resolve('OK')),
+  del: mock(() => Promise.resolve(1)),
+  incr: mock(() => Promise.resolve(1)),
+  expire: mock(() => Promise.resolve(1)),
+}
+
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
+  db_redis_auth: mock_redis,
+  db_redis_tenant_access: mock_redis,
+  db_redis_migration_lock: mock_redis,
+  db_redis_rate_limiting: mock_redis,
+  get_tenant_type: (tenant_id: number, payload: any) => payload?.tenants?.find((t: any) => t.tenant_id === tenant_id)?.tenant_type || 'organization',
+  get_tenant_url: () => 'mock-tenant-url',
+  close_all_connections: () => {},
 }))
+
+const { service_tenant } = await import('@module/main/tenant/tenant.service')
+const { service_user } = await import('@module/main/user/user.service')
 
 let spy_provision: any
 beforeEach(() => {
@@ -49,6 +64,7 @@ mock.module('@db/utils.db', () => ({
       data: [{ user_id: 1, user_phone: '+1234567890', user_first_name: 'John', user_last_name: 'Doe' }],
     }),
   ),
+  sync_schema: mock(() => Promise.resolve()),
 }))
 
 describe('User Service', () => {

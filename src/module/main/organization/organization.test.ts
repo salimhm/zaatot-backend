@@ -34,8 +34,23 @@ const mock_db = {
   })),
 }
 
+const mock_redis = {
+  get: mock(() => Promise.resolve(null)),
+  set: mock(() => Promise.resolve('OK')),
+  del: mock(() => Promise.resolve(1)),
+  incr: mock(() => Promise.resolve(1)),
+  expire: mock(() => Promise.resolve(1)),
+}
+
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
+  db_redis_auth: mock_redis,
+  db_redis_tenant_access: mock_redis,
+  db_redis_migration_lock: mock_redis,
+  db_redis_rate_limiting: mock_redis,
+  get_tenant_type: (tenant_id: number, payload: any) => payload?.tenants?.find((t: any) => t.tenant_id === tenant_id)?.tenant_type || 'organization',
+  get_tenant_url: () => 'mock-tenant-url',
+  close_all_connections: () => {},
 }))
 
 mock.module('@db/main.schema.db', () => ({
@@ -53,6 +68,7 @@ mock.module('@db/utils.db', () => ({
       data: [{ organization_id: 1, organization_name: 'Acme', user_id: 1 }],
     }),
   ),
+  sync_schema: mock(() => Promise.resolve()),
 }))
 
 let spy_provision: any
