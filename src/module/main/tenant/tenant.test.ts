@@ -87,12 +87,6 @@ mock.module('@tursodatabase/api', () => ({
   })),
 }))
 
-mock.module('@module/tenant/access/access.service', () => ({
-  service_access: {
-    create_access_for_owner: mock(() => Promise.resolve()),
-  },
-}))
-
 const { service_tenant } = await import('@module/main/tenant/tenant.service')
 
 describe('Tenant Service', () => {
