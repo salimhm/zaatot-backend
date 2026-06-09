@@ -1,11 +1,13 @@
 import type { Static } from 'elysia'
 
-import { db_redis_auth } from '@db/client.db'
+import { and, eq, isNull } from 'drizzle-orm'
+import { db_client, db_redis_auth } from '@db/client.db'
+import { table_organization, table_organization_user } from '@db/main.schema.db'
 
+import { type lib_dto_tenant } from '@lib/dto.lib'
 import { lib_error } from '@lib/error.lib'
 
 import { dto_auth } from '@module/main/auth/auth.dto'
-import { service_tenant } from '@module/main/tenant/tenant.service'
 import { dto_schema_user } from '@module/main/user/user.dto'
 import { service_user } from '@module/main/user/user.service'
 
@@ -46,23 +48,39 @@ export const service_auth = {
     const { user, jwt } = args
     const user_id = user.user_id
 
-    let data: { tenant_id?: number | null; tenant_schema_version?: string | null }[] = []
+    let user_schema_version = '0.0.0'
     try {
-      const res = await service_tenant.find({ columns: ['tenant_id', 'tenant_schema_version'], take: 100 }, { user_id })
-      data = res.data
+      const res = await service_user.find({ columns: ['user_id', 'user_schema_version'], user_id: [String(user_id)], take: 1 })
+      user_schema_version = (res.data[0] as { user_schema_version?: string | null })?.user_schema_version || '0.0.0'
     } catch (error: unknown) {
-      const err = error as { code?: string }
-      if (err?.code !== 'not-found-tenant') throw error
+      throw error
     }
 
-    const schemas = Object.fromEntries(
-      data.filter((t) => t.tenant_id && t.tenant_schema_version).map((t) => [String(t.tenant_id), t.tenant_schema_version as string]),
-    )
+    const db = db_client()
+    const orgs = await db
+      .select({
+        organization_id: table_organization.organization_id,
+        organization_schema_version: table_organization.organization_schema_version,
+      })
+      .from(table_organization_user)
+      .innerJoin(table_organization, eq(table_organization_user.organization_id, table_organization.organization_id))
+      .where(and(eq(table_organization_user.user_id, user_id), isNull(table_organization_user.deleted_at), isNull(table_organization.deleted_at)))
+
+    const tenants: lib_dto_tenant[] = [
+      { tenant_id: user_id, tenant_type: 'user', tenant_schema_version: user_schema_version },
+      ...orgs
+        .filter((org) => org.organization_id != null)
+        .map((org) => ({
+          tenant_id: org.organization_id!,
+          tenant_type: 'organization' as const,
+          tenant_schema_version: org.organization_schema_version || '0.0.0',
+        })),
+    ]
 
     const token = await jwt.sign({
       user_id,
-      tenant_schemas: JSON.stringify(schemas),
-    })
+      tenants,
+    } as any)
 
     return { data: { ...user }, token }
   },

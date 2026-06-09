@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import { service_contact } from '@module/tenant/contact/contact.service'
+import { service_contact } from '@module/organization/contact/contact.service'
 
 const mock_db = {
   insert: mock(() => ({

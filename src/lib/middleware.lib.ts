@@ -1,8 +1,8 @@
-import type { lib_dto_payload } from '@lib/dto.lib'
+import type { lib_dto_payload, lib_dto_tenant } from '@lib/dto.lib'
 import type { Context } from 'elysia'
 
 import { db_redis_rate_limiting } from '@db/client.db'
-import { current_tenant_schema_version } from '@db/main.schema.db'
+import { current_schema_version } from '@db/main.schema.db'
 
 import { lib_error } from '@lib/error.lib'
 
@@ -53,27 +53,24 @@ export const apply_tenant_migration = async ({
 
   if (!payload) return
 
-  let schemas: Record<string, string> = {}
-  if (payload.tenant_schemas) {
-    try {
-      schemas = JSON.parse(payload.tenant_schemas)
-    } catch {
-      schemas = {}
-    }
-  }
-  const tenant_key = String(tenant_id)
+  const tenants_map: lib_dto_tenant[] = payload.tenants ?? []
 
-  if (schemas[tenant_key] === current_tenant_schema_version) return
+  const tenant_key = Number(tenant_id)
+  const entry = tenants_map.find((t) => t.tenant_id === tenant_key)
+  if (!entry) return
 
-  const parsed_id = Number(tenant_id)
-  const migrated = await service_tenant.migrate_schema(parsed_id)
+  const tenant_type = entry.tenant_type
+  const target_version = current_schema_version[tenant_type]
+  if (entry.tenant_schema_version === target_version) return
+
+  const migrated = await service_tenant.migrate_schema({ tenant_id: tenant_key, tenant_type })
 
   if (migrated) {
-    schemas[tenant_key] = current_tenant_schema_version
+    entry.tenant_schema_version = target_version
     const refreshed_token = await jwt.sign({
       user_id: payload.user_id,
-      tenant_schemas: JSON.stringify(schemas),
-    })
+      tenants: tenants_map,
+    } as any)
     set.headers['X-Refresh-Token'] = refreshed_token
   }
 }

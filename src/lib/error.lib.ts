@@ -11,6 +11,7 @@ export const lib_error = {
   not_found_table: {
     user: { status: 404, code: 'not-found-user' },
     tenant: { status: 404, code: 'not-found-tenant' },
+    organization: { status: 404, code: 'not-found-organization' },
     contact: { status: 404, code: 'not-found-contact' },
     access: { status: 404, code: 'not-found-access' },
     file: { status: 404, code: 'not-found-file' },
@@ -29,6 +30,13 @@ export const lib_error = {
   tenant_schema_update_failed: { status: 500, code: 'tenant-schema-update-failed' },
   tenant_not_ready: { status: 503, code: 'tenant-not-ready' },
   tenant_provision_failed: { status: 500, code: 'tenant-provision-failed' },
+  user_max_organizations: { status: 400, code: 'user-max-organizations' },
+  organization_schema_update_failed: { status: 500, code: 'organization-schema-update-failed' },
+  organization_not_ready: { status: 503, code: 'organization-not-ready' },
+  organization_provision_failed: { status: 500, code: 'organization-provision-failed' },
+  user_schema_update_failed: { status: 500, code: 'user-schema-update-failed' },
+  user_not_ready: { status: 503, code: 'user-not-ready' },
+  user_provision_failed: { status: 500, code: 'user-provision-failed' },
 }
 
 export const handle_error = ({ code, error, set }: { code: string | number | unknown; error: unknown; set: { status?: number | string } }) => {

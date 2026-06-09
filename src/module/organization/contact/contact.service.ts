@@ -3,21 +3,21 @@ import type { Static } from 'elysia'
 
 import { and, eq, isNull } from 'drizzle-orm'
 import { db_client } from '@db/client.db'
-import { table_contact } from '@db/tenant.schema.db'
+import { table_contact } from '@db/organization.schema.db'
 import { select } from '@db/utils.db'
 
 import { lib_error } from '@lib/error.lib'
 
+import { dto_contact, dto_schema_contact } from '@module/organization/contact/contact.dto'
 import { service_access } from '@module/tenant/access/access.service'
-import { dto_contact, dto_schema_contact } from '@module/tenant/contact/contact.dto'
 
 export const service_contact = {
   async find(query: Static<typeof dto_contact.find.query>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.find.response>> {
     const { tenant_id, contact_id, contact_name, contact_phone, contact_status } = query
 
-    await service_access.check_access(tenant_id, payload)
+    await service_access.check_access({ tenant_id }, payload)
 
-    const db = db_client({ tenant_id })
+    const db = db_client({ tenant_id, payload })
 
     return await select({
       db,
@@ -51,7 +51,7 @@ export const service_contact = {
   async create(body: Static<typeof dto_contact.create.body>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.create.response>> {
     const { tenant_id, ...contact_data } = body
 
-    await service_access.check_access(tenant_id, payload)
+    await service_access.check_access({ tenant_id }, payload)
 
     try {
       await this.find({ columns: ['contact_phone'], tenant_id, contact_phone: [body.contact_phone] }, payload)
@@ -61,7 +61,7 @@ export const service_contact = {
       if (err?.code !== 'not-found-contact') throw error
     }
 
-    const db = db_client({ tenant_id })
+    const db = db_client({ tenant_id, payload })
 
     const [data] = await db.insert(table_contact).values(contact_data).returning()
 
@@ -73,10 +73,10 @@ export const service_contact = {
   async update(body: Static<typeof dto_contact.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.update.response>> {
     const { tenant_id, contact_id, ...contact_data } = body
 
-    await service_access.check_access(tenant_id, payload)
+    await service_access.check_access({ tenant_id }, payload)
     await this.find({ columns: ['contact_id'], tenant_id, contact_id: [contact_id] }, payload)
 
-    const db = db_client({ tenant_id })
+    const db = db_client({ tenant_id, payload })
 
     const [data] = await db
       .update(table_contact)
@@ -92,10 +92,10 @@ export const service_contact = {
   async delete(body: Static<typeof dto_contact.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_contact.delete.response>> {
     const { tenant_id, contact_id } = body
 
-    await service_access.check_access(tenant_id, payload)
+    await service_access.check_access({ tenant_id }, payload)
     await this.find({ columns: ['contact_id'], tenant_id, contact_id: [contact_id] }, payload)
 
-    const db = db_client({ tenant_id })
+    const db = db_client({ tenant_id, payload })
 
     const [data] = await db
       .update(table_contact)

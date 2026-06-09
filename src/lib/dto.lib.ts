@@ -1,8 +1,16 @@
 import { t } from 'elysia'
 
+import { enum_tenant_type } from '@lib/enum.lib'
+
+export type lib_dto_tenant = {
+  tenant_id: number
+  tenant_type: (typeof enum_tenant_type)[number]
+  tenant_schema_version: string
+}
+
 export type lib_dto_payload = {
   user_id: number
-  tenant_schemas?: string
+  tenants?: lib_dto_tenant[]
 }
 
 export type lib_dto_context<

@@ -111,7 +111,7 @@ describe('Access Service', () => {
   })
 
   it('should check access successfully when user is owner', async () => {
-    await service_access.check_access(1, { user_id: 1 })
+    await service_access.check_access({ tenant_id: 1 }, { user_id: 1 })
   })
 
   it('should throw unauthorized when user has no access record', async () => {
@@ -124,7 +124,7 @@ describe('Access Service', () => {
     }))
 
     try {
-      await service_access.check_access(1, { user_id: 99 })
+      await service_access.check_access({ tenant_id: 1 }, { user_id: 99 })
       expect(true).toBe(false)
     } catch (error: unknown) {
       const err = error as { code?: string }
@@ -142,7 +142,7 @@ describe('Access Service', () => {
     }))
 
     try {
-      await service_access.check_access(1, { user_id: 99 })
+      await service_access.check_access({ tenant_id: 1 }, { user_id: 99 })
       expect(true).toBe(false)
     } catch (error: unknown) {
       const err = error as { code?: string }
@@ -160,7 +160,7 @@ describe('Access Service', () => {
     }))
 
     try {
-      await service_access.check_access(1, { user_id: 2 }, ['owner'])
+      await service_access.check_access({ tenant_id: 1, required_access: ['owner'] }, { user_id: 2 })
       expect(true).toBe(false)
     } catch (error: unknown) {
       const err = error as { code?: string }
@@ -177,13 +177,13 @@ describe('Access Service', () => {
       })),
     }))
 
-    await service_access.check_access(1, { user_id: 2 }, ['full_access'])
+    await service_access.check_access({ tenant_id: 1, required_access: ['full_access'] }, { user_id: 2 })
   })
 
   it('should get access actions from redis if cached', async () => {
     mock_redis.get.mockImplementationOnce(() => Promise.resolve(JSON.stringify(['owner'])))
-    await service_access.check_access(1, { user_id: 3 })
-    expect(mock_redis.get).toHaveBeenCalledWith('tenant_access:1:3')
+    await service_access.check_access({ tenant_id: 1 }, { user_id: 3 })
+    expect(mock_redis.get).toHaveBeenCalledWith('tenant_access:organization:1:3')
   })
 
   it('should delete redis cache key when updating access', async () => {
@@ -196,6 +196,6 @@ describe('Access Service', () => {
       user_id: 1,
     }
     await service_access.update(body, payload)
-    expect(mock_redis.del).toHaveBeenCalledWith('tenant_access:1:2')
+    expect(mock_redis.del).toHaveBeenCalledWith('tenant_access:organization:1:2')
   })
 })

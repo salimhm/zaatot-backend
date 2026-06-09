@@ -45,6 +45,8 @@ export const service_user = {
         user_first_name: table_user.user_first_name,
         user_last_name: table_user.user_last_name,
         user_image: table_user.user_image,
+        user_schema_version: table_user.user_schema_version,
+        created_at: table_user.created_at,
       },
       where: [
         [table_user.user_id, user_id, '[]'],
@@ -65,6 +67,15 @@ export const service_user = {
 
     const [data] = await db.insert(table_user).values(body).returning()
     if (!data) throw lib_error.bad_request
+    const { user_id } = data
+
+    try {
+      const { service_tenant } = await import('@module/main/tenant/tenant.service')
+      await service_tenant.provision_tenant_db({ tenant_id: user_id, user_id, tenant_type: 'user' })
+    } catch (error) {
+      throw lib_error.user_provision_failed
+    }
+
     const { deleted_at, ...response_data } = data
     return { data: response_data }
   },

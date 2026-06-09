@@ -2,7 +2,15 @@ import { t } from 'elysia'
 
 import { lib_dto_find_query, lib_dto_find_response, lib_dto_phone } from '@lib/dto.lib'
 
-export const enum_user_columns = ['user_id', 'user_phone', 'user_first_name', 'user_last_name', 'user_image', 'created_at'] as const
+export const enum_user_columns = [
+  'user_id',
+  'user_phone',
+  'user_first_name',
+  'user_last_name',
+  'user_image',
+  'user_schema_version',
+  'created_at',
+] as const
 export const enum_user_order_by = [...enum_user_columns, ...enum_user_columns.map((c) => `-${c}`)] as const
 
 export const dto_schema_user = t.Object({
