@@ -38,18 +38,15 @@ export const apply_tenant_migration = async ({
   query,
   body,
   set,
-  headers: { authorization },
+  payload,
   jwt,
-}: Pick<Context, 'params' | 'query' | 'body' | 'set' | 'headers'> & { jwt: ElysiaJWT }): Promise<void> => {
+}: Pick<Context, 'params' | 'query' | 'body' | 'set'> & { payload?: lib_dto_payload; jwt: ElysiaJWT }): Promise<void> => {
   const p = (params || {}) as Record<string, string | undefined>
   const q = (query || {}) as Record<string, string | undefined>
   const b = (body || {}) as Record<string, unknown>
 
   const tenant_id = p.tenant_id || q.tenant_id || b.tenant_id
   if (!tenant_id) return
-
-  const token = authorization?.split(' ')[1]
-  const payload = token ? ((await jwt.verify(token)) as lib_dto_payload | false) : false
 
   if (!payload) return
 
@@ -94,15 +91,7 @@ export const derive_auth = async ({
   }
 }
 
-export const guard_auth = async ({ headers: { authorization }, jwt }: Pick<Context, 'headers'> & { jwt: ElysiaJWT }): Promise<void> => {
-  if (!authorization) throw lib_error.invalid_token
-
-  const token = authorization.split(' ')[1]
-
-  if (!token) throw lib_error.invalid_token
-
-  const payload = (await jwt.verify(token)) as lib_dto_payload | false
-
+export const guard_auth = ({ payload }: { payload: lib_dto_payload }): void => {
   if (!payload) throw lib_error.invalid_token
 }
 

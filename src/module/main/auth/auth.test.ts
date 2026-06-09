@@ -1,7 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import { service_auth } from '@module/main/auth/auth.service'
-
 const mock_db = {
   insert: mock(() => ({
     values: mock(() => ({
@@ -54,6 +52,8 @@ mock.module('@db/utils.db', () => ({
     }),
   ),
 }))
+
+const { service_auth } = await import('@module/main/auth/auth.service')
 
 describe('Auth Service', () => {
   it('should sign in a user and return a token', async () => {

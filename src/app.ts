@@ -44,8 +44,6 @@ export const app = new Elysia({
 
   .onBeforeHandle(apply_rate_limit)
 
-  .onBeforeHandle(apply_tenant_migration)
-
   .onAfterHandle(apply_security_headers)
 
   .onError(handle_error)
@@ -72,6 +70,7 @@ export const app = new Elysia({
     app
       .derive(derive_auth)
       .onBeforeHandle(guard_auth)
+      .onBeforeHandle(apply_tenant_migration)
       .use(controller_user)
       .use(controller_file)
       .use(controller_contact)

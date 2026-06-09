@@ -1,7 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import { service_contact } from '@module/organization/contact/contact.service'
-
 const mock_db = {
   insert: mock(() => ({
     values: mock(() => ({
@@ -29,11 +27,19 @@ const mock_redis = {
   get: mock(() => Promise.resolve(null as string | null)),
   set: mock(() => Promise.resolve('OK')),
   del: mock(() => Promise.resolve(1)),
+  incr: mock(() => Promise.resolve(1)),
+  expire: mock(() => Promise.resolve(1)),
 }
 
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
+  db_redis_auth: mock_redis,
   db_redis_tenant_access: mock_redis,
+  db_redis_migration_lock: mock_redis,
+  db_redis_rate_limiting: mock_redis,
+  get_tenant_type: (tenant_id: number, payload: any) => payload?.tenants?.find((t: any) => t.tenant_id === tenant_id)?.tenant_type || 'organization',
+  get_tenant_url: () => 'mock-tenant-url',
+  close_all_connections: () => {},
 }))
 
 let should_find_exist = false
@@ -55,7 +61,10 @@ mock.module('@db/utils.db', () => ({
     const err = new NotFoundError('Not found contact')
     return Promise.reject(err)
   }),
+  sync_schema: mock(() => Promise.resolve()),
 }))
+
+const { service_contact } = await import('@module/organization/contact/contact.service')
 
 describe('Contact Service', () => {
   it('should find contacts successfully when contact exists', async () => {

@@ -40,8 +40,13 @@ const mock_turso_create = mock(() => Promise.resolve({ id: 'db-id', hostname: 'd
 
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
-  db_redis_migration_lock: mock_redis,
+  db_redis_auth: mock_redis,
   db_redis_tenant_access: mock_redis,
+  db_redis_migration_lock: mock_redis,
+  db_redis_rate_limiting: mock_redis,
+  get_tenant_type: (tenant_id: number, payload: any) => payload?.tenants?.find((t: any) => t.tenant_id === tenant_id)?.tenant_type || 'organization',
+  get_tenant_url: () => 'mock-tenant-url',
+  close_all_connections: () => {},
 }))
 
 mock.module('@db/main.schema.db', () => ({
@@ -80,12 +85,6 @@ mock.module('@tursodatabase/api', () => ({
       create: mock_turso_create,
     },
   })),
-}))
-
-mock.module('@module/tenant/access/access.service', () => ({
-  service_access: {
-    create_access_for_owner: mock(() => Promise.resolve()),
-  },
 }))
 
 const { service_tenant } = await import('@module/main/tenant/tenant.service')
