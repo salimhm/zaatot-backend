@@ -8,7 +8,7 @@ export async function check() {
   const paths = await get_source_files()
   const violations: string[] = []
   for (const relativePath of paths) {
-    if (!relativePath.startsWith('db/')) continue
+    if (!relativePath.startsWith('db/') || !relativePath.endsWith('.schema.db.ts')) continue
     const { sourceFile } = await parse_file(relativePath)
     ts.forEachChild(sourceFile, (node) => {
       if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {

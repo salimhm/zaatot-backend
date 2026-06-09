@@ -14,7 +14,7 @@ import { apply_rate_limit, apply_security_headers, apply_tenant_migration, deriv
 import { storage_object_main } from '@storage/client.storage'
 
 import { controller_auth } from '@module/main/auth/auth.controller'
-import { controller_tenant } from '@module/main/tenant/tenant.controller'
+import { controller_organization } from '@module/main/organization/organization.controller'
 import { controller_user } from '@module/main/user/user.controller'
 import { controller_contact } from '@module/organization/contact/contact.controller'
 import { controller_access } from '@module/tenant/access/access.controller'
@@ -75,7 +75,7 @@ export const app = new Elysia({
       .use(controller_user)
       .use(controller_file)
       .use(controller_contact)
-      .use(controller_tenant)
+      .use(controller_organization)
       .use(controller_access),
   )
 

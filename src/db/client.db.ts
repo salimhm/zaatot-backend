@@ -7,28 +7,58 @@ import { createClient } from '@libsql/client'
 
 import { drizzle } from 'drizzle-orm/libsql'
 
+import { type lib_dto_payload } from '@lib/dto.lib'
+import { enum_tenant_type } from '@lib/enum.lib'
+
 interface cached_connection {
   db: LibSQLDatabase<Record<string, unknown>>
   client: Client
 }
 
 const main_cache = new Map<string, cached_connection>()
-const max_cached_tenants = Number(process.env.DB_MAX_CACHED_TENANTS) || 1200
-const tenant_cache = new Map<number, cached_connection>()
+const max_cached_tenants = Number(process.env.DB_MAX_CACHED_TENANTS) || 1800
+const tenant_cache = new Map<string, cached_connection>()
 
-export function get_tenant_url(tenant_id: number): string {
-  const db_name = `db-${process.env.NAME}-${process.env.ENV}-tenant-${tenant_id}`
+export function get_tenant_type(tenant_id: number, payload: lib_dto_payload): (typeof enum_tenant_type)[number] {
+  return payload?.tenants?.find((t) => t.tenant_id === tenant_id)?.tenant_type || 'organization'
+}
+
+export function get_tenant_url(tenant_id: number, tenant_type: (typeof enum_tenant_type)[number] = 'organization'): string {
+  const db_name = `db-${process.env.NAME}-${process.env.ENV}-${tenant_type}-${tenant_id}`
   return `https://${db_name}-${process.env.TURSO_ORG_NAME}.turso.io`
 }
 
-export function db_client(options: { url?: string; token?: string; tenant_id?: number } = {}) {
-  const { url, token, tenant_id } = options
+export function db_client(
+  options:
+    | {
+        url?: never
+        token?: never
+        tenant_id?: never
+        payload?: never
+      }
+    | {
+        url: string
+        token: string
+        tenant_id?: never
+        payload?: never
+      }
+    | {
+        url?: never
+        token?: string
+        tenant_id: number
+        payload: lib_dto_payload
+      } = {},
+) {
+  const { url, token, tenant_id, payload } = options
 
-  if (tenant_id != null) {
-    if (tenant_cache.has(tenant_id)) {
-      const cached = tenant_cache.get(tenant_id)!
-      tenant_cache.delete(tenant_id)
-      tenant_cache.set(tenant_id, cached)
+  if (tenant_id != null && payload != null) {
+    const tenant_type = get_tenant_type(tenant_id, payload)
+    const cache_key = `${tenant_type}:${tenant_id}`
+
+    if (tenant_cache.has(cache_key)) {
+      const cached = tenant_cache.get(cache_key)!
+      tenant_cache.delete(cache_key)
+      tenant_cache.set(cache_key, cached)
       return cached.db
     }
 
@@ -44,22 +74,22 @@ export function db_client(options: { url?: string; token?: string; tenant_id?: n
       }
     }
 
-    const resolved_url = get_tenant_url(tenant_id)
-    const resolved_token = token || process.env.TURSO_GROUP_TOKEN!
-    const client = createClient({ url: resolved_url, authToken: resolved_token })
+    const tenant_url = get_tenant_url(tenant_id, tenant_type)
+    const tenant_token = token || process.env.TURSO_GROUP_TOKEN!
+    const client = createClient({ url: tenant_url, authToken: tenant_token })
     const db = drizzle(client) as LibSQLDatabase<Record<string, unknown>>
-    tenant_cache.set(tenant_id, { db, client })
+    tenant_cache.set(cache_key, { db, client })
     return db
   }
 
-  const resolved_url = url || process.env.TURSO_DB_MAIN_URL!
-  const resolved_token = token || process.env.TURSO_DB_MAIN_TOKEN!
-  const main_key = resolved_url
+  const main_url = url || process.env.TURSO_DB_MAIN_URL!
+  const main_token = token || process.env.TURSO_DB_MAIN_TOKEN!
+  const main_key = main_url
 
   const cached = main_cache.get(main_key)
   if (cached) return cached.db
 
-  const client = createClient({ url: resolved_url, authToken: resolved_token })
+  const client = createClient({ url: main_url, authToken: main_token })
   const db = drizzle(client) as LibSQLDatabase<Record<string, unknown>>
   main_cache.set(main_key, { db, client })
   return db

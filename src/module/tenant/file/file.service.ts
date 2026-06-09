@@ -21,9 +21,9 @@ export const service_file = {
   async find(query: Static<typeof dto_file.find.query>, payload: lib_dto_payload): Promise<Static<typeof dto_file.find.response>> {
     const { tenant_id, file_id, file_name } = query
 
-    await service_access.check_access(tenant_id, payload)
+    await service_access.check_access({ tenant_id }, payload)
 
-    const db = db_client({ tenant_id })
+    const db = db_client({ tenant_id, payload })
 
     return await select({
       db,
@@ -44,7 +44,7 @@ export const service_file = {
     const { tenant_id, file_name, file_type, file_size } = body
     const { user_id } = payload
 
-    await service_access.check_access(tenant_id, payload)
+    await service_access.check_access({ tenant_id }, payload)
 
     const limit = Number(process.env.RATE_LIMIT_FILE_UPLOAD_LIMIT) || 20
     const duration = Number(process.env.RATE_LIMIT_FILE_UPLOAD_DURATION) || 60
@@ -84,7 +84,7 @@ export const service_file = {
         expiresIn: Number(process.env.CLOUDFLARE_R2_PRESIGNED_URL_EXPIRES_IN) || 720,
       })
 
-      const db = db_client({ tenant_id })
+      const db = db_client({ tenant_id, payload })
       const [data] = await db.insert(table_file).values({ file_id, file_name: resolved_file_name, user_id }).returning()
 
       if (!data) throw lib_error.bad_request
@@ -100,9 +100,9 @@ export const service_file = {
   async update(body: Static<typeof dto_file.update.body>, payload: lib_dto_payload): Promise<Static<typeof dto_file.update.response>> {
     const { tenant_id, file_id, file_name } = body
     const { user_id } = payload
-    await service_access.check_access(tenant_id, payload)
+    await service_access.check_access({ tenant_id }, payload)
 
-    const db = db_client({ tenant_id })
+    const db = db_client({ tenant_id, payload })
     const [data] = await db
       .update(table_file)
       .set({ file_name })
@@ -117,9 +117,9 @@ export const service_file = {
   async delete(body: Static<typeof dto_file.delete.body>, payload: lib_dto_payload): Promise<Static<typeof dto_file.delete.response>> {
     const { tenant_id, file_id } = body
     const { user_id } = payload
-    await service_access.check_access(tenant_id, payload)
+    await service_access.check_access({ tenant_id }, payload)
 
-    const db = db_client({ tenant_id })
+    const db = db_client({ tenant_id, payload })
 
     const [data] = await db
       .update(table_file)

@@ -35,9 +35,12 @@ mock.module('@db/client.db', () => ({
 }))
 
 mock.module('@db/main.schema.db', () => ({
-  current_tenant_schema_version: '0.0.6',
-  table_tenant: {},
-  table_user_tenant: {},
+  current_schema_version: {
+    user: '0.0.6',
+    organization: '0.0.1',
+  },
+  table_organization: {},
+  table_organization_user: {},
 }))
 
 mock.module('@db/utils.db', () => ({

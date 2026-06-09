@@ -1,6 +1,11 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+export const current_schema_version = {
+  user: '0.0.1',
+  organization: '0.0.1',
+} as const
+
 export const table_user = sqliteTable(
   'user',
   {
@@ -9,6 +14,9 @@ export const table_user = sqliteTable(
     user_first_name: text('user_first_name', { length: 32 }).notNull(),
     user_last_name: text('user_last_name', { length: 32 }).notNull(),
     user_image: text('user_image', { length: 64 }),
+    user_schema_version: text('user_schema_version').notNull().default('0.0.0'),
+    user_db_id: text('user_db_id', { length: 512 }),
+    user_db_url: text('user_db_url', { length: 512 }),
     created_at: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -24,43 +32,44 @@ export const table_user = sqliteTable(
   ],
 )
 
-export const current_tenant_schema_version = '0.0.6'
-
-export const table_tenant = sqliteTable(
-  'tenant',
+export const table_organization = sqliteTable(
+  'organization',
   {
-    tenant_id: integer('tenant_id').primaryKey({ autoIncrement: true }),
-    tenant_type: text('tenant_type').notNull(),
-    tenant_schema_version: text('tenant_schema_version').notNull().default('0.0.0'),
-    tenant_name: text('tenant_name', { length: 128 }).notNull(),
-    tenant_db_id: text('tenant_db_id', { length: 512 }),
-    tenant_db_url: text('tenant_db_url', { length: 512 }),
+    organization_id: integer('organization_id').primaryKey({ autoIncrement: true }),
+    organization_name: text('organization_name', { length: 128 }).notNull(),
+    organization_schema_version: text('organization_schema_version').notNull().default('0.0.0'),
+    organization_db_id: text('organization_db_id', { length: 512 }),
+    organization_db_url: text('organization_db_url', { length: 512 }),
     user_id: integer('user_id').notNull(),
-    created_at: text('created_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    deleted_at: text('deleted_at'),
-  },
-  (table) => [index('tenant_user_id_idx').on(table.user_id)],
-)
-
-export const table_user_tenant = sqliteTable(
-  'user_tenant',
-  {
-    user_tenant_id: integer('user_tenant_id').primaryKey({ autoIncrement: true }),
-    user_id: integer('user_id').notNull(),
-    tenant_id: integer('tenant_id').notNull(),
     created_at: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     deleted_at: text('deleted_at'),
   },
   (table) => [
-    index('user_tenant_user_id_idx').on(table.user_id),
-    index('user_tenant_tenant_id_idx').on(table.tenant_id),
-    uniqueIndex('user_tenant_user_id_tenant_id_idx')
-      .on(table.user_id, table.tenant_id)
+    index('organization_user_id_idx').on(table.user_id),
+    index('organization_name_idx').on(table.organization_name),
+    index('organization_deleted_at_idx').on(table.deleted_at),
+  ],
+)
+
+export const table_organization_user = sqliteTable(
+  'organization_user',
+  {
+    organization_user_id: integer('organization_user_id').primaryKey({ autoIncrement: true }),
+    organization_id: integer('organization_id').notNull(),
+    user_id: integer('user_id').notNull(),
+    created_at: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    deleted_at: text('deleted_at'),
+  },
+  (table) => [
+    index('organization_user_organization_id_idx').on(table.organization_id),
+    index('organization_user_user_id_idx').on(table.user_id),
+    uniqueIndex('organization_user_organization_id_user_id_idx')
+      .on(table.organization_id, table.user_id)
       .where(sql`deleted_at IS NULL`),
-    index('user_tenant_deleted_at_idx').on(table.deleted_at),
+    index('organization_user_deleted_at_idx').on(table.deleted_at),
   ],
 )

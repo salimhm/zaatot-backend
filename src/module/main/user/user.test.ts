@@ -1,5 +1,6 @@
-import { describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
 
+import { service_tenant } from '@module/main/tenant/tenant.service'
 import { service_user } from '@module/main/user/user.service'
 
 const mock_db = {
@@ -28,6 +29,15 @@ const mock_db = {
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
 }))
+
+let spy_provision: any
+beforeEach(() => {
+  spy_provision = spyOn(service_tenant, 'provision_tenant_db').mockImplementation(() => Promise.resolve())
+})
+
+afterEach(() => {
+  spy_provision.mockRestore()
+})
 
 mock.module('@db/utils.db', () => ({
   select: mock(() =>
@@ -64,6 +74,7 @@ describe('User Service', () => {
 
     expect(result.data).toBeDefined()
     expect(result.data.user_phone).toBe('+1234567890')
+    expect(spy_provision).toHaveBeenCalled()
   })
 
   it('should update a user successfully', async () => {
