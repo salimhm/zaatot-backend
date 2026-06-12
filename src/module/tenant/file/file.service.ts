@@ -50,10 +50,6 @@ export const service_file = {
     const duration = Number(process.env.RATE_LIMIT_FILE_UPLOAD_DURATION) || 60
     await check_rate_limit({ key: `rate:file:upload:${user_id}`, limit, duration })
 
-    const daily_limit = Number(process.env.RATE_LIMIT_FILE_UPLOAD_DAILY_LIMIT) || 120
-    const daily_duration = Number(process.env.RATE_LIMIT_FILE_UPLOAD_DAILY_DURATION) || 86400
-    await check_rate_limit({ key: `rate:file:upload:daily:${user_id}`, limit: daily_limit, duration: daily_duration })
-
     const is_image = file_type.startsWith('image/')
     const is_audio = file_type.startsWith('audio/')
     const is_video = file_type.startsWith('video/')
