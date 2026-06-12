@@ -28,8 +28,8 @@ export const apply_security_headers = ({ set }: Pick<Context, 'set'>): void => {
 
 export const apply_rate_limit = async ({ request, server }: Pick<Context, 'request' | 'server'>): Promise<void> => {
   const ip = get_ip(request, server)
-  const limit = Number(process.env.RATE_LIMIT_GLOBAL_LIMIT) || 120
-  const duration = Number(process.env.RATE_LIMIT_GLOBAL_DURATION) || 60
+  const limit = Number(process.env.RATE_LIMIT_GLOBAL_IP_LIMIT) || 120
+  const duration = Number(process.env.RATE_LIMIT_GLOBAL_IP_DURATION) || 60
   await check_rate_limit({ key: `rate:global:${ip}`, limit, duration })
 }
 
