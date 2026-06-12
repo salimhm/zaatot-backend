@@ -51,7 +51,7 @@ mock.module('@db/client.db', () => ({
 
 mock.module('@db/main.schema.db', () => ({
   current_schema_version: {
-    user: '0.0.6',
+    user: '0.0.1',
     organization: '0.0.1',
   },
   table_organization: {
@@ -59,6 +59,7 @@ mock.module('@db/main.schema.db', () => ({
     organization_schema_version: 'organization_schema_version',
     organization_db_url: 'organization_db_url',
   },
+  table_organization_user: {},
   table_user: {
     user_id: 'user_id',
     user_schema_version: 'user_schema_version',
