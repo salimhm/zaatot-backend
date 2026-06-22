@@ -49,24 +49,6 @@ mock.module('@db/client.db', () => ({
   close_all_connections: () => {},
 }))
 
-mock.module('@db/main.schema.db', () => ({
-  current_schema_version: {
-    user: '0.0.1',
-    organization: '0.0.1',
-  },
-  table_organization: {
-    organization_id: 'organization_id',
-    organization_schema_version: 'organization_schema_version',
-    organization_db_url: 'organization_db_url',
-  },
-  table_organization_user: {},
-  table_user: {
-    user_id: 'user_id',
-    user_schema_version: 'user_schema_version',
-    user_db_url: 'user_db_url',
-  },
-}))
-
 mock.module('@db/utils.db', () => ({
   select: mock(() =>
     Promise.resolve({

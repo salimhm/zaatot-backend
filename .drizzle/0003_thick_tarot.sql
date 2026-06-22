@@ -1,0 +1,1 @@
+CREATE INDEX `product_brand_id_idx` ON `product` (`brand_id`) WHERE deleted_at IS NULL;

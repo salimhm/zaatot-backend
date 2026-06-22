@@ -5,7 +5,6 @@ node_modules
 out
 dist
 bin
-.drizzle
 *.tgz
 public/eden.ts
 

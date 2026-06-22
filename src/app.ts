@@ -14,11 +14,16 @@ import { apply_rate_limit, apply_security_headers, apply_tenant_migration, deriv
 import { storage_object_main } from '@storage/client.storage'
 
 import { controller_auth } from '@module/main/auth/auth.controller'
+import { controller_brand } from '@module/main/brand/brand.controller'
 import { controller_organization } from '@module/main/organization/organization.controller'
+import { controller_product } from '@module/main/product/product.controller'
+import { controller_scan } from '@module/main/scan/scan.controller'
 import { controller_user } from '@module/main/user/user.controller'
 import { controller_contact } from '@module/organization/contact/contact.controller'
 import { controller_access } from '@module/tenant/access/access.controller'
 import { controller_file } from '@module/tenant/file/file.controller'
+import { controller_scan_history } from '@module/user/scan-history/scan-history.controller'
+import { controller_user_list } from '@module/user/user-list/user-list.controller'
 
 const app_name = process.env.NAME || 'Elysia'
 const app_env = process.env.ENV || 'UNDEFINED'
@@ -72,6 +77,11 @@ export const app = new Elysia({
       .onBeforeHandle(guard_auth)
       .onBeforeHandle(apply_tenant_migration)
       .use(controller_user)
+      .use(controller_brand)
+      .use(controller_product)
+      .use(controller_scan)
+      .use(controller_scan_history)
+      .use(controller_user_list)
       .use(controller_file)
       .use(controller_contact)
       .use(controller_organization)

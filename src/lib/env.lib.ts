@@ -46,6 +46,9 @@ const required = [
   'MAX_IMAGE_SIZE_BYTES',
   'MAX_AUDIO_SIZE_BYTES',
   'MAX_VIDEO_SIZE_BYTES',
+  'OPEN_FOOD_FACTS_USER_AGENT',
+  'OPEN_FOOD_FACTS_BASE_URL',
+  'OPEN_FOOD_FACTS_TIMEOUT_MS',
 ] as const
 
 const missing = required.filter((key) => !process.env[key])
