@@ -73,3 +73,77 @@ export const table_organization_user = sqliteTable(
     index('organization_user_deleted_at_idx').on(table.deleted_at),
   ],
 )
+
+export const table_product = sqliteTable(
+  'product',
+  {
+    product_id: integer('product_id').primaryKey({ autoIncrement: true }),
+    product_barcode: text('product_barcode', { length: 64 }).notNull(),
+    product_type: text('product_type', { length: 32 }).notNull().default('food'),
+    product_name: text('product_name', { length: 255 }),
+    brand_id: integer('brand_id'),
+    product_images: text('product_images', { mode: 'json' }).$type<string[]>(),
+    product_nova_group: integer('product_nova_group'),
+    product_ecoscore: text('product_ecoscore'),
+    product_nutriscore: text('product_nutriscore'),
+    product_metadata: text('product_metadata', { mode: 'json' }).$type<{
+      ingredients: string[] | null
+      allergens: string[]
+    }>(),
+    created_at: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updated_at: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    deleted_at: text('deleted_at'),
+  },
+  (table) => [
+    uniqueIndex('product_barcode_idx')
+      .on(table.product_barcode)
+      .where(sql`deleted_at IS NULL`),
+    index('product_name_idx').on(table.product_name),
+    index('product_type_idx').on(table.product_type),
+    index('product_brand_id_idx')
+      .on(table.brand_id)
+      .where(sql`deleted_at IS NULL`),
+    index('product_deleted_at_idx').on(table.deleted_at),
+    index('product_nova_group_idx')
+      .on(table.product_nova_group)
+      .where(sql`deleted_at IS NULL`),
+    index('product_ecoscore_idx')
+      .on(table.product_ecoscore)
+      .where(sql`deleted_at IS NULL`),
+    index('product_nutriscore_idx')
+      .on(table.product_nutriscore)
+      .where(sql`deleted_at IS NULL`),
+  ],
+)
+
+export const table_brand = sqliteTable(
+  'brand',
+  {
+    brand_id: integer('brand_id').primaryKey({ autoIncrement: true }),
+    brand_name: text('brand_name', { length: 255 }).notNull(),
+    brand_is_boycotted: integer('brand_is_boycotted', { mode: 'boolean' }).notNull().default(false),
+    brand_boycott_reasons: text('brand_boycott_reasons', { mode: 'json' })
+      .$type<string[]>()
+      .default(sql`'[]'`),
+    brand_boycott_alternatives: text('brand_boycott_alternatives', { mode: 'json' })
+      .$type<string[]>()
+      .default(sql`'[]'`),
+    created_at: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    deleted_at: text('deleted_at'),
+  },
+  (table) => [
+    uniqueIndex('brand_name_idx')
+      .on(table.brand_name)
+      .where(sql`deleted_at IS NULL`),
+    index('brand_is_boycotted_idx')
+      .on(table.brand_is_boycotted)
+      .where(sql`deleted_at IS NULL`),
+    index('brand_deleted_at_idx').on(table.deleted_at),
+  ],
+)

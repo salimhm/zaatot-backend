@@ -39,7 +39,7 @@ export async function check() {
 
   await checkDir(`${SRC_DIR}/module`, ['main', 'tenant', 'organization', 'user'], [], true)
 
-  await checkDir(`${SRC_DIR}/module/main`, ['auth', 'tenant', 'user', 'organization'], [], true)
+  await checkDir(`${SRC_DIR}/module/main`, ['auth', 'tenant', 'user', 'organization', 'product', 'product-provider', 'scan', 'brand'], [], true)
 
   await checkDir(`${SRC_DIR}/module/tenant`, null, null, false)
   await checkDir(`${SRC_DIR}/module/organization`, null, null, false)

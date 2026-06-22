@@ -15,6 +15,9 @@ export const lib_error = {
     contact: { status: 404, code: 'not-found-contact' },
     access: { status: 404, code: 'not-found-access' },
     file: { status: 404, code: 'not-found-file' },
+    product: { status: 404, code: 'not-found-product' },
+    scan_history: { status: 404, code: 'not-found-scan-history' },
+    user_list: { status: 404, code: 'not-found-user-list' },
   } as Record<string, { status: number; code: string }>,
   email_already_exist: { status: 409, code: 'email-already-exist' },
   phone_already_exist: { status: 409, code: 'user-phone-exist' },
@@ -37,6 +40,7 @@ export const lib_error = {
   user_schema_update_failed: { status: 500, code: 'user-schema-update-failed' },
   user_not_ready: { status: 503, code: 'user-not-ready' },
   user_provision_failed: { status: 500, code: 'user-provision-failed' },
+  open_food_facts_configuration: { status: 500, code: 'open-food-facts-configuration' },
 }
 
 export const handle_error = ({ code, error, set }: { code: string | number | unknown; error: unknown; set: { status?: number | string } }) => {
