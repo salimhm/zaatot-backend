@@ -27,7 +27,7 @@ const max_cached_tenants = Number(process.env.DB_MAX_CACHED_TENANTS) || 720
 const tenant_cache = new Map<number, cached_connection>()
 
 export function get_tenant_url(tenant_id: number): string {
-  const db_name = `db-${process.env.NAME}-${process.env.ENV}-tenant-${tenant_id}`
+  const db_name = `db-${process.env.APP_NAME}-${process.env.ENV}-tenant-${tenant_id}`
   return `https://${db_name}-${process.env.TURSO_ORG_NAME}.turso.io`
 }
 

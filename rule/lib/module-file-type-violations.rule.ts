@@ -1,7 +1,6 @@
+import { Glob } from 'bun'
 import { stat } from 'fs/promises'
 import { basename, join } from 'path'
-
-import { Glob } from 'bun'
 
 import { SRC_DIR } from '../utils.rule.ts'
 
@@ -18,8 +17,9 @@ export async function check() {
       const name = basename(path)
       if (name.startsWith('.')) continue
       if (name !== name.toLowerCase()) continue
-      const is_valid = name.endsWith('.controller.ts') || name.endsWith('.service.ts') || name.endsWith('.dto.ts') || name.endsWith('.test.ts')
-      if (!is_valid) violations.push(`  ${SRC_DIR}/${path} → '${name}' is not a .controller.ts, .service.ts, .dto.ts, or .test.ts file`)
+      const allowed_suffixes = ['.controller.ts', '.service.ts', '.dto.ts', '.test.ts', '.provider.ts', '.util.ts', '.types.ts', '.seed.ts']
+      const is_valid = allowed_suffixes.some((suffix) => name.endsWith(suffix))
+      if (!is_valid) violations.push(`  ${SRC_DIR}/${path} → '${name}' must use one of these suffixes: ${allowed_suffixes.join(', ')}`)
     }
   }
   return violations

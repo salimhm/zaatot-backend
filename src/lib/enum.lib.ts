@@ -56,3 +56,27 @@ export const enum_nova_group = [1, 2, 3, 4] as const
 export const enum_ecoscore = ['a', 'b', 'c', 'd', 'e'] as const
 
 export const enum_nutriscore = ['a', 'b', 'c', 'd', 'e'] as const
+
+export const enum_boycott_decision_status = ['boycott', 'not_boycotted', 'unknown', 'needs_review'] as const
+
+export const enum_boycott_entity_type = ['product', 'brand', 'company'] as const
+
+export const enum_boycott_claim_type = ['boycott_target', 'ownership', 'alternative', 'risk_evidence', 'neutral_reference'] as const
+
+export const enum_boycott_claim_status = ['active', 'inactive', 'unknown'] as const
+
+export const enum_boycott_relationship_type = [
+  'owned_by',
+  'parent_company',
+  'subsidiary_of',
+  'alternative_to',
+  'same_as',
+  'franchisee_of',
+  'distributed_by',
+] as const
+
+export const enum_boycott_source_type = ['csv', 'json', 'yaml', 'html', 'manual', 'api', 'pdf'] as const
+
+export const enum_boycott_campaign_tier = ['priority', 'organic', 'pressure', 'evidence', 'community'] as const
+
+export const enum_boycott_match_type = ['exact', 'alias', 'website', 'fuzzy', 'related_entity', 'none'] as const

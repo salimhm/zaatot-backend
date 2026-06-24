@@ -21,15 +21,23 @@ const mock_db = {
   ),
 }
 
+const mock_redis = {
+  set: mock(() => Promise.resolve('OK')),
+  get: mock(() => Promise.resolve(null)),
+  del: mock(() => Promise.resolve(1)),
+  incr: mock(() => Promise.resolve(1)),
+  expire: mock(() => Promise.resolve(1)),
+}
+
 mock.module('@db/client.db', () => ({
   db_client: mock(() => mock_db),
-  db_redis_auth: {
-    set: mock(() => Promise.resolve('OK')),
-    get: mock(() => Promise.resolve(null)),
-    del: mock(() => Promise.resolve(1)),
-    incr: mock(() => Promise.resolve(1)),
-    expire: mock(() => Promise.resolve(1)),
-  },
+  db_redis_auth: mock_redis,
+  db_redis_tenant_access: mock_redis,
+  db_redis_migration_lock: mock_redis,
+  db_redis_rate_limiting: mock_redis,
+  get_tenant_type: (tenant_id: number, payload: any) => payload?.tenants?.find((t: any) => t.tenant_id === tenant_id)?.tenant_type || 'organization',
+  get_tenant_url: () => 'mock-tenant-url',
+  close_all_connections: () => {},
 }))
 
 mock.module('@db/utils.db', () => ({
@@ -42,6 +50,7 @@ mock.module('@db/utils.db', () => ({
       data: [{ user_id: 1, user_phone: '1234567890' }],
     }),
   ),
+  sync_schema: mock(() => Promise.resolve()),
 }))
 
 const { service_auth } = await import('@module/main/auth/auth.service')

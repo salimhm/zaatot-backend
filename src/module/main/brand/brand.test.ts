@@ -47,6 +47,9 @@ mock.module('@db/client.db', () => ({
   db_redis_tenant_access: mock_redis,
   db_redis_migration_lock: mock_redis,
   db_redis_rate_limiting: mock_redis,
+  get_tenant_type: (tenant_id: number, payload: any) => payload?.tenants?.find((t: any) => t.tenant_id === tenant_id)?.tenant_type || 'organization',
+  get_tenant_url: () => 'mock-tenant-url',
+  close_all_connections: () => {},
 }))
 
 mock.module('@db/utils.db', () => ({
@@ -59,6 +62,7 @@ mock.module('@db/utils.db', () => ({
       data: [{ brand_id: 1, brand_name: 'test-brand', brand_is_boycotted: false, brand_boycott_reasons: [], brand_boycott_alternatives: [] }],
     }),
   ),
+  sync_schema: mock(() => Promise.resolve()),
 }))
 
 const { service_brand } = await import('@module/main/brand/brand.service')
