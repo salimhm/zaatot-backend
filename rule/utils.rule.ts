@@ -1,6 +1,7 @@
-import { Glob } from 'bun'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
+
+import { Glob } from 'bun'
 
 import ts from 'typescript'
 

@@ -1,6 +1,7 @@
-import { Glob } from 'bun'
 import { stat } from 'fs/promises'
 import { basename, join } from 'path'
+
+import { Glob } from 'bun'
 
 import { SRC_DIR } from '../utils.rule.ts'
 

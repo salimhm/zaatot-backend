@@ -1,6 +1,7 @@
-import { RedisClient } from 'bun'
 import type { Client } from '@libsql/client'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
+
+import { RedisClient } from 'bun'
 
 import { createClient } from '@libsql/client'
 
