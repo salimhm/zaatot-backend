@@ -7,6 +7,7 @@ description: Required code pattern for all database client or tables schema gene
 > **Database Schema Enum Rule**: Do NOT import or specify application enums (from `@lib/enum.lib`) in the database schema files. Use generic string or integer types for database columns, and let the DTO layer handle the enum validation. Coupling database schemas to application enums causes migration issues in SQLite when enums change.
 
 1. **Client file (client.db.ts)**: Strictly follow this pattern!
+
 ```typescript
 import type { Client } from '@libsql/client'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
@@ -81,22 +82,24 @@ export const db_redis_rate_limiting = new RedisClient(process.env.REDIS_DB_RATE_
 ```
 
 2. **Drizzle Config (drizzle.config.ts)**: Strictly follow this pattern!
+
 ```typescript
 /// <reference types="bun-types" />
 import { defineConfig } from 'drizzle-kit'
 
 export default defineConfig({
   schema: './src/db/main.db.schema.ts',
-    out: './drizzle',
-    dialect: 'turso',
-    dbCredentials: {
-      url: process.env.TURSO_DB_MAIN_URL!,
-        authToken: process.env.TURSO_DB_MAIN_TOKEN!,
-    },
+  out: './drizzle',
+  dialect: 'turso',
+  dbCredentials: {
+    url: process.env.TURSO_DB_MAIN_URL!,
+    authToken: process.env.TURSO_DB_MAIN_TOKEN!,
+  },
 })
 ```
 
 3. **Main Database Schema (main.db.schema.ts)**: Strictly follow this pattern!
+
 ```typescript
 import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core'
 import { enum_otp_action } from '@lib/enum.lib'
@@ -136,7 +139,7 @@ export const table_file = sqliteTable(
 )
 
 export const table_<table_name> = sqliteTable(
-  '<table_name>', 
+  '<table_name>',
   {
     <table_name>_<column_name>: <type>('<table_name>_<column_name>').<props>,
     //other columns...

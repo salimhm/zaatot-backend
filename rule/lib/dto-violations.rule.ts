@@ -1,5 +1,6 @@
-import { Glob } from 'bun'
 import { basename, join } from 'path'
+
+import { Glob } from 'bun'
 
 import { SRC_DIR } from '../utils.rule.ts'
 

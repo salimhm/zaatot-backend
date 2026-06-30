@@ -4,20 +4,22 @@ description: Required code pattern for client storage & file service generated o
 ---
 
 1. **Storage Client (storage/client.storage.ts)**: Strictly follow this pattern!
+
 ```typescript
-import { S3Client } from "@aws-sdk/client-s3"
+import { S3Client } from '@aws-sdk/client-s3'
 
 export const R2 = new S3Client({
-  region: 'auto',
-  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
-  },
+  region: 'auto',
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
+  },
 })
 ```
 
 2. **Upload Files (file/file.service.ts)**: Strictly follow this pattern!
+
 ```typescript
 import { R2 } from '@storage/client.storage.ts'
 

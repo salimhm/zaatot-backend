@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test'
 import { Buffer } from 'node:buffer'
 import { createCipheriv } from 'node:crypto'
+
+import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test'
 
 import { service_boycott_provider } from '@module/main/boycott-provider/boycott-provider.service'
 

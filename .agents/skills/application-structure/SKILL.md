@@ -4,6 +4,7 @@ description: Application structure and /src folder tree for our backend.
 ---
 
 # Application Structure
+
 ```
 public/
 rule/

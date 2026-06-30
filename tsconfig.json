@@ -1,8 +1,6 @@
 {
   "compilerOptions": {
-    "lib": [
-      "ESNext"
-    ],
+    "lib": ["ESNext"],
     "target": "ESNext",
     "module": "Preserve",
     "moduleDetection": "force",
@@ -13,27 +11,13 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "paths": {
-      "@ai/*": [
-        "./src/ai/*"
-      ],
-      "@agent/*": [
-        "./src/ai/agent/*"
-      ],
-      "@tool/*": [
-        "./src/ai/tool/*"
-      ],
-      "@db/*": [
-        "./src/db/*"
-      ],
-      "@lib/*": [
-        "./src/lib/*"
-      ],
-      "@module/*": [
-        "./src/module/*"
-      ],
-      "@storage/*": [
-        "./src/storage/*"
-      ]
+      "@ai/*": ["./src/ai/*"],
+      "@agent/*": ["./src/ai/agent/*"],
+      "@tool/*": ["./src/ai/tool/*"],
+      "@db/*": ["./src/db/*"],
+      "@lib/*": ["./src/lib/*"],
+      "@module/*": ["./src/module/*"],
+      "@storage/*": ["./src/storage/*"]
     },
     "strict": true,
     "skipLibCheck": true,
