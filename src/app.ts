@@ -15,6 +15,7 @@ import { storage_object_main } from '@storage/client.storage'
 
 import { controller_auth } from '@module/main/auth/auth.controller'
 import { controller_boycott_decision } from '@module/main/boycott-decision/boycott-decision.controller'
+import { controller_boycott_provider } from '@module/main/boycott-provider/boycott-provider.controller'
 import { controller_brand } from '@module/main/brand/brand.controller'
 import { controller_organization } from '@module/main/organization/organization.controller'
 import { controller_product } from '@module/main/product/product.controller'
@@ -79,6 +80,7 @@ export const app = new Elysia({
       .onBeforeHandle(apply_tenant_migration)
       .use(controller_user)
       .use(controller_brand)
+      .use(controller_boycott_provider)
       .use(controller_boycott_decision)
       .use(controller_product)
       .use(controller_scan)

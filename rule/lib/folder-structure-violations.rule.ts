@@ -41,7 +41,7 @@ export async function check() {
 
   await checkDir(
     `${SRC_DIR}/module/main`,
-    ['auth', 'tenant', 'user', 'organization', 'product', 'product-provider', 'scan', 'brand', 'boycott-decision'],
+    ['auth', 'tenant', 'user', 'organization', 'product', 'product-provider', 'scan', 'brand', 'boycott-provider', 'boycott-decision'],
     [],
     true,
   )
