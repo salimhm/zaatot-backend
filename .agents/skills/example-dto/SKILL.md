@@ -3,7 +3,8 @@ name: example-dto
 description: Required code pattern for all dto-generated outputs.
 ---
 
-* **Strictly follow this pattern!**:
+- **Strictly follow this pattern!**:
+
 ```typescript
 import { t } from 'elysia'
 import { lib_dto_find_query, lib_dto_find_response, /* the other reusable dto's: lib_dto_<query|body|response>_<function_name> */ } from '@lib/dto.lib'

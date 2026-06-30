@@ -3,10 +3,10 @@ name: example-tool
 description: Required code pattern for all tool-generated outputs.
 ---
 
-* **Strictly follow this pattern!**:
-* **Folder Structure**:
-    * `src/ai/tool/<module-name>/<module-name>.tool.ts`
-    * `src/ai/tool/<module-name>/<module-name>.dto.tool.ts`
+- **Strictly follow this pattern!**:
+- **Folder Structure**:
+  - `src/ai/tool/<module-name>/<module-name>.tool.ts`
+  - `src/ai/tool/<module-name>/<module-name>.dto.tool.ts`
 
 ```typescript
 // src/ai/tool/<module-name>/<module-name>.dto.tool.ts

@@ -3,7 +3,8 @@ name: example-controller
 description: Required code pattern for all controller-generated outputs.
 ---
 
-* **Strictly follow this pattern!**:
+- **Strictly follow this pattern!**:
+
 ```typescript
 import { Elysia } from 'elysia'
 

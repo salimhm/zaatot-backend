@@ -7,9 +7,7 @@
   "printWidth": 150,
   "bracketSpacing": true,
   "arrowParens": "always",
-  "plugins": [
-    "@ianvs/prettier-plugin-sort-imports"
-  ],
+  "plugins": ["@ianvs/prettier-plugin-sort-imports"],
   "importOrder": [
     "<TYPES>",
     "",

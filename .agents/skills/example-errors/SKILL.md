@@ -3,7 +3,8 @@ name: example-errors
 description: Required code pattern for all errors generated outputs.
 ---
 
-* **error.lib.ts**: Strictly follow this pattern!
+- **error.lib.ts**: Strictly follow this pattern!
+
 ```typescript
 // @ts-ignore
 export const lib_error = {

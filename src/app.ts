@@ -14,6 +14,8 @@ import { apply_rate_limit, apply_security_headers, apply_tenant_migration, deriv
 import { storage_object_main } from '@storage/client.storage'
 
 import { controller_auth } from '@module/main/auth/auth.controller'
+import { controller_boycott_decision } from '@module/main/boycott-decision/boycott-decision.controller'
+import { controller_boycott_provider } from '@module/main/boycott-provider/boycott-provider.controller'
 import { controller_brand } from '@module/main/brand/brand.controller'
 import { controller_organization } from '@module/main/organization/organization.controller'
 import { controller_product } from '@module/main/product/product.controller'
@@ -25,7 +27,7 @@ import { controller_file } from '@module/tenant/file/file.controller'
 import { controller_scan_history } from '@module/user/scan-history/scan-history.controller'
 import { controller_user_list } from '@module/user/user-list/user-list.controller'
 
-const app_name = process.env.NAME || 'Elysia'
+const app_name = process.env.APP_NAME || 'Elysia'
 const app_env = process.env.ENV || 'UNDEFINED'
 const port = Number(process.env.PORT) || 3000
 const request_timeout = Number(process.env.REQUEST_TIMEOUT) || 60
@@ -54,7 +56,7 @@ export const app = new Elysia({
   .onError(handle_error)
 
   .get('/', () => {
-    return new Response(`<h1>🔥 ${process.env.NAME} 🔥`, {
+    return new Response(`<h1>🔥 ${process.env.APP_NAME} 🔥`, {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
       },
@@ -78,6 +80,8 @@ export const app = new Elysia({
       .onBeforeHandle(apply_tenant_migration)
       .use(controller_user)
       .use(controller_brand)
+      .use(controller_boycott_provider)
+      .use(controller_boycott_decision)
       .use(controller_product)
       .use(controller_scan)
       .use(controller_scan_history)

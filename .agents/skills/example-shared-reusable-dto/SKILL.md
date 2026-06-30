@@ -3,7 +3,8 @@ name: example-shared-reusable-dto
 description: Required code pattern for all shared-reusable-dto-generated outputs.
 ---
 
-* **Strictly follow this pattern!**:
+- **Strictly follow this pattern!**:
+
 ```typescript
 import { t } from 'elysia'
 

@@ -16,7 +16,7 @@ export const service_tenant = {
       token: process.env.TURSO_API_TOKEN!,
     })
 
-    const db_name = `db-${process.env.NAME}-${process.env.ENV}-${tenant_type}-${tenant_id}`
+    const db_name = `db-${process.env.APP_NAME}-${process.env.ENV}-${tenant_type}-${tenant_id}`
     const { id: db_id, hostname: db_url } = await turso.databases.create(db_name, {
       group: process.env.TURSO_GROUP_NAME!,
     })

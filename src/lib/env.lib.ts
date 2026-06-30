@@ -1,5 +1,5 @@
 const required = [
-  'NAME',
+  'APP_NAME',
   'ENV',
   'PORT',
   'JWT_SECRET_KEY',

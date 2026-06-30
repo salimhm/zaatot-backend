@@ -24,7 +24,7 @@ export function get_tenant_type(tenant_id: number, payload: lib_dto_payload): (t
 }
 
 export function get_tenant_url(tenant_id: number, tenant_type: (typeof enum_tenant_type)[number] = 'organization'): string {
-  const db_name = `db-${process.env.NAME}-${process.env.ENV}-${tenant_type}-${tenant_id}`
+  const db_name = `db-${process.env.APP_NAME}-${process.env.ENV}-${tenant_type}-${tenant_id}`
   return `https://${db_name}-${process.env.TURSO_ORG_NAME}.turso.io`
 }
 

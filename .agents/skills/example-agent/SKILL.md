@@ -4,6 +4,7 @@ description: Required code pattern for all ai agents, ai-agent-prompt, and ai-ag
 ---
 
 1. **Agent**: Strictly follow this pattern!
+
 ```typescript
 import { Agent } from "@voltagent/core"
 import { google } from "@ai-sdk/google"
@@ -32,6 +33,7 @@ export const agent_<agent_name> = async (message: string): Promise<{ success: bo
 ```
 
 2. **Schema**: Strictly follow this pattern!
+
 ```typescript
 import { z } from "zod"
 

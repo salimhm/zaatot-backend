@@ -4,20 +4,20 @@ trigger: always_on
 
 # Restrictions
 
-* **Strictly use an indentation size of two spaces. Do not use four spaces or any other size**
-* **Strictly no comments; code clarity and readability should render comments unnecessary**
-* **Strictly the name of a module, database table, agent or tool must be singular, not plural**
-* **Strictly use module path aliases instead of relative paths: `@ai`, `@agent`, `@tool`, `@module`, `@lib`, `@db`, and `@<every-single-module-name>`**
-* **Strictly interact with the database through services only. Do not perform any queries or operations directly using the table schema**
+- **Strictly use an indentation size of two spaces. Do not use four spaces or any other size**
+- **Strictly no comments; code clarity and readability should render comments unnecessary**
+- **Strictly the name of a module, database table, agent or tool must be singular, not plural**
+- **Strictly use module path aliases instead of relative paths: `@ai`, `@agent`, `@tool`, `@module`, `@lib`, `@db`, and `@<every-single-module-name>`**
+- **Strictly interact with the database through services only. Do not perform any queries or operations directly using the table schema**
 
 # Naming Conventions
 
 Adherence to strict naming conventions is essential:
 
-* **Files and folders**: kebab-case (e.g., `form-auth`, `user-profile/`)
-* **Classes**: PascalCase (e.g., `AgentResponse`, `AgentRequest`)
-* **Constants, variables, functions**: snake_case (e.g., `fetch_user_data`, `max_width`)
-* **Imports/Exports**: All imports/exports must strictly follow this naming format:
+- **Files and folders**: kebab-case (e.g., `form-auth`, `user-profile/`)
+- **Classes**: PascalCase (e.g., `AgentResponse`, `AgentRequest`)
+- **Constants, variables, functions**: snake_case (e.g., `fetch_user_data`, `max_width`)
+- **Imports/Exports**: All imports/exports must strictly follow this naming format:
   1. **controller**: `controller_<module_name>`
   2. **dto**: `dto_<module_name>`
   3. **service**: `service_<module_name>`
