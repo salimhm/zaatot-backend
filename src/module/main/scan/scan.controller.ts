@@ -23,3 +23,16 @@ export const controller_scan = new Elysia({ prefix: '/scan' })
     },
     dto_scan.barcode,
   )
+
+  .post(
+    '/identify',
+    async (context) => {
+      const { body, payload } = context as lib_dto_context<{
+        body: Static<typeof dto_scan.identify.body>
+      }> &
+        typeof context
+
+      return await service_scan.identify(body, payload)
+    },
+    dto_scan.identify,
+  )

@@ -51,6 +51,25 @@ export const dto_schema_boycott_provider_search_result = t.Object({
   reason: t.String(),
 })
 
+export const dto_schema_boycott_provider_search = t.Object({
+  provider: t.UnionEnum(enum_boycott_provider_name),
+  provider_status: t.UnionEnum(enum_boycott_provider_status),
+  query: t.String(),
+  results: t.Array(dto_schema_boycott_provider_search_result),
+})
+
+export const dto_schema_boycott_provider_decision = t.Object({
+  provider: t.UnionEnum(enum_boycott_provider_name),
+  provider_status: t.UnionEnum(enum_boycott_provider_status),
+  decision_status: t.UnionEnum(enum_boycott_decision_status),
+  confidence: t.Number({ minimum: 0, maximum: 100 }),
+  reason: t.String(),
+  matched_entity: t.Union([dto_schema_boycott_provider_match, t.Null()]),
+  campaigns: t.Array(dto_schema_boycott_provider_campaign),
+  sources: t.Array(dto_schema_boycott_provider_source),
+  alternatives: t.Array(dto_schema_boycott_provider_alternative),
+})
+
 export const dto_boycott_provider = {
   search: {
     body: t.Object({
@@ -58,12 +77,7 @@ export const dto_boycott_provider = {
       query: t.String({ minLength: 1, maxLength: 255 }),
     }),
     response: t.Object({
-      data: t.Object({
-        provider: t.UnionEnum(enum_boycott_provider_name),
-        provider_status: t.UnionEnum(enum_boycott_provider_status),
-        query: t.String(),
-        results: t.Array(dto_schema_boycott_provider_search_result),
-      }),
+      data: dto_schema_boycott_provider_search,
     }),
   },
   decide: {
@@ -74,17 +88,7 @@ export const dto_boycott_provider = {
       product_name: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
     }),
     response: t.Object({
-      data: t.Object({
-        provider: t.UnionEnum(enum_boycott_provider_name),
-        provider_status: t.UnionEnum(enum_boycott_provider_status),
-        decision_status: t.UnionEnum(enum_boycott_decision_status),
-        confidence: t.Number({ minimum: 0, maximum: 100 }),
-        reason: t.String(),
-        matched_entity: t.Union([dto_schema_boycott_provider_match, t.Null()]),
-        campaigns: t.Array(dto_schema_boycott_provider_campaign),
-        sources: t.Array(dto_schema_boycott_provider_source),
-        alternatives: t.Array(dto_schema_boycott_provider_alternative),
-      }),
+      data: dto_schema_boycott_provider_decision,
     }),
   },
 }
