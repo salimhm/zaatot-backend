@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const current_schema_version = {
-  user: '0.0.1',
+  user: '0.0.2',
   organization: '0.0.1',
 } as const
 
@@ -117,6 +117,67 @@ export const table_product = sqliteTable(
     index('product_nutriscore_idx')
       .on(table.product_nutriscore)
       .where(sql`deleted_at IS NULL`),
+  ],
+)
+
+/** Stores immutable, versioned product facts and their provenance in the shared knowledge database. */
+export const table_product_fact = sqliteTable(
+  'product_fact',
+  {
+    // Uniquely identifies this stored product-fact revision.
+    product_fact_id: integer('product_fact_id').primaryKey({ autoIncrement: true }),
+    // References the shared product described by these facts.
+    product_id: integer('product_id').notNull(),
+    // Increases whenever validated facts for the product change.
+    product_fact_version: integer('product_fact_version').notNull(),
+    // Stores whether this fact revision is active, disputed, superseded, or otherwise unavailable.
+    fact_status: text('fact_status', { length: 32 }).notNull(),
+    // Stores an optional stable identifier for the upstream provider record or source document.
+    source_id: text('source_id', { length: 128 }),
+    // Stores the human-readable provider or source name.
+    source_name: text('source_name', { length: 255 }).notNull(),
+    // Stores an optional URL where the source facts can be reviewed.
+    source_url: text('source_url', { length: 1024 }),
+    // Stores normalized ingredient codes used by safety and preference rules.
+    product_ingredients: text('product_ingredients', { mode: 'json' })
+      .notNull()
+      .$type<string[]>()
+      .default(sql`'[]'`),
+    // Stores normalized allergen codes used by hard safety gates.
+    product_allergens: text('product_allergens', { mode: 'json' })
+      .notNull()
+      .$type<string[]>()
+      .default(sql`'[]'`),
+    // Stores normalized numeric nutrient values such as sugar, protein, salt, fat, fibre, and energy.
+    product_nutrients: text('product_nutrients', { mode: 'json' })
+      .notNull()
+      .$type<Record<string, number | null>>()
+      .default(sql`'{}'`),
+    // Stores the numeric quantity represented by one serving when the source provides it.
+    serving_size: real('serving_size'),
+    // Stores the unit associated with serving_size, such as g, ml, or item.
+    serving_unit: text('serving_unit', { length: 16 }),
+    // Records when the application or provider observed this fact revision.
+    observed_at: text('observed_at').notNull(),
+    // Records when this fact revision should be treated as stale unless revalidated.
+    fresh_until: text('fresh_until'),
+    // Stores a digest used to detect duplicate or unexpectedly changed fact payloads.
+    product_fact_hash: text('product_fact_hash', { length: 128 }).notNull(),
+    // Records when this fact revision was persisted.
+    created_at: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    // Supports controlled soft deletion while preserving historical fact revisions.
+    deleted_at: text('deleted_at'),
+  },
+  (table) => [
+    uniqueIndex('product_fact_product_id_version_idx')
+      .on(table.product_id, table.product_fact_version)
+      .where(sql`deleted_at IS NULL`),
+    index('product_fact_status_idx').on(table.fact_status),
+    index('product_fact_source_id_idx').on(table.source_id),
+    index('product_fact_fresh_until_idx').on(table.fresh_until),
+    index('product_fact_deleted_at_idx').on(table.deleted_at),
   ],
 )
 

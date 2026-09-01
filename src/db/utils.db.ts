@@ -215,6 +215,32 @@ export const get_schema_info = async (db: LibSQLDatabase<Record<string, unknown>
   return schema_info
 }
 
+const get_column_default_sql = (column: { default: unknown; hasDefault: boolean; defaultFn: unknown }) => {
+  const default_value = column.default
+
+  if (default_value !== undefined) {
+    if (default_value === null) return 'NULL'
+    if (typeof default_value === 'string') return `'${default_value.replace(/'/g, "''")}'`
+    if (typeof default_value === 'boolean') return default_value ? '1' : '0'
+    if (typeof default_value === 'number' || typeof default_value === 'bigint') return String(default_value)
+
+    if (typeof default_value === 'object') {
+      const dialect = new SQLiteSyncDialect()
+      const query = dialect.sqlToQuery(default_value as SQL)
+
+      if (query.params.length > 0) {
+        throw new Error('Parameterized SQL defaults are not supported by tenant schema synchronization.')
+      }
+
+      return query.sql
+    }
+  }
+
+  if (column.hasDefault && column.defaultFn) return 'CURRENT_TIMESTAMP'
+
+  return null
+}
+
 export const sync_add_table = async (db: LibSQLDatabase<Record<string, unknown>>, table_name: string, target_table_obj: SQLiteTable) => {
   const table_config = getTableConfig(target_table_obj)
   const columns = table_config.columns
@@ -236,13 +262,8 @@ export const sync_add_table = async (db: LibSQLDatabase<Record<string, unknown>>
         if (c.autoIncrement) def += ' AUTOINCREMENT'
       }
       if (c.notNull) def += ' NOT NULL'
-      if (c.default !== undefined) {
-        if (typeof c.default === 'string') def += ` DEFAULT '${c.default}'`
-        else if (typeof c.default === 'object') def += ` DEFAULT CURRENT_TIMESTAMP`
-        else def += ` DEFAULT ${c.default}`
-      } else if (c.hasDefault && c.defaultFn) {
-        def += ` DEFAULT CURRENT_TIMESTAMP`
-      }
+      const default_sql = get_column_default_sql(c)
+      if (default_sql != null) def += ` DEFAULT ${default_sql}`
       return def
     })
     .join(', ')
@@ -298,13 +319,8 @@ export const sync_add_column = async (
   }
   let def = `${col.name} ${col.getSQLType()}`
   if (col.notNull) def += ' NOT NULL'
-  if (col.default !== undefined) {
-    if (typeof col.default === 'string') def += ` DEFAULT '${col.default}'`
-    else if (typeof col.default === 'object') def += ` DEFAULT CURRENT_TIMESTAMP`
-    else def += ` DEFAULT ${col.default}`
-  } else if (col.hasDefault && col.defaultFn) {
-    def += ` DEFAULT CURRENT_TIMESTAMP`
-  }
+  const default_sql = get_column_default_sql(col)
+  if (default_sql != null) def += ` DEFAULT ${default_sql}`
 
   const query = `ALTER TABLE ${table_name} ADD COLUMN ${def}`
   try {

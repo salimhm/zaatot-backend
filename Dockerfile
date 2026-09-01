@@ -13,6 +13,7 @@ FROM oven/bun:1.3.14-slim AS release
 WORKDIR /app
 
 COPY --from=build /app/bin ./bin
+COPY --from=install /app/node_modules ./node_modules
 
 ENV NODE_ENV=production
 
