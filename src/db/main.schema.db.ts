@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const current_schema_version = {
-  user: '0.0.1',
+  user: '0.0.2',
   organization: '0.0.1',
 } as const
 
@@ -117,6 +117,111 @@ export const table_product = sqliteTable(
     index('product_nutriscore_idx')
       .on(table.product_nutriscore)
       .where(sql`deleted_at IS NULL`),
+  ],
+)
+
+/** Stores immutable, versioned product facts and their provenance in the shared knowledge database. */
+export const table_product_fact = sqliteTable(
+  'product_fact',
+  {
+    // Uniquely identifies this stored product-fact revision.
+    product_fact_id: integer('product_fact_id').primaryKey({ autoIncrement: true }),
+    // References the shared product described by these facts.
+    product_id: integer('product_id')
+      .notNull()
+      .references(() => table_product.product_id, { onDelete: 'restrict' }),
+    // Increases whenever validated facts for the product change.
+    product_fact_version: integer('product_fact_version').notNull(),
+    // Stores whether this fact revision is active, disputed, superseded, or otherwise unavailable.
+    fact_status: text('fact_status', { length: 32 }).notNull(),
+    // Stores an optional stable identifier for the upstream provider record or source document.
+    source_id: text('source_id', { length: 128 }),
+    // Stores the human-readable provider or source name.
+    source_name: text('source_name', { length: 255 }).notNull(),
+    // Classifies source reliability for evidence confidence without coupling the schema to application enums.
+    source_tier: text('source_tier', { length: 32 }).notNull().default('unknown'),
+    // Stores an optional URL where the source facts can be reviewed.
+    source_url: text('source_url', { length: 1024 }),
+    // Stores normalized ingredient codes used by safety and preference rules.
+    product_ingredients: text('product_ingredients', { mode: 'json' })
+      .notNull()
+      .$type<string[]>()
+      .default(sql`'[]'`),
+    // Stores normalized allergen codes used by hard safety gates.
+    product_allergens: text('product_allergens', { mode: 'json' })
+      .notNull()
+      .$type<string[]>()
+      .default(sql`'[]'`),
+    // Distinguishes a verified complete ingredient list from missing or partial provider data.
+    ingredients_complete: integer('ingredients_complete', { mode: 'boolean' }).notNull().default(false),
+    // Distinguishes verified absence of allergens from missing or partial allergen data.
+    allergens_complete: integer('allergens_complete', { mode: 'boolean' }).notNull().default(false),
+    // Records whether the product's required nutrient set is complete enough for deterministic scoring.
+    nutrition_complete: integer('nutrition_complete', { mode: 'boolean' }).notNull().default(false),
+    // Stores the numeric quantity represented by one serving when the source provides it.
+    serving_size: real('serving_size'),
+    // Stores the unit associated with serving_size, such as g, ml, or item.
+    serving_unit: text('serving_unit', { length: 16 }),
+    // Records when Zaatot retrieved this fact revision from the source.
+    fetched_at: text('fetched_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    // Records when this fact revision should be treated as stale unless revalidated.
+    fresh_until: text('fresh_until'),
+    // Stores a digest used to detect duplicate or unexpectedly changed fact payloads.
+    product_fact_hash: text('product_fact_hash', { length: 128 }).notNull(),
+    // Records when this fact revision was persisted.
+    created_at: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    // Supports controlled soft deletion while preserving historical fact revisions.
+    deleted_at: text('deleted_at'),
+  },
+  (table) => [
+    uniqueIndex('product_fact_product_id_version_idx').on(table.product_id, table.product_fact_version),
+    uniqueIndex('product_fact_product_id_active_idx')
+      .on(table.product_id)
+      .where(sql`fact_status = 'active' AND deleted_at IS NULL`),
+    index('product_fact_status_idx').on(table.fact_status),
+    index('product_fact_source_id_idx').on(table.source_id),
+    index('product_fact_source_tier_idx').on(table.source_tier),
+    index('product_fact_fresh_until_idx').on(table.fresh_until),
+    index('product_fact_deleted_at_idx').on(table.deleted_at),
+  ],
+)
+
+/** Stores one normalized nutrient measurement for a specific immutable product-fact revision. */
+export const table_product_nutrient = sqliteTable(
+  'product_nutrient',
+  {
+    product_nutrient_id: integer('product_nutrient_id').primaryKey({ autoIncrement: true }),
+    // References the exact product-fact revision that supplied this measurement.
+    product_fact_id: integer('product_fact_id')
+      .notNull()
+      .references(() => table_product_fact.product_fact_id, { onDelete: 'restrict' }),
+    // Stores a normalized nutrient identifier such as sugar, protein, sodium, fibre, or energy.
+    nutrient_code: text('nutrient_code', { length: 64 }).notNull(),
+    // Stores the numeric measurement reported by the source.
+    nutrient_value: real('nutrient_value').notNull(),
+    // Stores the measurement unit, such as g, mg, kcal, or kJ.
+    nutrient_unit: text('nutrient_unit', { length: 16 }).notNull(),
+    // Stores the comparison basis, such as per_100g, per_100ml, or per_serving.
+    nutrient_basis: text('nutrient_basis', { length: 32 }).notNull(),
+    created_at: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    deleted_at: text('deleted_at'),
+  },
+  (table) => [
+    uniqueIndex('product_nutrient_fact_code_unit_basis_idx').on(
+      table.product_fact_id,
+      table.nutrient_code,
+      table.nutrient_unit,
+      table.nutrient_basis,
+    ),
+    index('product_nutrient_fact_id_idx').on(table.product_fact_id),
+    index('product_nutrient_code_unit_basis_value_idx').on(table.nutrient_code, table.nutrient_unit, table.nutrient_basis, table.nutrient_value),
+    index('product_nutrient_deleted_at_idx').on(table.deleted_at),
   ],
 )
 
