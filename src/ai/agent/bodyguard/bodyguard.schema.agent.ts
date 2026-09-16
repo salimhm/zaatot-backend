@@ -27,3 +27,5 @@ export const SecurityDecision = z.object({
   reason: z.string(),
   confidence: z.number().min(0).max(1),
 })
+
+export type type_schema_agent_bodyguard = z.infer<typeof SecurityDecision>

@@ -1,38 +1,43 @@
-import '@lib/env.lib'
+import "@lib/env.lib";
 
-import { Elysia } from 'elysia'
+import { Elysia } from "elysia";
 
-import { openapi } from '@elysia/openapi'
-import { cors } from '@elysiajs/cors'
+import { openapi } from "@elysia/openapi";
+import { cors } from "@elysiajs/cors";
 
-import { close_all_connections } from '@db/client.db'
+import { close_all_connections } from "@db/client.db";
 
-import { decision } from '@ai/src'
+import { handle_error } from "@lib/error.lib";
+import { lib_jwt } from "@lib/jwt.lib";
+import {
+  apply_rate_limit,
+  apply_security_headers,
+  apply_tenant_migration,
+  derive_auth,
+  guard_auth,
+} from "@lib/middleware.lib";
 
-import { handle_error } from '@lib/error.lib'
-import { lib_jwt } from '@lib/jwt.lib'
-import { apply_rate_limit, apply_security_headers, apply_tenant_migration, derive_auth, guard_auth } from '@lib/middleware.lib'
+import { storage_object_main } from "@storage/client.storage";
 
-import { storage_object_main } from '@storage/client.storage'
+import { controller_ai } from "@module/main/ai/ai.controller";
+import { controller_auth } from "@module/main/auth/auth.controller";
+import { controller_boycott_decision } from "@module/main/boycott-decision/boycott-decision.controller";
+import { controller_boycott_provider } from "@module/main/boycott-provider/boycott-provider.controller";
+import { controller_brand } from "@module/main/brand/brand.controller";
+import { controller_organization } from "@module/main/organization/organization.controller";
+import { controller_product } from "@module/main/product/product.controller";
+import { controller_scan } from "@module/main/scan/scan.controller";
+import { controller_user } from "@module/main/user/user.controller";
+import { controller_contact } from "@module/organization/contact/contact.controller";
+import { controller_access } from "@module/tenant/access/access.controller";
+import { controller_file } from "@module/tenant/file/file.controller";
+import { controller_scan_history } from "@module/user/scan-history/scan-history.controller";
+import { controller_user_list } from "@module/user/user-list/user-list.controller";
 
-import { controller_auth } from '@module/main/auth/auth.controller'
-import { controller_boycott_decision } from '@module/main/boycott-decision/boycott-decision.controller'
-import { controller_boycott_provider } from '@module/main/boycott-provider/boycott-provider.controller'
-import { controller_brand } from '@module/main/brand/brand.controller'
-import { controller_organization } from '@module/main/organization/organization.controller'
-import { controller_product } from '@module/main/product/product.controller'
-import { controller_scan } from '@module/main/scan/scan.controller'
-import { controller_user } from '@module/main/user/user.controller'
-import { controller_contact } from '@module/organization/contact/contact.controller'
-import { controller_access } from '@module/tenant/access/access.controller'
-import { controller_file } from '@module/tenant/file/file.controller'
-import { controller_scan_history } from '@module/user/scan-history/scan-history.controller'
-import { controller_user_list } from '@module/user/user-list/user-list.controller'
-
-const app_name = process.env.APP_NAME || 'Elysia'
-const app_env = process.env.ENV || 'UNDEFINED'
-const port = Number(process.env.PORT) || 3000
-const request_timeout = Number(process.env.REQUEST_TIMEOUT) || 60
+const app_name = process.env.APP_NAME || "Elysia";
+const app_env = process.env.ENV || "UNDEFINED";
+const port = Number(process.env.PORT) || 3000;
+const request_timeout = Number(process.env.REQUEST_TIMEOUT) || 60;
 
 export const app = new Elysia({
   serve: {
@@ -43,11 +48,11 @@ export const app = new Elysia({
   .use(
     cors({
       credentials: true,
-      exposeHeaders: ['X-Refresh-Token'],
+      exposeHeaders: ["X-Refresh-Token"],
     }),
   )
 
-  .use(app_env === 'dev' ? openapi({ path: '/openapi' }) : (app) => app)
+  .use(app_env === "dev" ? openapi({ path: "/openapi" }) : (app) => app)
 
   .use(lib_jwt)
 
@@ -57,25 +62,27 @@ export const app = new Elysia({
 
   .onError(handle_error)
 
-  .get('/', () => {
+  .get("/", () => {
     return new Response(`<h1>🔥 ${process.env.APP_NAME} 🔥`, {
       headers: {
-        'Content-Type': 'text/html; charset=utf-8',
+        "Content-Type": "text/html; charset=utf-8",
       },
-    })
+    });
   })
 
-  .get('/eden', () => {
-    if (app_env !== 'dev') return new Response('Not Found', { status: 404 })
-    const file = Bun.file('public/eden.ts')
+  .get("/eden", () => {
+    if (app_env !== "dev") return new Response("Not Found", { status: 404 });
+    const file = Bun.file("public/eden.ts");
     return new Response(file, {
-      headers: { 'Content-Type': 'application/x-typescript' },
-    })
+      headers: { "Content-Type": "application/x-typescript" },
+    });
   })
 
   .use(controller_auth)
 
-  .group('', (app) =>
+  .use(controller_ai)
+
+  .group("", (app) =>
     app
       .derive(derive_auth)
       .onBeforeHandle(guard_auth)
@@ -94,30 +101,30 @@ export const app = new Elysia({
       .use(controller_access),
   )
 
-  .listen(port)
+  .listen(port);
 
-export type App = typeof app
+export type App = typeof app;
 
-console.log(`🦊 ${app_name} ${app_env} is running at ${app.server?.hostname}:${app.server?.port}`)
+console.log(
+  `🦊 ${app_name} ${app_env} is running at ${app.server?.hostname}:${app.server?.port}`,
+);
 
-console.log(decision.output)
-
-let is_shutting_down = false
+let is_shutting_down = false;
 
 const handle_shutdown = async () => {
-  if (is_shutting_down) return
-  is_shutting_down = true
+  if (is_shutting_down) return;
+  is_shutting_down = true;
 
-  setTimeout(() => process.exit(1), 30_000).unref()
+  setTimeout(() => process.exit(1), 30_000).unref();
 
   try {
-    await app.stop()
+    await app.stop();
   } finally {
-    close_all_connections()
-    storage_object_main.destroy()
-    process.exit(0)
+    close_all_connections();
+    storage_object_main.destroy();
+    process.exit(0);
   }
-}
+};
 
-process.on('SIGTERM', handle_shutdown)
-process.on('SIGINT', handle_shutdown)
+process.on("SIGTERM", handle_shutdown);
+process.on("SIGINT", handle_shutdown);
