@@ -2,8 +2,8 @@ import '@lib/env.lib'
 
 import { Elysia } from 'elysia'
 
+import { openapi } from '@elysia/openapi'
 import { cors } from '@elysiajs/cors'
-import { swagger } from '@elysiajs/swagger'
 
 import { close_all_connections } from '@db/client.db'
 
@@ -45,7 +45,7 @@ export const app = new Elysia({
     }),
   )
 
-  .use(app_env === 'dev' ? swagger({ path: '/swagger' }) : (app) => app)
+  .use(app_env === 'dev' ? openapi({ path: '/openapi' }) : (app) => app)
 
   .use(lib_jwt)
 
