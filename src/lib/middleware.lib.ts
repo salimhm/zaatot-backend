@@ -96,6 +96,8 @@ export const guard_auth = ({ payload }: { payload: lib_dto_payload }): void => {
 }
 
 export const check_rate_limit = async (options: { key: string; limit: number; duration: number }): Promise<void> => {
+  if (process.env.ENV === 'dev' && process.env.DISABLE_RATE_LIMITS_IN_DEV === 'true') return
+
   const { key, limit, duration } = options
   await db_redis_rate_limiting.set(key, '0', 'NX', 'EX', String(duration))
   const current = await db_redis_rate_limiting.incr(key)
