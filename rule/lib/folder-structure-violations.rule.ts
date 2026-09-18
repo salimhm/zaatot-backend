@@ -41,7 +41,7 @@ export async function check() {
 
   await checkDir(
     `${SRC_DIR}/module/main`,
-    ['auth', 'tenant', 'user', 'organization', 'product', 'product-provider', 'scan', 'brand', 'boycott-provider', 'boycott-decision'],
+    ['auth', 'tenant', 'user', 'organization', 'product', 'product-provider', 'scan', 'brand', 'boycott-provider', 'boycott-decision', 'ai'],
     [],
     true,
   )
@@ -50,7 +50,7 @@ export async function check() {
   await checkDir(`${SRC_DIR}/module/organization`, null, null, false)
   await checkDir(`${SRC_DIR}/module/user`, null, null, false)
 
-  await checkDir(`${SRC_DIR}/ai`, ['agent', 'tool'], ['utils.ai.ts'], true)
+  await checkDir(`${SRC_DIR}/ai`, ['agent', 'tool', 'src'], ['utils.ai.ts', 'provider.ai.ts', 'workflow.ai.ts'], true)
 
   await checkDir(`${SRC_DIR}/ai/agent`, null, null, false)
   await checkDir(`${SRC_DIR}/ai/tool`, null, null, false)

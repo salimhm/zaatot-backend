@@ -2,13 +2,14 @@ import type {
   type_product_lookup_record,
   type_schema_agent_product_brand_lookup,
 } from '@agent/product-brand-lookup/product-brand-lookup.schema.agent'
+import type { product_lookup_runtime } from '@tool/product-lookup/product-lookup.tool'
 
 import { groq } from '@ai-sdk/groq'
 import { Agent } from '@voltagent/core'
 
 import { prompt_agent_product_brand_lookup } from '@agent/product-brand-lookup/product-brand-lookup.prompt.agent'
 import { schema_agent_product_brand_lookup, schema_product_lookup_tool_result } from '@agent/product-brand-lookup/product-brand-lookup.schema.agent'
-import { toolkit_product_lookup } from '@tool/product-lookup/product-lookup.tool'
+import { create_product_lookup_toolkit, toolkit_product_lookup } from '@tool/product-lookup/product-lookup.tool'
 
 export const $agent_product_brand_lookup = new Agent({
   id: 'product-brand-lookup',
@@ -88,16 +89,19 @@ export function normalize_product_brand_lookup_results(tool_results: unknown[] |
   }
 
   const query_type = searched_products && searched_brands ? 'mixed' : searched_products ? 'product' : searched_brands ? 'brand' : 'unknown'
-  const found = products.length > 0 || brands.length > 0
+  const candidate_count = products.length + brands.length
+  const found = candidate_count === 1
   const matches = [
     products.length > 0 ? `${products.length} product${products.length === 1 ? '' : 's'}` : null,
     brands.length > 0 ? `${brands.length} brand${brands.length === 1 ? '' : 's'}` : null,
   ].filter((match): match is string => match !== null)
   const message = found
     ? `Found ${matches.join(' and ')}.`
-    : sources_checked.size > 0
-      ? 'No matching product or brand information was found in the checked sources.'
-      : 'No product or brand lookup was performed.'
+    : candidate_count > 1
+      ? `Found ${matches.join(' and ')}; provide a more specific name or barcode to identify one.`
+      : sources_checked.size > 0
+        ? 'No matching product or brand information was found in the checked sources.'
+        : 'No product or brand lookup was performed.'
 
   return schema_agent_product_brand_lookup.parse({
     query_type,
@@ -111,13 +115,27 @@ export function normalize_product_brand_lookup_results(tool_results: unknown[] |
 
 export const agent_product_brand_lookup = async (
   message: string,
+  signal?: AbortSignal,
+  runtime?: product_lookup_runtime,
 ): Promise<{ success: true; data: type_schema_agent_product_brand_lookup } | { success: false; data: unknown }> => {
   try {
+    signal?.throwIfAborted()
+    let tool_error: Error | undefined
     const result = await $agent_product_brand_lookup.generateText(message, {
       temperature: 0,
       maxSteps: 4,
+      maxRetries: 0,
+      abortSignal: signal,
+      tools: runtime ? [create_product_lookup_toolkit(runtime)] : undefined,
+      hooks: {
+        onToolError: async ({ originalError }) => {
+          tool_error = originalError
+        },
+      },
     })
 
+    signal?.throwIfAborted()
+    if (tool_error) throw tool_error
     const data = normalize_product_brand_lookup_results(result.toolResults)
 
     return {

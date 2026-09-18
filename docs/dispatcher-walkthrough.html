@@ -1,0 +1,1549 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dispatcher · A visual walkthrough</title>
+    <style>
+      :root {
+        --paper: #f6f7f2;
+        --ink: #1d312e;
+        --muted: #5c6e69;
+        --line: #dce3db;
+        --green: #25624e;
+        --mint: #e6f2e8;
+        --violet: #7054ad;
+        --lavender: #f0eaf8;
+        --orange: #9b591c;
+        --cream: #fff0da;
+        --blue: #315e93;
+        --ice: #eaf1fb;
+        --white: #fff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          15px/1.5 system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+      }
+      button,
+      input {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible,
+      [role='button']:focus-visible {
+        outline: 3px solid #946bdd;
+        outline-offset: 4px;
+      }
+      button:disabled {
+        cursor: default;
+        opacity: 0.4;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      code,
+      .mono {
+        font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      }
+      button,
+      a,
+      input {
+        -webkit-tap-highlight-color: transparent;
+      }
+      main {
+        max-width: 1400px;
+        padding: 32px 38px 24px;
+        margin: auto;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 750;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .topline {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brand-icon {
+        width: 25px;
+        height: 25px;
+        border-radius: 7px;
+        background: var(--green);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 17px;
+      }
+      .demo-label {
+        font-size: 11px;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 5px 12px;
+        background: #fff9;
+      }
+      h1 {
+        font-size: clamp(30px, 4vw, 48px);
+        line-height: 1.15;
+        letter-spacing: -0.045em;
+      }
+      .lead {
+        margin-top: 9px;
+        color: var(--muted);
+        font-size: 17px;
+      }
+      .journey {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 18px 0 22px;
+        font-size: 12px;
+      }
+      .journey .pill {
+        border-radius: 7px;
+        padding: 5px 10px;
+        background: white;
+        border: 1px solid var(--line);
+      }
+      .journey .highlight {
+        background: var(--lavender);
+        color: var(--violet);
+        border-color: #d4c5eb;
+        font-weight: 700;
+      }
+      .journey .arrow {
+        color: #81908b;
+      }
+      .journey .stage-caption {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .overview {
+        display: grid;
+        grid-template-columns: 1.05fr 0.93fr 1.25fr;
+        gap: 16px;
+      }
+      .panel {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+      }
+      .input-panel,
+      .planner-panel,
+      .output-panel {
+        padding: 20px;
+      }
+      .panel-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+        font-size: 14px;
+        font-weight: 750;
+      }
+      .number {
+        font-size: 11px;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        background: var(--mint);
+        color: var(--green);
+      }
+      .request {
+        font-size: 16px;
+        line-height: 1.55;
+        letter-spacing: -0.02em;
+      }
+      mark {
+        border-radius: 4px;
+        padding: 0 3px;
+        color: inherit;
+        background: var(--lavender);
+      }
+      mark.risk {
+        background: var(--cream);
+      }
+      mark.eco {
+        background: var(--mint);
+      }
+      .input-meta {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 5px;
+        background: var(--paper);
+        padding: 4px 7px;
+        font-size: 10px;
+      }
+      .tag.good {
+        background: var(--mint);
+        color: var(--green);
+      }
+      .planner-panel {
+        background: var(--lavender);
+        border-color: #dcd1ec;
+        position: relative;
+      }
+      .planner-panel .number {
+        color: var(--violet);
+        background: #fff;
+      }
+      .planner-panel h2 {
+        font-size: 24px;
+        letter-spacing: -0.035em;
+        color: #543a85;
+      }
+      .planner-caption {
+        color: #695186;
+        font-size: 12px;
+        margin: 1px 0 14px;
+      }
+      .choices {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .choice {
+        background: #ffffffa8;
+        border: 1px solid #e0d5ed;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+      }
+      .choice b {
+        display: block;
+        font-size: 15px;
+        font-weight: 650;
+      }
+      .planner-foot {
+        font-size: 10px;
+        margin-top: 12px;
+        color: #6b5586;
+      }
+      .output-panel .number {
+        background: var(--ice);
+        color: var(--blue);
+      }
+      .plan-fields {
+        display: grid;
+        gap: 7px;
+      }
+      .field {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border-bottom: 1px solid #edf0ea;
+        padding-bottom: 6px;
+      }
+      .field:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+      .field code {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .field strong {
+        font-size: 12px;
+        text-align: right;
+        font-weight: 650;
+      }
+      .validation {
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        background: var(--mint);
+        border: 1px solid #d1e4d5;
+        padding: 13px 18px;
+        border-radius: 12px;
+        margin-top: 12px;
+      }
+      .validation-title {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 750;
+        white-space: nowrap;
+      }
+      .validation-items {
+        display: flex;
+        gap: 13px;
+        flex-wrap: wrap;
+        color: var(--green);
+        font-size: 11px;
+      }
+      .validation-end {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--green);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .workbench {
+        margin-top: 28px;
+      }
+      .workbench-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 14px;
+      }
+      h2 {
+        font-size: 23px;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+      }
+      .workbench-header p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 5px;
+      }
+      .controls {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-shrink: 0;
+      }
+      .button {
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #fff;
+        padding: 8px 13px;
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .button.primary {
+        background: var(--green);
+        color: white;
+        border-color: var(--green);
+        min-width: 144px;
+      }
+      .button.quiet {
+        background: transparent;
+      }
+      .workbench-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 16px;
+        align-items: start;
+      }
+      .graph-panel {
+        overflow: hidden;
+      }
+      .graph-toolbar {
+        padding: 13px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 1px solid var(--line);
+      }
+      .graph-toolbar .mono {
+        font-size: 12px;
+        color: var(--green);
+        font-weight: 700;
+      }
+      .graph-toolbar .note {
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .timeline {
+        display: flex;
+        gap: 4px;
+        padding: 12px 18px 0;
+      }
+      .timeline button {
+        flex: 1;
+        border: 0;
+        height: 6px;
+        border-radius: 3px;
+        padding: 0;
+        background: #e7eae4;
+      }
+      .timeline button.past {
+        background: #9fc4ad;
+      }
+      .timeline button.current {
+        background: var(--green);
+      }
+      .phase-line {
+        padding: 9px 18px 0;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--muted);
+        min-height: 26px;
+      }
+      #phase-name {
+        font-weight: 650;
+        color: var(--ink);
+      }
+      .diagram-wrap {
+        max-width: 810px;
+        margin: auto;
+      }
+      .mobile-hint {
+        display: none;
+      }
+      #dependency-graph {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .lane-hint {
+        font:
+          10px system-ui,
+          sans-serif;
+        fill: #62756b;
+        letter-spacing: 0.05em;
+      }
+      .edge {
+        stroke: #c7d3cb;
+        stroke-width: 1.7;
+        fill: none;
+        transition: stroke 0.2s;
+      }
+      .edge.focused {
+        stroke: #8463b6;
+        stroke-width: 2.8;
+      }
+      .edge.flowing {
+        stroke: #38835f;
+        stroke-width: 2.5;
+      }
+      .node {
+        cursor: pointer;
+        outline: none;
+      }
+      .node .card {
+        fill: white;
+        stroke: #cad7cb;
+        stroke-width: 1.5;
+        transition:
+          fill 0.2s,
+          stroke 0.2s;
+      }
+      .node:hover .card,
+      .node:focus-visible .card {
+        stroke: #8463b6;
+        stroke-width: 2.5;
+      }
+      .node.selected .card {
+        stroke: #8463b6;
+        stroke-width: 2.5;
+      }
+      .node .node-name {
+        font:
+          650 16px system-ui,
+          sans-serif;
+        fill: #223b32;
+      }
+      .node .node-purpose {
+        font:
+          11px system-ui,
+          sans-serif;
+        fill: #67786f;
+      }
+      .node .node-status {
+        font:
+          700 9px system-ui,
+          sans-serif;
+        letter-spacing: 0.08em;
+        fill: #64776b;
+      }
+      .node .dot {
+        fill: #d7e2d7;
+      }
+      .node.active .card {
+        fill: #ebf6ed;
+        stroke: #3b875e;
+        stroke-width: 2.5;
+      }
+      .node.active .dot {
+        fill: #399166;
+      }
+      .node.done .card {
+        fill: #f1f7f0;
+        stroke: #96b59c;
+      }
+      .node.done .dot {
+        fill: #88b494;
+      }
+      .node.skipped .card {
+        fill: #f9f4ed;
+        stroke: #c28d4c;
+        stroke-dasharray: 5 4;
+      }
+      .node.skipped .node-status,
+      .node.limited .node-status {
+        fill: #9b591c;
+      }
+      .node.limited .card {
+        fill: #fff6e7;
+        stroke: #cb9f66;
+      }
+      .node.limited .dot {
+        fill: #bc823a;
+      }
+      .graph-footer {
+        border-top: 1px solid var(--line);
+        background: #fbfcf8;
+        padding: 12px 18px;
+      }
+      .graph-footer .excluded {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .excluded span.role {
+        border: 1px dashed #c8d1c8;
+        padding: 3px 7px;
+        border-radius: 5px;
+      }
+      aside {
+        display: grid;
+        gap: 12px;
+      }
+      .consent-panel {
+        padding: 16px;
+      }
+      .consent-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .consent-top label {
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .switch {
+        width: 39px;
+        height: 23px;
+        appearance: none;
+        background: #a6aaa2;
+        border-radius: 20px;
+        cursor: pointer;
+        position: relative;
+        flex-shrink: 0;
+        margin: 0;
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 17px;
+        height: 17px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform 0.2s;
+      }
+      .switch:checked {
+        background: var(--green);
+      }
+      .switch:checked::after {
+        transform: translateX(16px);
+      }
+      .consent-caption {
+        margin-top: 4px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .permission-flow {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        margin-top: 12px;
+        font-size: 10px;
+      }
+      .permission-box {
+        background: var(--mint);
+        color: var(--green);
+        padding: 6px 8px;
+        border-radius: 6px;
+        font-weight: 650;
+      }
+      .permission-box.denied {
+        background: var(--cream);
+        color: var(--orange);
+      }
+      .inspector {
+        padding: 18px;
+        min-height: 286px;
+        border-color: #d8cbea;
+        background: #fbf9fe;
+      }
+      .inspector .eyebrow {
+        color: var(--violet);
+        font-size: 10px;
+      }
+      .inspector h3 {
+        font-size: 24px;
+        line-height: 1.15;
+        margin: 9px 0 7px;
+        letter-spacing: -0.03em;
+      }
+      .inspector .purpose {
+        font-size: 12px;
+        color: var(--muted);
+        min-height: 38px;
+      }
+      .inspector-line {
+        margin-top: 14px;
+      }
+      .inspector-line .label {
+        display: block;
+        font-size: 10px;
+        color: var(--muted);
+        margin-bottom: 5px;
+      }
+      .dependency-chips {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+      .dependency-chips span {
+        font-size: 11px;
+        background: white;
+        border: 1px solid #d9cbea;
+        padding: 4px 7px;
+        border-radius: 5px;
+      }
+      .inspector code {
+        display: inline-block;
+        font-size: 11px;
+        border-radius: 5px;
+        padding: 5px 8px;
+        background: #eee6f7;
+        color: #664990;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+      }
+      .inspector .outcome {
+        margin-top: 13px;
+        font-size: 12px;
+        color: #654b89;
+        background: #f0e8f8;
+        padding: 10px;
+        border-radius: 8px;
+      }
+      .inspector .outcome.warn {
+        color: var(--orange);
+        background: var(--cream);
+      }
+      .checks-panel {
+        padding: 16px;
+      }
+      .checks-panel h3,
+      .budget-panel h3 {
+        font-size: 12px;
+        font-weight: 750;
+      }
+      .checks {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+      .check {
+        font:
+          10px ui-monospace,
+          Consolas,
+          monospace;
+        padding: 5px 7px;
+        border-radius: 5px;
+        color: #46624e;
+        background: #eff4ec;
+        border: 1px solid #e1e9dc;
+      }
+      .check.unresolved {
+        color: var(--orange);
+        border-color: #e2b880;
+        background: var(--cream);
+      }
+      .check.focus {
+        border-color: var(--violet);
+      }
+      .checks-panel p {
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 9px;
+      }
+      .budget-panel {
+        padding: 16px;
+      }
+      .budget-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        margin-top: 9px;
+      }
+      .stat b {
+        display: block;
+        font-size: 22px;
+        font-weight: 650;
+        letter-spacing: -0.04em;
+      }
+      .stat span {
+        display: block;
+        font-size: 9px;
+        color: var(--muted);
+      }
+      .budget-panel .small {
+        font-size: 10px;
+        margin-top: 10px;
+        color: var(--muted);
+      }
+      .budget-track {
+        height: 5px;
+        border-radius: 4px;
+        background: #e8eee5;
+        margin-top: 11px;
+        overflow: hidden;
+      }
+      .budget-track span {
+        display: block;
+        height: 100%;
+        width: 83.33%;
+        background: #94b79c;
+      }
+      .on-demand {
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: var(--ice);
+        border: 1px solid #d6e1ef;
+        padding: 12px 18px;
+        border-radius: 12px;
+        font-size: 12px;
+        color: var(--blue);
+        flex-wrap: wrap;
+      }
+      .on-demand .eyebrow {
+        font-size: 9px;
+      }
+      .on-demand strong {
+        padding: 6px 12px;
+        border: 1px solid #bdcfe4;
+        border-radius: 7px;
+        background: #fff9;
+      }
+      .on-demand .small {
+        font-size: 10px;
+      }
+      .final-result {
+        margin-top: 14px;
+        padding: 17px 20px;
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: white;
+      }
+      .final-result h3 {
+        font-size: 13px;
+        margin-top: 3px;
+      }
+      .result-fields {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+      .result-fields span {
+        font:
+          10px ui-monospace,
+          Consolas,
+          monospace;
+        padding: 5px 7px;
+        border-radius: 5px;
+        background: #f0f3ed;
+        color: #5d6e62;
+      }
+      .result-status {
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .footer {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 22px;
+        padding-top: 18px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .footer strong {
+        color: var(--ink);
+        font-weight: 650;
+      }
+      .footer a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      @media (max-width: 1080px) {
+        main {
+          padding: 24px;
+        }
+        .overview {
+          grid-template-columns: 1fr 1fr;
+        }
+        .output-panel {
+          grid-column: 1/-1;
+        }
+        .plan-fields {
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px 20px;
+        }
+        .field {
+          display: block;
+          border: 0;
+        }
+        .field strong {
+          display: block;
+          text-align: left;
+        }
+        .workbench-grid {
+          grid-template-columns: minmax(0, 1fr) 280px;
+        }
+        .journey .stage-caption {
+          display: none;
+        }
+        .validation {
+          flex-wrap: wrap;
+          gap: 8px 15px;
+        }
+        .validation-end {
+          margin-left: 0;
+        }
+      }
+      @media (max-width: 790px) {
+        main {
+          padding: 20px 14px;
+        }
+        .overview,
+        .workbench-grid {
+          grid-template-columns: 1fr;
+        }
+        .output-panel {
+          grid-column: auto;
+        }
+        .plan-fields {
+          grid-template-columns: 1fr;
+        }
+        .field {
+          display: flex;
+        }
+        .field strong {
+          text-align: right;
+        }
+        .input-panel,
+        .planner-panel,
+        .output-panel {
+          padding: 18px;
+        }
+        .workbench-header {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .controls {
+          width: 100%;
+        }
+        .controls .primary {
+          flex: 1;
+        }
+        aside {
+          grid-template-columns: 1fr 1fr;
+        }
+        .inspector {
+          grid-row: span 2;
+        }
+        .consent-panel {
+          grid-column: 1;
+        }
+        .budget-panel {
+          grid-column: 1/-1;
+        }
+        .budget-stats {
+          max-width: 300px;
+        }
+        .final-result,
+        .footer {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .demo-label {
+          max-width: 170px;
+          font-size: 9px;
+          text-align: center;
+        }
+        .graph-toolbar .mono {
+          font-size: 10px;
+        }
+        .graph-toolbar .note {
+          font-size: 9px;
+        }
+        .on-demand {
+          gap: 7px;
+        }
+      }
+      @media (max-width: 790px) {
+        .diagram-wrap {
+          overflow-x: auto;
+        }
+        #dependency-graph {
+          min-width: 680px;
+        }
+        .mobile-hint {
+          display: block;
+          font-size: 10px;
+          color: var(--muted);
+          padding: 8px 18px 0;
+        }
+      }
+      @media (max-width: 470px) {
+        aside {
+          display: flex;
+          flex-direction: column;
+        }
+        .inspector {
+          min-height: 0;
+        }
+        .graph-toolbar {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 2px;
+        }
+        .phase-line {
+          font-size: 10px;
+        }
+        .journey {
+          gap: 5px;
+          font-size: 10px;
+        }
+        .journey .pill {
+          padding: 4px 6px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+          scroll-behavior: auto !important;
+        }
+      }
+      @media print {
+        main {
+          max-width: none;
+          padding: 12px;
+        }
+        .controls {
+          display: none;
+        }
+        .overview {
+          grid-template-columns: 1fr 1fr 1fr;
+        }
+        .output-panel {
+          grid-column: auto;
+        }
+        .plan-fields {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+        .field {
+          display: flex;
+        }
+        .workbench-grid {
+          grid-template-columns: minmax(0, 1fr) 270px;
+        }
+        .panel {
+          break-inside: avoid;
+        }
+        body {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="topline">
+          <div class="brand"><span class="brand-icon" aria-hidden="true">↗</span><span class="eyebrow">Zaatot / AI field guide</span></div>
+          <span class="demo-label">Interactive illustration · No live AI calls</span>
+        </div>
+        <h1>Meet your Dispatcher.</h1>
+        <p class="lead">One request → selected agents + dependencies + conditions + budgets.</p>
+        <div class="journey" aria-label="Intended workflow placement">
+          <span class="pill">API request</span><span class="arrow">→</span> <span class="pill">Bodyguard</span><span class="arrow">→</span>
+          <span class="pill">Conductor plan</span><span class="arrow">→</span> <span class="pill highlight">Dispatcher plan</span
+          ><span class="arrow">→</span>
+          <span class="pill">Workflow executes</span>
+          <span class="stage-caption">Intended placement after startup</span>
+        </div>
+      </header>
+
+      <section class="overview" aria-label="From request to validated plan">
+        <article class="panel input-panel">
+          <div class="panel-title"><span class="number">01</span>A user asks</div>
+          <p class="request">
+            “Check this cereal against my <mark>saved dietary goals</mark> and <mark class="risk">ingredient restrictions</mark>, and assess its
+            <mark class="eco">environmental impact</mark>.”
+          </p>
+          <div class="input-meta">
+            <span class="tag good">✓ Bodyguard: allow</span>
+            <span class="tag">30 s / 20 tools remaining</span>
+            <span class="tag">+ optional Conductor proposal</span>
+          </div>
+        </article>
+        <article class="panel planner-panel">
+          <div class="panel-title"><span class="number">02</span>AI proposes the plan</div>
+          <h2>Dispatcher</h2>
+          <p class="planner-caption mono">agent_dispatcher(input, signal)</p>
+          <div class="choices">
+            <div class="choice"><b>Who?</b>Choose required agents</div>
+            <div class="choice"><b>When?</b>Set prerequisites</div>
+            <div class="choice"><b>If?</b>Set execution conditions</div>
+            <div class="choice"><b>How much?</b>Allocate shared budgets</div>
+          </div>
+          <div class="planner-foot">Saved goals & restrictions stay in the database until permitted Vault Keeper retrieval.</div>
+        </article>
+        <article class="panel output-panel">
+          <div class="panel-title"><span class="number">03</span>Its output: an internal plan</div>
+          <div class="plan-fields">
+            <div class="field"><code>selected_agents</code><strong>9 agents + rules</strong></div>
+            <div class="field"><code>required_checks</code><strong>8 required checks</strong></div>
+            <div class="field"><code>budgets</code><strong>25 s · 12 tool calls</strong></div>
+            <div class="field"><code>untrusted_content_policy</code><strong>Bait Tester first</strong></div>
+            <div class="field"><code>candidate_validation</code><strong>not_requested</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <div class="validation">
+        <div class="validation-title"><span aria-hidden="true">✓</span> Backend validates the plan</div>
+        <div class="validation-items">
+          <span>Required gates</span><span>Exact dependencies</span><span>Consent conditions</span><span>Budget ceilings</span>
+        </div>
+        <div class="validation-end">Valid → hand to workflow</div>
+      </div>
+
+      <section class="workbench" aria-label="Interactive execution preview">
+        <div class="workbench-header">
+          <div>
+            <h2>The workflow follows the plan.</h2>
+            <p>Execution preview · Click an agent to inspect its rules.</p>
+          </div>
+          <div class="controls">
+            <button type="button" class="button quiet" id="reset" aria-label="Reset walkthrough">↺ Reset</button>
+            <button type="button" class="button" id="back" aria-label="Previous step">←</button>
+            <button type="button" class="button primary" id="play">▶ Play walkthrough</button>
+            <button type="button" class="button" id="next" aria-label="Next step">→</button>
+          </div>
+        </div>
+        <div class="workbench-grid">
+          <div class="panel graph-panel">
+            <div class="graph-toolbar">
+              <span class="mono">createWorkflowChain() · code orchestrator</span><span class="note">Arrows = depends_on</span>
+            </div>
+            <div class="timeline" id="timeline" aria-label="Walkthrough steps"></div>
+            <div class="phase-line" aria-live="polite"><span id="phase-name">Plan ready</span><span id="phase-index">0 / 7</span></div>
+            <div class="mobile-hint">Swipe the graph sideways to see every agent.</div>
+            <div class="diagram-wrap">
+              <svg
+                id="dependency-graph"
+                viewBox="0 0 760 748"
+                xmlns="http://www.w3.org/2000/svg"
+                role="group"
+                aria-labelledby="graph-title graph-desc"
+              >
+                <title id="graph-title">Dispatcher's nine-agent plan for a personalized cereal request</title>
+                <desc id="graph-desc">
+                  Detective and Vault Keeper have no dependencies. Eco Scout waits for Detective. Medic waits for Detective and Vault Keeper. Skeptic
+                  waits for Detective, Medic and Eco Scout. Referee waits for Skeptic. Coach waits for Vault Keeper and Referee, and requires
+                  personalization consent. Storyteller waits for Skeptic, Referee and Coach. Gatekeeper waits for Storyteller.
+                </desc>
+                <defs>
+                  <marker id="arrow-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0 1 L9 5 L0 9Z" fill="#c7d3cb" />
+                  </marker>
+                  <marker id="arrow-focus" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0 1 L9 5 L0 9Z" fill="#8463b6" />
+                  </marker>
+                  <marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0 1 L9 5 L0 9Z" fill="#38835f" />
+                  </marker>
+                </defs>
+                <text x="140" y="19" class="lane-hint">INDEPENDENT STARTS · MAY RUN TOGETHER</text>
+                <g id="edges"></g>
+                <g id="nodes"></g>
+                <g aria-hidden="true" transform="translate(460 655)">
+                  <rect width="244" height="54" rx="10" fill="#f5f6f0" />
+                  <text x="12" y="22" font-family="system-ui,sans-serif" font-size="11" fill="#5d6e62">Ambiguous product identity?</text>
+                  <text x="12" y="40" font-family="ui-monospace,monospace" font-size="11" fill="#315747">Stop dependent analysis → needs_input</text>
+                </g>
+              </svg>
+            </div>
+            <div class="graph-footer">
+              <div class="excluded">
+                <b>Outside this request</b><span class="role">Investigator · ethics</span><span class="role">Historian · past behavior</span
+                ><span class="role">Bargain Hunter · alternatives</span>
+              </div>
+            </div>
+          </div>
+
+          <aside>
+            <section class="panel consent-panel" aria-label="Example permission control">
+              <div class="consent-top">
+                <label for="consent">Personalization permitted</label
+                ><input id="consent" class="switch" type="checkbox" checked aria-describedby="consent-note" />
+              </div>
+              <p class="consent-caption" id="consent-note">Try toggling consent. The selected plan stays the same.</p>
+              <div class="permission-flow">
+                <span class="permission-box">Vault Keeper</span><span>→</span><span id="permission-result" class="permission-box">Coach may run</span>
+              </div>
+            </section>
+            <section class="panel inspector" id="inspector" aria-live="polite"></section>
+            <section class="panel checks-panel">
+              <h3>Every required check stays visible</h3>
+              <div class="checks" id="checks"></div>
+              <p id="checks-note">A selected agent carries a required check. Storyteller adds the explanation.</p>
+            </section>
+            <section class="panel budget-panel">
+              <h3>One shared execution budget</h3>
+              <div class="budget-stats">
+                <div class="stat"><b>25 s</b><span>TOTAL DEADLINE</span></div>
+                <div class="stat"><b>12</b><span>TOTAL TOOL CALLS</span></div>
+                <div class="stat"><b>1</b><span>RETRY / FAILED STEP</span></div>
+              </div>
+              <div class="budget-track" aria-hidden="true"><span></span></div>
+              <p class="small">Example plan ≤ 30 s / 20 tools supplied by the server.<br />Planning time is deducted; no new timer per agent.</p>
+              <p class="small">0 alternative candidates · 0 candidate review passes<br />1 final response repair maximum</p>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <div class="on-demand" aria-label="Untrusted content interception">
+        <span class="eyebrow">Whenever encountered</span><span>External free text</span><span aria-hidden="true">→</span><strong>Bait Tester</strong
+        ><span aria-hidden="true">→</span><span>Consuming agent</span><span class="small">On demand · outside the nine scheduled entries</span>
+      </div>
+      <section class="final-result">
+        <div>
+          <div class="eyebrow muted">After final validation</div>
+          <h3>Final workflow result → API</h3>
+        </div>
+        <div>
+          <div class="result-fields">
+            <span>execution_id</span><span>status</span><span>product</span><span>assessments</span><span>alternatives</span><span>explanation</span
+            ><span>sources</span><span>limitations</span>
+          </div>
+          <div class="result-status" id="result-status">The final response combines reviewed outputs from the agents that ran.</div>
+        </div>
+      </section>
+      <footer class="footer">
+        <div>
+          <strong>Current code:</strong> Dispatcher generates and validates plans. Connecting it to the workflow and executing these downstream roles
+          remain future work.<br /><strong>Example assumptions:</strong> cereal identity resolves; requested evidence is available; permitted profile
+          exists when consent is enabled. All data is illustrative.
+        </div>
+        <div>
+          Source: <a href="../src/ai/agent/dispatcher/dispatcher.schema.agent.ts">schema</a> ·
+          <a href="../src/ai/agent/dispatcher/dispatcher.prompt.agent.ts">prompt</a> ·
+          <a href="../src/ai/agent/dispatcher/dispatcher.agent.ts">agent</a>
+        </div>
+      </footer>
+      <noscript><p>This visual walkthrough needs JavaScript for the graph and controls. It runs entirely in your browser.</p></noscript>
+    </main>
+
+    <script id="example-plan" type="application/json">
+      {
+        "selected_agents": [
+          { "agent": "Detective", "depends_on": [], "run_when": "always" },
+          { "agent": "Vault Keeper", "depends_on": [], "run_when": "always" },
+          { "agent": "Medic", "depends_on": ["Detective", "Vault Keeper"], "run_when": "always" },
+          { "agent": "Eco Scout", "depends_on": ["Detective"], "run_when": "always" },
+          { "agent": "Skeptic", "depends_on": ["Detective", "Medic", "Eco Scout"], "run_when": "always" },
+          { "agent": "Referee", "depends_on": ["Skeptic"], "run_when": "always" },
+          { "agent": "Coach", "depends_on": ["Vault Keeper", "Referee"], "run_when": "personalization_permitted" },
+          { "agent": "Storyteller", "depends_on": ["Skeptic", "Referee", "Coach"], "run_when": "always" },
+          { "agent": "Gatekeeper", "depends_on": ["Storyteller"], "run_when": "always" }
+        ],
+        "required_checks": [
+          "identity",
+          "personal_context",
+          "clinical_risk",
+          "environment",
+          "evidence",
+          "hard_constraints",
+          "goal_fit",
+          "final_response"
+        ],
+        "budgets": {
+          "timeout_ms": 25000,
+          "max_tool_calls": 12,
+          "max_retries": 1,
+          "max_alternative_candidates": 0,
+          "max_candidate_review_passes": 0,
+          "max_response_repairs": 1
+        },
+        "untrusted_content_policy": "bait_tester_before_consumption",
+        "candidate_validation": "not_requested"
+      }
+    </script>
+    <script>
+      'use strict'
+      const plan = JSON.parse(document.getElementById('example-plan').textContent)
+      const byName = Object.fromEntries(plan.selected_agents.map((agent) => [agent.agent, agent]))
+      const metadata = {
+        Detective: {
+          x: 140,
+          y: 28,
+          step: 1,
+          purpose: 'Resolve product identity',
+          check: 'identity',
+          why: 'Every analysis needs a resolved product.',
+          output: 'Product identity + catalog facts + sources',
+          denied: 'Product identity + catalog facts + sources',
+        },
+        'Vault Keeper': {
+          x: 500,
+          y: 28,
+          step: 1,
+          purpose: 'Check consent; retrieve context',
+          check: 'personal_context',
+          why: '“My saved goals and restrictions” needs permitted database context.',
+          output: 'Consent decision + permitted goals / restrictions',
+          denied: 'not_permitted · no private context returned',
+        },
+        'Eco Scout': {
+          x: 28,
+          y: 180,
+          step: 2,
+          purpose: 'Retrieve environmental evidence',
+          check: 'environment',
+          why: 'The user explicitly asks about environmental impact.',
+          output: 'Environmental indicators + evidence scope + sources',
+          denied: 'Environmental evidence remains independent of private goals',
+        },
+        Medic: {
+          x: 350,
+          y: 180,
+          step: 2,
+          purpose: 'Check ingredients / restrictions',
+          check: 'clinical_risk',
+          why: 'The request asks about ingredient restrictions.',
+          output: 'Risk flags + required restrictions + evidence gaps',
+          denied: 'insufficient_data for personal restrictions · preserve the gap',
+        },
+        Skeptic: {
+          x: 180,
+          y: 335,
+          step: 3,
+          purpose: 'Review support for the claims',
+          check: 'evidence',
+          why: 'Evidence from every selected specialist must be reviewed.',
+          output: 'Supported claims + unsupported claims + uncertainties',
+          denied: 'Review available evidence; retain missing personal checks',
+        },
+        Referee: {
+          x: 500,
+          y: 335,
+          step: 4,
+          purpose: 'Apply hard constraints',
+          check: 'hard_constraints',
+          why: 'Hard restrictions must survive scoring and explanation.',
+          output: 'Constraint decisions + unresolved disagreements',
+          denied: 'needs_review for personal suitability · restrictions stay visible',
+        },
+        Coach: {
+          x: 500,
+          y: 490,
+          step: 5,
+          purpose: 'Assess fit to permitted goals',
+          check: 'goal_fit',
+          why: 'The user asks whether the cereal fits saved dietary goals.',
+          output: 'Goal fit only for an eligible product with permitted context',
+          denied: 'Skipped · goal_fit stays unresolved; no inferred preferences',
+        },
+        Storyteller: {
+          x: 180,
+          y: 490,
+          step: 6,
+          purpose: 'Explain reviewed findings',
+          check: null,
+          why: 'The user needs an explanation grounded in reviewed evidence.',
+          output: 'Explanation + limitations + references',
+          denied: 'Explain available facts and missing personal checks; no personal recommendation',
+        },
+        Gatekeeper: {
+          x: 180,
+          y: 642,
+          step: 7,
+          purpose: 'Validate the final response',
+          check: 'final_response',
+          why: 'Every response must pass schema, privacy and citation checks.',
+          output: 'Validated response, bounded repair, or restrictive error',
+          denied: 'Validate a restrictive response preserving needs_review and limitations',
+        },
+      }
+      const paths = {
+        'Detective>Eco Scout': 'M236 104 C236 143 124 143 124 180',
+        'Detective>Medic': 'M236 104 C236 143 446 143 446 180',
+        'Vault Keeper>Medic': 'M596 104 C596 143 446 143 446 180',
+        'Detective>Skeptic': 'M140 66 H24 Q12 66 12 78 V292 Q12 307 27 307 H252 Q276 307 276 326 V335',
+        'Eco Scout>Skeptic': 'M124 256 C124 296 276 296 276 335',
+        'Medic>Skeptic': 'M446 256 C446 296 276 296 276 335',
+        'Skeptic>Referee': 'M372 373 H500',
+        'Vault Keeper>Coach': 'M692 66 H724 Q738 66 738 80 V450 Q738 465 724 465 H614 Q596 465 596 482 V490',
+        'Referee>Coach': 'M596 411 V490',
+        'Skeptic>Storyteller': 'M276 411 V490',
+        'Referee>Storyteller': 'M500 389 H464 Q450 389 450 403 V433 Q450 447 436 447 H295 Q276 447 276 467 V490',
+        'Coach>Storyteller': 'M500 528 H372',
+        'Storyteller>Gatekeeper': 'M276 566 V642',
+      }
+      const phases = [
+        { title: 'Plan ready · the Dispatcher’s job ends here', agents: [] },
+        { title: 'Independent starts · Detective + Vault Keeper', agents: ['Detective', 'Vault Keeper'] },
+        { title: 'Inputs ready · selected specialists may run together', agents: ['Medic', 'Eco Scout'] },
+        { title: 'Review evidence · Skeptic', agents: ['Skeptic'] },
+        { title: 'Apply hard constraints · Referee', agents: ['Referee'] },
+        { title: 'Check permission and goal fit · Coach', agents: ['Coach'] },
+        { title: 'Explain reviewed findings · Storyteller', agents: ['Storyteller'] },
+        { title: 'Validate final response · Gatekeeper', agents: ['Gatekeeper'] },
+      ]
+      const ns = 'http://www.w3.org/2000/svg'
+      const element = (id) => document.getElementById(id)
+      const svgElement = (tag, attrs, text) => {
+        const node = document.createElementNS(ns, tag)
+        for (const [key, value] of Object.entries(attrs || {})) node.setAttribute(key, value)
+        if (text !== undefined) node.textContent = text
+        return node
+      }
+      let step = 0
+      let focused = null
+      let timer = null
+      const nodes = new Map()
+      const edges = []
+
+      for (const agent of plan.selected_agents) {
+        for (const dependency of agent.depends_on) {
+          const path = svgElement('path', { d: paths[dependency + '>' + agent.agent], class: 'edge', 'marker-end': 'url(#arrow-neutral)' })
+          element('edges').appendChild(path)
+          edges.push({ path, from: dependency, to: agent.agent })
+        }
+        const info = metadata[agent.agent]
+        const group = svgElement('g', {
+          class: 'node',
+          transform: `translate(${info.x} ${info.y})`,
+          role: 'button',
+          tabindex: '0',
+          'aria-label': `${agent.agent}: ${info.purpose}. Select to inspect dependencies.`,
+          'data-agent': agent.agent,
+        })
+        group.appendChild(svgElement('rect', { class: 'card', width: 192, height: 76, rx: 12 }))
+        group.appendChild(svgElement('text', { class: 'node-name', x: 13, y: 27 }, agent.agent))
+        group.appendChild(svgElement('text', { class: 'node-purpose', x: 13, y: 45 }, info.purpose))
+        group.appendChild(svgElement('circle', { class: 'dot', cx: 16, cy: 62, r: 3 }))
+        group.appendChild(svgElement('text', { class: 'node-status', x: 25, y: 65 }, 'PLANNED'))
+        group.addEventListener('click', () => {
+          focused = agent.agent
+          render()
+        })
+        group.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            focused = agent.agent
+            render()
+          }
+        })
+        element('nodes').appendChild(group)
+        nodes.set(agent.agent, group)
+      }
+
+      phases.forEach((phase, index) => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.setAttribute('aria-label', `Step ${index}: ${phase.title}`)
+        button.title = phase.title
+        button.addEventListener('click', () => {
+          stop()
+          setStep(index)
+        })
+        element('timeline').appendChild(button)
+      })
+
+      function stop() {
+        clearInterval(timer)
+        timer = null
+        element('play').textContent = '▶ Play walkthrough'
+      }
+      function setStep(next) {
+        step = Math.max(0, Math.min(phases.length - 1, next))
+        focused = phases[step].agents[0] || null
+        render()
+      }
+      function renderInspector() {
+        const consent = element('consent').checked
+        const title = focused || 'Dispatcher → workflow'
+        const info = focused ? metadata[focused] : null
+        const selected = focused ? byName[focused] : null
+        const label = focused ? 'Selected agent / inspect the rule' : 'Handoff / proposed plan'
+        const purpose = info ? info.why : 'The plan describes nine agent steps. Workflow code schedules ready steps and enforces their conditions.'
+        const prerequisite = selected ? selected.depends_on : ['Validated execution plan']
+        const condition = selected ? selected.run_when : 'validated plan + implemented executor'
+        const outcome = info ? (consent ? info.output : info.denied) : 'Select a node or press Play to follow the illustrative execution.'
+        const isWarning = !consent && focused && !['Detective', 'Eco Scout'].includes(focused)
+        element('inspector').innerHTML = `
+      <div class="eyebrow">${label}</div>
+      <h3>${title}</h3>
+      <div class="purpose">${purpose}</div>
+      <div class="inspector-line"><span class="label">${focused ? 'depends_on · wait for' : 'Workflow receives'}</span><div class="dependency-chips">${prerequisite.length ? prerequisite.map((name) => `<span>${name}</span>`).join('') : '<span>None · independent start</span>'}</div></div>
+      <div class="inspector-line"><span class="label">${focused ? 'run_when · execution condition' : 'Execution prerequisite'}</span><code>${condition}</code></div>
+      <div class="outcome${isWarning ? ' warn' : ''}">${outcome}</div>`
+      }
+
+      function render() {
+        const consent = element('consent').checked
+        for (const [name, node] of nodes) {
+          const info = metadata[name]
+          let state = step > info.step ? 'done' : step === info.step ? 'active' : 'planned'
+          let label = state === 'done' ? 'VISITED' : state === 'active' ? 'CURRENT STEP' : 'PLANNED'
+          if (!consent && name === 'Coach') {
+            state = 'skipped'
+            label = 'SKIP · NO PERMISSION'
+          } else if (!consent && step >= info.step && ['Vault Keeper', 'Medic', 'Referee'].includes(name)) {
+            state = 'limited'
+            label = name === 'Vault Keeper' ? 'CONTEXT WITHHELD' : name === 'Medic' ? 'PERSONAL CHECK MISSING' : 'NEEDS REVIEW'
+          }
+          node.setAttribute('class', `node ${state}${focused === name ? ' selected' : ''}`)
+          node.setAttribute('aria-pressed', String(focused === name))
+          node.querySelector('.node-status').textContent = label
+        }
+        for (const edge of edges) {
+          const selected = focused === edge.to
+          const flowing = !selected && metadata[edge.to].step === step
+          edge.path.setAttribute('class', `edge${selected ? ' focused' : flowing ? ' flowing' : ''}`)
+          edge.path.setAttribute('marker-end', selected ? 'url(#arrow-focus)' : flowing ? 'url(#arrow-flow)' : 'url(#arrow-neutral)')
+        }
+        ;[...element('timeline').children].forEach((button, index) => {
+          button.className = index === step ? 'current' : index < step ? 'past' : ''
+          button.setAttribute('aria-current', index === step ? 'step' : 'false')
+        })
+        element('phase-name').textContent = !consent && step === 5 ? 'Coach skipped · goal_fit remains unresolved' : phases[step].title
+        element('phase-index').textContent = `${step} / ${phases.length - 1}`
+        element('back').disabled = step === 0
+        element('next').disabled = step === phases.length - 1
+        element('permission-result').textContent = consent ? 'Coach may run' : 'Coach is skipped'
+        element('permission-result').className = 'permission-box' + (consent ? '' : ' denied')
+        element('checks').replaceChildren()
+        for (const check of plan.required_checks) {
+          const chip = document.createElement('span')
+          const unresolved = !consent && ['personal_context', 'clinical_risk', 'goal_fit'].includes(check)
+          chip.className = 'check' + (unresolved ? ' unresolved' : '') + (focused && metadata[focused].check === check ? ' focus' : '')
+          chip.textContent = check
+          chip.title = unresolved ? 'Unresolved personal check; never treated as passed.' : 'Required by this plan.'
+          element('checks').appendChild(chip)
+        }
+        element('checks-note').textContent = consent
+          ? 'A selected agent carries a required check. Storyteller adds the explanation.'
+          : 'Amber = unavailable personal checks. Skipped work never becomes a passed check.'
+        element('result-status').textContent = consent
+          ? 'The final response combines reviewed outputs from the agents that ran.'
+          : 'Illustrative outcome: needs_review for personal suitability · explain missing consent and unresolved checks.'
+        renderInspector()
+        document.documentElement.dataset.step = String(step)
+        document.documentElement.dataset.consent = String(consent)
+      }
+
+      element('consent').addEventListener('change', () => {
+        stop()
+        focused = 'Coach'
+        render()
+      })
+      element('reset').addEventListener('click', () => {
+        stop()
+        element('consent').checked = true
+        setStep(0)
+      })
+      element('back').addEventListener('click', () => {
+        stop()
+        setStep(step - 1)
+      })
+      element('next').addEventListener('click', () => {
+        stop()
+        setStep(step + 1)
+      })
+      element('play').addEventListener('click', () => {
+        if (timer) {
+          stop()
+          return
+        }
+        if (step === phases.length - 1) setStep(0)
+        setStep(step + 1)
+        if (step === phases.length - 1) return
+        element('play').textContent = 'Ⅱ Pause walkthrough'
+        timer = setInterval(() => {
+          setStep(step + 1)
+          if (step === phases.length - 1) stop()
+        }, 2300)
+      })
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stop()
+      })
+      render()
+    </script>
+  </body>
+</html>

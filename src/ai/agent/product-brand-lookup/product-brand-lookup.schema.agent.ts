@@ -35,7 +35,7 @@ export const schema_agent_product_brand_lookup = z.object({
 
 export type type_schema_agent_product_brand_lookup = z.infer<typeof schema_agent_product_brand_lookup>
 
-const schema_product_lookup_record = z.object({
+export const schema_product_lookup_record = z.object({
   product_id: z.number().nullish(),
   product_barcode: z.string().nullish(),
   product_type: z.string().nullish(),

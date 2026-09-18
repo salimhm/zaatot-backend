@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2300" height="2350" viewBox="0 0 2300 2350">
+<rect width="2300" height="2350" fill="white"/>
+<defs>
+<marker id="a94a3b8" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1,1 L9,5 L1,9" fill="none" stroke="#94a3b8" stroke-width="2"/></marker>
+<marker id="a2563eb" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1,1 L9,5 L1,9" fill="none" stroke="#2563eb" stroke-width="2"/></marker>
+<marker id="a15803d" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1,1 L9,5 L1,9" fill="none" stroke="#15803d" stroke-width="2"/></marker>
+<marker id="a52647a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1,1 L9,5 L1,9" fill="none" stroke="#52647a" stroke-width="2"/></marker>
+<marker id="ac2414b" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1,1 L9,5 L1,9" fill="none" stroke="#c2414b" stroke-width="2"/></marker>
+<marker id="a7c3aed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1,1 L9,5 L1,9" fill="none" stroke="#7c3aed" stroke-width="2"/></marker>
+</defs>
+<text x="60" y="78.0" font-family="Arial, sans-serif" font-size="43" fill="#172b4d">WORKFLOW ORCHESTRATES. AGENTS EXECUTE.</text>
+<text x="60" y="125.0" font-family="Arial, sans-serif" font-size="25" fill="#52647a">Consumer AI  /  Updated architecture  /  Current startup + planned extension</text>
+<rect x="60" y="165" width="690" height="150" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="84" y="210.0" font-family="Arial, sans-serif" font-size="25" fill="#2563eb">1  WORKFLOW BUILDER</text>
+<text x="84" y="251.0" font-family="Arial, sans-serif" font-size="22" fill="#172b4d">createWorkflowChain() defines the pipeline.</text>
+<text x="84" y="279.6" font-family="Arial, sans-serif" font-size="22" fill="#172b4d">workflow.run(input) executes that pipeline.</text>
+<rect x="790" y="165" width="690" height="150" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+<text x="814" y="210.0" font-family="Arial, sans-serif" font-size="25" fill="#7c3aed">2  CONDUCTOR AI AGENT</text>
+<text x="814" y="251.0" font-family="Arial, sans-serif" font-size="22" fill="#172b4d">new Agent(...) creates a model-backed planner.</text>
+<text x="814" y="279.6" font-family="Arial, sans-serif" font-size="22" fill="#172b4d">The workflow invokes it after the security gate.</text>
+<rect x="1520" y="165" width="720" height="150" rx="14" fill="#fff1f2" stroke="#c2414b" stroke-width="2"/>
+<text x="1544" y="210.0" font-family="Arial, sans-serif" font-size="25" fill="#c2414b">3  BODYGUARD IS A SEPARATE AGENT</text>
+<text x="1544" y="250.0" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">Conductor does not contain or call Bodyguard.</text>
+<text x="1544" y="277.3" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">Both are independent steps owned by the workflow.</text>
+<rect x="405" y="370" width="620" height="105" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text x="429" y="415.0" font-family="Arial, sans-serif" font-size="25" fill="#2563eb">POST /ai/analyze</text>
+<text x="429" y="456.0" font-family="Arial, sans-serif" font-size="22" fill="#172b4d">JWT + validated { prompt, user_id }</text>
+<rect x="60" y="530" width="1400" height="1520" rx="14" fill="#f8fbff" stroke="#2563eb" stroke-width="2"/>
+<text x="90" y="583.0" font-family="Arial, sans-serif" font-size="28" fill="#2563eb">WORKFLOW ORCHESTRATION  |  create_consumer_workflow()</text>
+<text x="90" y="621.0" font-family="Arial, sans-serif" font-size="22" fill="#52647a">Deterministic TypeScript: order, state, conditions, deadline and final response</text>
+<rect x="405" y="650" width="620" height="120" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text x="429" y="695.0" font-family="Arial, sans-serif" font-size="25" fill="#2563eb">01  Initialize execution state</text>
+<text x="429" y="734.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">Step: conductor-initialize (.andThen)</text>
+<text x="429" y="760.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">Plain code: carry prompt, user ID and execution ID.</text>
+<rect x="405" y="845" width="620" height="150" rx="14" fill="#fff1f2" stroke="#c2414b" stroke-width="2"/>
+<text x="429" y="890.0" font-family="Arial, sans-serif" font-size="25" fill="#c2414b">02  Bodyguard agent — always runs</text>
+<text x="429" y="929.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">Step: bodyguard (.andThen) calls agent_bodyguard</text>
+<text x="429" y="955.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">Classify the prompt and validate SecurityDecision.</text>
+<text x="429" y="981.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">No Conductor agent call has happened yet.</text>
+<polygon points="715.0,1080 860,1160.0 715.0,1240 570,1160.0" fill="#fef3c7" stroke="#a16207" stroke-width="2"/>
+<text x="629" y="1148.0" font-family="Arial, sans-serif" font-size="18" fill="#a16207">safe = true</text>
+<text x="629" y="1171.4" font-family="Arial, sans-serif" font-size="18" fill="#a16207">AND action = allow</text>
+<text x="85" y="1127.0" font-family="Arial, sans-serif" font-size="22" fill="#52647a">ENTRY POLICY</text>
+<text x="85" y="1155.6" font-family="Arial, sans-serif" font-size="22" fill="#52647a">Code checks the result.</text>
+<text x="85" y="1184.2" font-family="Arial, sans-serif" font-size="22" fill="#52647a">This is not an AI agent.</text>
+<rect x="405" y="1330" width="620" height="150" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+<text x="429" y="1375.0" font-family="Arial, sans-serif" font-size="25" fill="#7c3aed">03  Conductor agent — allowed requests only</text>
+<text x="429" y="1414.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">Step: conductor-plan (.andThen) calls agent_conductor</text>
+<text x="429" y="1440.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">Output: schema_agent_conductor_plan</text>
+<text x="429" y="1466.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">Interpret the request; propose future steps.</text>
+<rect x="1100" y="1310" width="310" height="195" rx="14" fill="#fff1f2" stroke="#c2414b" stroke-width="2"/>
+<text x="1124" y="1355.0" font-family="Arial, sans-serif" font-size="25" fill="#c2414b">Skip planning</text>
+<text x="1124" y="1392.0" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">plan = null</text>
+<text x="1124" y="1415.4" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">block / sanitize / unsafe</text>
+<text x="1124" y="1438.8" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">  → blocked</text>
+<text x="1124" y="1462.2" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">human_review</text>
+<text x="1124" y="1485.6" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">  → needs_review</text>
+<text x="742" y="1287.0" font-family="Arial, sans-serif" font-size="20" fill="#15803d">ALLOW</text>
+<text x="1010" y="1131.0" font-family="Arial, sans-serif" font-size="18" fill="#c2414b">OTHER DECISIONS</text>
+<rect x="405" y="1630" width="620" height="135" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text x="429" y="1675.0" font-family="Arial, sans-serif" font-size="25" fill="#2563eb">04  Assemble the workflow result</text>
+<text x="429" y="1712.0" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Step: conductor-result (.andThen) is plain code.</text>
+<text x="429" y="1735.4" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Allowed startup → partial; rejected → restrictive status.</text>
+<text x="429" y="1758.8" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">This step does not call the Conductor model.</text>
+<rect x="345" y="1840" width="740" height="140" rx="14" fill="#f0fdf4" stroke="#15803d" stroke-width="2"/>
+<text x="369" y="1885.0" font-family="Arial, sans-serif" font-size="25" fill="#15803d">RETURN VALIDATED JSON</text>
+<text x="369" y="1923.0" font-family="Arial, sans-serif" font-size="19" fill="#172b4d">workflow.run(...) → check execution.status → execution.result</text>
+<text x="369" y="1947.7" font-family="Arial, sans-serif" font-size="19" fill="#172b4d">Validate using schema_agent_conductor.</text>
+<text x="369" y="1972.4" font-family="Arial, sans-serif" font-size="19" fill="#172b4d">The API returns { data: execution.result }.</text>
+<polyline points="715,483 715,642" fill="none" stroke="#2563eb" stroke-width="2" marker-end="url(#a2563eb)"/>
+<polyline points="715,778 715,837" fill="none" stroke="#52647a" stroke-width="2" marker-end="url(#a52647a)"/>
+<polyline points="715,1003 715,1072" fill="none" stroke="#52647a" stroke-width="2" marker-end="url(#a52647a)"/>
+<polyline points="715,1248 715,1322" fill="none" stroke="#15803d" stroke-width="2" marker-end="url(#a15803d)"/>
+<polyline points="868,1160 1255,1160 1255,1302" fill="none" stroke="#c2414b" stroke-width="2" marker-end="url(#ac2414b)"/>
+<polyline points="715,1488 715,1622" fill="none" stroke="#7c3aed" stroke-width="2" marker-end="url(#a7c3aed)"/>
+<polyline points="1255,1513 1255,1575 950,1575 950,1622" fill="none" stroke="#c2414b" stroke-width="2" marker-end="url(#ac2414b)"/>
+<polyline points="715,1773 715,1832" fill="none" stroke="#2563eb" stroke-width="2" marker-end="url(#a2563eb)"/>
+<text x="95" y="2021.0" font-family="Arial, sans-serif" font-size="21" fill="#52647a">Step IDs containing &quot;conductor&quot; do not make those steps part of the Conductor Agent instance.</text>
+<rect x="1530" y="370" width="710" height="250" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="1554" y="415.0" font-family="Arial, sans-serif" font-size="25" fill="#2563eb">BUILDER CONFIGURATION</text>
+<text x="1554" y="455.0" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">input: schema_agent_conductor_input</text>
+<text x="1554" y="482.3" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">result: schema_agent_conductor</text>
+<text x="1554" y="509.6" font-family="Arial, sans-serif" font-size="21" fill="#172b4d"></text>
+<text x="1554" y="536.9" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">The result schema describes the whole workflow.</text>
+<text x="1554" y="564.2" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">Its name does not change who owns the steps.</text>
+<rect x="1530" y="660" width="710" height="215" rx="14" fill="#faf5ff" stroke="#7c3aed" stroke-width="2"/>
+<text x="1554" y="705.0" font-family="Arial, sans-serif" font-size="25" fill="#7c3aed">ONE SHARED GOOGLE PROVIDER</text>
+<text x="1554" y="744.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">ai_google = createGoogleGenerativeAI(...)</text>
+<text x="1554" y="770.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">Bodyguard  → ai_google(AI_BODYGUARD_MODEL)</text>
+<text x="1554" y="796.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">Conductor → ai_google(AI_CONDUCTOR_MODEL)</text>
+<text x="1554" y="822.0" font-family="Arial, sans-serif" font-size="20" fill="#172b4d">One provider instance; independent model selection.</text>
+<rect x="1530" y="915" width="710" height="225" rx="14" fill="#f0fdf4" stroke="#15803d" stroke-width="2"/>
+<text x="1554" y="960.0" font-family="Arial, sans-serif" font-size="25" fill="#15803d">FINAL RESPONSE CONTRACT</text>
+<text x="1554" y="1000.0" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">execution_id  •  status  •  product</text>
+<text x="1554" y="1027.3" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">assessments  •  alternatives  •  explanation</text>
+<text x="1554" y="1054.6" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">sources  •  limitations</text>
+<text x="1554" y="1081.9" font-family="Arial, sans-serif" font-size="21" fill="#172b4d"></text>
+<text x="1554" y="1109.2" font-family="Arial, sans-serif" font-size="21" fill="#172b4d">Startup: no product findings or completed analysis.</text>
+<rect x="1530" y="1190" width="710" height="1025" rx="14" fill="#fafafa" stroke="#94a3b8" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="1554" y="1237.0" font-family="Arial, sans-serif" font-size="24" fill="#52647a">PLANNED EXTENSION — NOT EXECUTING YET</text>
+<text x="1554" y="1276.0" font-family="Arial, sans-serif" font-size="21" fill="#52647a">Extends the allowed path after Conductor planning:</text>
+<rect x="1554" y="1300" width="662" height="95" rx="14" fill="#ffffff" stroke="#64748b" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="1578" y="1345.0" font-family="Arial, sans-serif" font-size="25" fill="#64748b">Dispatcher</text>
+<text x="1578" y="1382.0" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Finalize selected checks, dependencies and budgets.</text>
+<rect x="1554" y="1440" width="662" height="110" rx="14" fill="#ffffff" stroke="#64748b" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="1578" y="1485.0" font-family="Arial, sans-serif" font-size="25" fill="#64748b">Detective + Vault Keeper  |  .andAll</text>
+<text x="1578" y="1522.0" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Resolve product; retrieve permitted profile data.</text>
+<text x="1578" y="1545.4" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">User goals/preferences come from the private DB.</text>
+<rect x="1554" y="1595" width="662" height="110" rx="14" fill="#ffffff" stroke="#64748b" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="1578" y="1640.0" font-family="Arial, sans-serif" font-size="25" fill="#64748b">Selected specialists  |  .andAll</text>
+<text x="1578" y="1677.0" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Medic / Investigator / Eco Scout / Historian</text>
+<text x="1578" y="1700.4" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Run only when their required inputs are available.</text>
+<rect x="1554" y="1750" width="662" height="85" rx="14" fill="#ffffff" stroke="#64748b" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="1578" y="1795.0" font-family="Arial, sans-serif" font-size="25" fill="#64748b">Skeptic → Referee → Coach</text>
+<text x="1578" y="1832.0" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Review evidence, enforce constraints, assess fit.</text>
+<rect x="1554" y="1880" width="662" height="120" rx="14" fill="#ffffff" stroke="#64748b" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="1578" y="1925.0" font-family="Arial, sans-serif" font-size="25" fill="#64748b">Bargain Hunter  |  conditional</text>
+<text x="1578" y="1962.0" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Review each candidate through the required checks</text>
+<text x="1578" y="1985.4" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">before it becomes a recommendation.</text>
+<rect x="1554" y="2025" width="662" height="120" rx="14" fill="#ffffff" stroke="#64748b" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="1578" y="2070.0" font-family="Arial, sans-serif" font-size="25" fill="#64748b">Storyteller → Gatekeeper → final JSON</text>
+<text x="1578" y="2107.0" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Explain approved findings; validate the response.</text>
+<text x="1578" y="2130.4" font-family="Arial, sans-serif" font-size="18" fill="#172b4d">Blocked output also goes through the final gate.</text>
+<polyline points="1885,1402 1885,1433" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#a94a3b8)"/>
+<polyline points="1885,1557 1885,1588" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#a94a3b8)"/>
+<polyline points="1885,1712 1885,1743" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#a94a3b8)"/>
+<polyline points="1885,1842 1885,1873" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#a94a3b8)"/>
+<polyline points="1885,2007 1885,2018" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#a94a3b8)"/>
+<text x="1554" y="2168.0" font-family="Arial, sans-serif" font-size="18" fill="#52647a">Dispatcher completes before dependent specialists start.</text>
+<text x="1554" y="2191.4" font-family="Arial, sans-serif" font-size="18" fill="#52647a">Bait Tester inspects untrusted content when encountered.</text>
+<rect x="60" y="2100" width="1400" height="130" rx="14" fill="#fffbeb" stroke="#a16207" stroke-width="2"/>
+<text x="84" y="2145.0" font-family="Arial, sans-serif" font-size="25" fill="#a16207">FAILURE AND EXECUTION STATUS</text>
+<text x="84" y="2186.0" font-family="Arial, sans-serif" font-size="22" fill="#172b4d">Provider failure, malformed model output or cancellation → validated error result; no further model work.</text>
+<text x="84" y="2214.6" font-family="Arial, sans-serif" font-size="22" fill="#172b4d">A technically completed workflow can return a business result of blocked, needs_review or partial.</text>
+<text x="60" y="2302.0" font-family="Arial, sans-serif" font-size="22" fill="#52647a">Solid shapes = implemented startup    •    Dashed shapes = planned stages    •    No Bodyguard → Conductor ownership relationship</text>
+</svg>
