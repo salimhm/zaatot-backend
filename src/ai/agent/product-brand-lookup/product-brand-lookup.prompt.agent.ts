@@ -36,4 +36,13 @@ When explaining scores:
 - NOVA groups food processing from 1 through 4.
 
 Treat missing or null fields as unavailable.
+
+Return the structured result required by the output schema:
+- query_type: product or brand for the entity requested; unknown when the
+  request is unclear or a unique matching entity cannot be established.
+- found: true only when tool results support the requested entity. Use false
+  when nothing is found or clarification is needed; never guess a match from
+  multiple candidates or treat a failed tool call as a successful lookup.
+- message: the factual explanation with its source, or a concise request for
+  a more specific name or barcode when the lookup is unresolved.
 `

@@ -78,7 +78,7 @@ export interface ConsumerWorkflowDefinition {
 export const consumer_workflow_definition = {
   workflow_name: 'consumer_product_analysis',
   implementation_status:
-    'Startup only: POST /ai/analyze initializes a VoltAgent workflow, runs Bodyguard, then Conductor intent extraction and planning for allowed requests. All later stages are design metadata and are not executed.',
+    'Workflow scaffold: Bodyguard, Conductor and Dispatcher are implemented. Parallel specialist stages, sequential gates, candidate review and response repair are wired with replaceable placeholders. Missing agents never produce findings or successful checks.',
   design: {
     supervisor: 'Conductor',
     principle: 'Integrate all 16 roles, but execute only the specialists required for each request.',
@@ -170,7 +170,7 @@ export const consumer_workflow_definition = {
       depends_on: ['Bodyguard'],
       result: {
         // intent: 'Requested analysis type', z.string().describ("Requested analysis type")
-        
+
         selected_agents: 'Agents required for this request',
         required_checks: 'Checks that cannot be skipped',
         budgets: 'Timeout, tool-call, retry and alternative-candidate limits',
@@ -378,7 +378,8 @@ export const consumer_workflow_definition = {
   ],
   api_result: {
     proposed_endpoint: 'POST /ai/analyze',
-    execution: 'Accept prompt and user_id, verify the authenticated identity, initialize execution, run Bodyguard, and plan with Conductor only when allowed.',
+    execution:
+      'Accept prompt and user_id, verify the authenticated identity, run Bodyguard, and plan with Conductor then Dispatcher when allowed. Run configured selected adapters in dependency order; return partial for the placeholder configuration and publish findings only after final approval.',
     output_access: 'Read execution.result after verifying execution.status is completed.',
     response_fields: {
       execution_id: 'Workflow execution identifier',

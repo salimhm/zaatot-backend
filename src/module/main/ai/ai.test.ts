@@ -1,6 +1,7 @@
-import { Elysia } from 'elysia'
-
 import { describe, expect, it, mock } from 'bun:test'
+import type { type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
+
+import { Elysia } from 'elysia'
 
 import { run_consumer_workflow } from '@ai/workflow.ai'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
@@ -15,6 +16,19 @@ function app_fixture() {
   const dependency = {
     bodyguard: mock(async () => ({ safe: true, riskLevel: 'none', risks: [], action: 'allow', reason: 'Allowed', confidence: 1 })),
     conductor: mock(async () => ({ intent: 'Analyze cereal', steps: [{ agent: 'Dispatcher', purpose: 'Select checks' }] })),
+    dispatcher: mock(async (input: type_schema_agent_dispatcher_input) => ({
+      selected_agents: [
+        { agent: 'Detective', depends_on: [], run_when: 'always' },
+        { agent: 'Skeptic', depends_on: ['Detective'], run_when: 'always' },
+        { agent: 'Referee', depends_on: ['Skeptic'], run_when: 'always' },
+        { agent: 'Storyteller', depends_on: ['Skeptic', 'Referee'], run_when: 'always' },
+        { agent: 'Gatekeeper', depends_on: ['Storyteller'], run_when: 'always' },
+      ],
+      required_checks: ['identity', 'evidence', 'hard_constraints', 'final_response'],
+      budgets: { ...input.budget_limits, max_alternative_candidates: 0, max_candidate_review_passes: 0 },
+      untrusted_content_policy: 'bait_tester_before_consumption',
+      candidate_validation: 'not_requested',
+    })),
   }
   const analyze = mock<typeof service_ai.analyze>(async (body, _payload, signal) => ({
     data: await run_consumer_workflow(body, { dependency, signal }),
@@ -55,7 +69,7 @@ describe('AI HTTP boundary', () => {
   })
 
   it('returns a validated startup result from the authenticated endpoint', async () => {
-    const { app, send, analyze } = app_fixture()
+    const { app, send, analyze, dependency } = app_fixture()
     const token = await (await app.handle(new Request('http://localhost/test-token'))).text()
     const response = await send('Bearer ' + token)
     expect(response.status).toBe(200)
@@ -70,6 +84,8 @@ describe('AI HTTP boundary', () => {
     expect(data.explanation).toBeNull()
     expect(body.data).not.toHaveProperty('bodyguard')
     expect(body.data).not.toHaveProperty('conductor')
+    expect(body.data).not.toHaveProperty('dispatcher_plan')
+    expect(dependency.dispatcher).toHaveBeenCalledTimes(1)
     expect(analyze.mock.calls[0]?.[1].user_id).toBe(21)
   })
 
