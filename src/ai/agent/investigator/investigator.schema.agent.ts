@@ -8,6 +8,15 @@ export const schema_input_agent_investigator = z.object({
   product_name: z.string().trim().min(2).max(255).optional(),
 })
 
+export const schema_query_agent_investigator = z.object({
+  query: z.string().trim().min(2).max(1000),
+})
+
+export const schema_extracted_subject_agent_investigator = z.object({
+  entity_type: z.enum(['brand', 'product', 'unknown']),
+  entity_name: z.string().trim().min(2).max(255).nullable(),
+})
+
 export const schema_agent_investigator = z.object({
   subject: z.object({
     brand_name: z.string().nullable(),
@@ -49,4 +58,5 @@ export const schema_agent_investigator = z.object({
 })
 
 export type type_input_agent_investigator = z.infer<typeof schema_input_agent_investigator>
+export type type_query_agent_investigator = z.infer<typeof schema_query_agent_investigator>
 export type type_schema_agent_investigator = z.infer<typeof schema_agent_investigator>

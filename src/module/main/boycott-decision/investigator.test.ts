@@ -2,7 +2,7 @@ import type { Static } from 'elysia'
 
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
 
-import { agent_investigator } from '@agent/investigator/investigator.agent'
+import { $agent_investigator, agent_investigator } from '@agent/investigator/investigator.agent'
 
 import { dto_boycott_decision } from '@module/main/boycott-decision/boycott-decision.dto'
 import { service_boycott_decision } from '@module/main/boycott-decision/boycott-decision.service'
@@ -34,6 +34,12 @@ const boycat_not_found: boycat_response['data'] = {
   alternatives: [],
 }
 
+function mock_extraction(entity_type: 'brand' | 'product' | 'unknown', entity_name: string | null) {
+  spyOn($agent_investigator, 'generateText').mockResolvedValue({
+    output: { entity_type, entity_name },
+  } as Awaited<ReturnType<typeof $agent_investigator.generateText>>)
+}
+
 beforeEach(() => {
   spyOn(service_boycott_decision, 'decide').mockImplementation(async (): Promise<local_response> => ({ data: local_unknown }))
   spyOn(service_boycott_provider, 'decide').mockImplementation(async (): Promise<boycat_response> => ({ data: boycat_not_found }))
@@ -44,6 +50,41 @@ afterEach(() => {
 })
 
 describe('Investigator agent', () => {
+  it('extracts the brand name from a natural-language request before both service calls', async () => {
+    mock_extraction('brand', 'Coca Cola')
+
+    const result = await agent_investigator({ query: 'info about Coca Cola' })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.subject.brand_name).toBe('Coca Cola')
+    expect(service_boycott_decision.decide).toHaveBeenCalledWith({ product_brand_name: 'Coca Cola', product_name: undefined })
+    expect(service_boycott_provider.decide).toHaveBeenCalledWith({ provider: 'boycat', brand_name: 'Coca Cola', product_name: undefined })
+  })
+
+  it('can extract a product name without inventing a brand', async () => {
+    mock_extraction('product', 'Choco Bar')
+
+    const result = await agent_investigator({ query: 'investigate product Choco Bar' })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.subject).toEqual({ brand_name: null, product_name: 'Choco Bar' })
+    expect(service_boycott_provider.decide).toHaveBeenCalledWith({ provider: 'boycat', brand_name: undefined, product_name: 'Choco Bar' })
+  })
+
+  it('rejects an extracted name that was not present in the request', async () => {
+    mock_extraction('brand', 'Pepsi')
+
+    const result = await agent_investigator({ query: 'info about Coca Cola' })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.status).toBe('needs_input')
+    expect(service_boycott_decision.decide).not.toHaveBeenCalled()
+    expect(service_boycott_provider.decide).not.toHaveBeenCalled()
+  })
+
   it('requires a single resolved brand before consulting evidence services', async () => {
     const result = await agent_investigator({ brand_name: 'One Brand, Another Brand' })
 

@@ -1,10 +1,20 @@
-import type { type_input_agent_investigator, type_schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
+import type {
+  type_input_agent_investigator,
+  type_query_agent_investigator,
+  type_schema_agent_investigator,
+} from '@agent/investigator/investigator.schema.agent'
 
 import { groq } from '@ai-sdk/groq'
 import { Agent } from '@voltagent/core'
+import { Output } from 'ai'
 
 import { prompt_agent_investigator } from '@agent/investigator/investigator.prompt.agent'
-import { schema_agent_investigator, schema_input_agent_investigator } from '@agent/investigator/investigator.schema.agent'
+import {
+  schema_agent_investigator,
+  schema_extracted_subject_agent_investigator,
+  schema_input_agent_investigator,
+  schema_query_agent_investigator,
+} from '@agent/investigator/investigator.schema.agent'
 
 import { service_boycott_decision } from '@module/main/boycott-decision/boycott-decision.service'
 import { service_boycott_provider } from '@module/main/boycott-provider/boycott-provider.service'
@@ -22,6 +32,37 @@ export const $agent_investigator = new Agent({
   tools: [],
   memory: false,
 })
+
+function normalize_entity_text(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+async function resolve_investigator_input(
+  input: type_input_agent_investigator | type_query_agent_investigator,
+): Promise<type_input_agent_investigator> {
+  if (!('query' in input)) return schema_input_agent_investigator.parse(input)
+
+  const { query } = schema_query_agent_investigator.parse(input)
+  const result = await $agent_investigator.generateText(`EXTRACT_ENTITY\n${JSON.stringify({ query })}`, {
+    temperature: 0,
+    output: Output.object({ schema: schema_extracted_subject_agent_investigator }),
+  })
+  const extracted = schema_extracted_subject_agent_investigator.parse(result.output)
+  const normalized_query = normalize_entity_text(query)
+  const normalized_name = extracted.entity_name ? normalize_entity_text(extracted.entity_name) : ''
+  const name_is_in_query = normalized_name.length > 0 && ` ${normalized_query} `.includes(` ${normalized_name} `)
+
+  if (!name_is_in_query || extracted.entity_type === 'unknown') return { brand_name: null }
+  if (extracted.entity_type === 'product') return { brand_name: null, product_name: extracted.entity_name ?? undefined }
+
+  return { brand_name: extracted.entity_name }
+}
 
 function normalize_local_decision(result: local_decision): investigator_check {
   return {
@@ -113,14 +154,15 @@ function get_report_limitations(checks: investigator_check[]): string[] {
 }
 
 export const agent_investigator = async (
-  input: type_input_agent_investigator,
+  input: type_input_agent_investigator | type_query_agent_investigator,
   options: { include_analysis_draft?: boolean } = {},
 ): Promise<{ success: true; data: type_schema_agent_investigator } | { success: false; data: unknown }> => {
   try {
-    const subject = schema_input_agent_investigator.parse(input)
+    const subject = await resolve_investigator_input(input)
     const checked_at = new Date().toISOString()
 
-    if (!subject.brand_name || /[,;|]/.test(subject.brand_name)) {
+    const lookup_name = subject.brand_name ?? subject.product_name
+    if (!lookup_name || /[,;|]/.test(lookup_name)) {
       return {
         success: true,
         data: schema_agent_investigator.parse({
@@ -128,16 +170,16 @@ export const agent_investigator = async (
           status: 'needs_input',
           checked_at,
           checks: [],
-          limitations: ['Provide one resolved brand name before investigating. Multiple brand names must be disambiguated first.'],
-          message: 'A single resolved brand name is required.',
+          limitations: ['Provide one identifiable product or brand name before investigating. Multiple names must be disambiguated first.'],
+          message: 'A single identifiable product or brand name is required.',
           analysis_draft: null,
         }),
       }
     }
 
     const [local_result, boycat_result] = await Promise.allSettled([
-      service_boycott_decision.decide({ product_brand_name: subject.brand_name, product_name: subject.product_name }),
-      service_boycott_provider.decide({ provider: 'boycat', brand_name: subject.brand_name, product_name: subject.product_name }),
+      service_boycott_decision.decide({ product_brand_name: subject.brand_name ?? undefined, product_name: subject.product_name }),
+      service_boycott_provider.decide({ provider: 'boycat', brand_name: subject.brand_name ?? undefined, product_name: subject.product_name }),
     ])
 
     const checks: investigator_check[] = [
@@ -159,7 +201,7 @@ export const agent_investigator = async (
     if (options.include_analysis_draft) {
       try {
         const result = await $agent_investigator.generateText(
-          JSON.stringify({
+          `EVIDENCE_SUMMARY\n${JSON.stringify({
             status,
             checks: checks.map((check) => ({
               source: check.source,
@@ -169,7 +211,7 @@ export const agent_investigator = async (
               citation_count: check.citations.length,
             })),
             limitations,
-          }),
+          })}`,
           { temperature: 0 },
         )
         analysis_draft = result.text.trim().slice(0, 800) || null
