@@ -8,10 +8,10 @@ if (!message) {
 
 const result = await agent_product_brand_lookup(message)
 
-console.dir(result, {
-  depth: null,
-})
-
-if (!result.success) {
-  process.exitCode = 1
+if (result.success) {
+  console.log(JSON.stringify(result, null, 2))
+} else {
+  console.error(result.data)
 }
+
+process.exit(result.success ? 0 : 1)
