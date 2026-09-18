@@ -1,7 +1,7 @@
 import type { Static } from 'elysia'
 
 import { dto_boycott_decision } from '@module/main/boycott-decision/boycott-decision.dto'
-import { provider_boycott_knowledge } from '@module/main/boycott-decision/provider/boycott-knowledge.provider'
+import { provider_boycott_knowledge } from '@module/main/boycott-decision/source/boycott-knowledge.provider'
 import { calculate_decision_confidence, is_active_boycott_claim } from '@module/main/boycott-decision/utils/confidence.util'
 import { find_best_knowledge_match } from '@module/main/boycott-decision/utils/entity-match.util'
 import { build_decision_reason } from '@module/main/boycott-decision/utils/reason.util'

@@ -1,7 +1,7 @@
 FROM oven/bun:1.3.14-slim AS install
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install
 
 FROM oven/bun:1.3.14-slim AS build
 WORKDIR /app
@@ -13,6 +13,7 @@ FROM oven/bun:1.3.14-slim AS release
 WORKDIR /app
 
 COPY --from=build /app/bin ./bin
+COPY --from=install /app/node_modules ./node_modules
 
 ENV NODE_ENV=production
 

@@ -7,6 +7,8 @@ import { cors } from '@elysiajs/cors'
 
 import { close_all_connections } from '@db/client.db'
 
+import { decision } from '@ai/src'
+
 import { handle_error } from '@lib/error.lib'
 import { lib_jwt } from '@lib/jwt.lib'
 import { apply_rate_limit, apply_security_headers, apply_tenant_migration, derive_auth, guard_auth } from '@lib/middleware.lib'
@@ -97,6 +99,8 @@ export const app = new Elysia({
 export type App = typeof app
 
 console.log(`🦊 ${app_name} ${app_env} is running at ${app.server?.hostname}:${app.server?.port}`)
+
+console.log(decision.output)
 
 let is_shutting_down = false
 

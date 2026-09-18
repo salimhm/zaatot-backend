@@ -43,6 +43,13 @@
       "when": 1782040133673,
       "tag": "0005_curious_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788259762721,
+      "tag": "0006_living_master_chief",
+      "breakpoints": true
     }
   ]
 }
