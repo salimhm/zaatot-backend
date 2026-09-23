@@ -1,7 +1,7 @@
 import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
-import { ai_google } from '@ai/provider.ai'
+import { ai_groq } from '@ai/provider.ai'
 import { prompt_agent_bodyguard } from '@agent/bodyguard/bodyguard.prompt.agent'
 import { SecurityDecision } from '@agent/bodyguard/bodyguard.schema.agent'
 
@@ -9,7 +9,7 @@ export const $agent_bodyguard = new Agent({
   name: 'Bodyguard',
   purpose: 'Analyze requests for security risks',
   instructions: prompt_agent_bodyguard,
-  model: ai_google(process.env.AI_BODYGUARD_MODEL || 'gemini-3.5-flash-lite'),
+  model: ai_groq(process.env.AI_BODYGUARD_MODEL || 'openai/gpt-oss-20b'),
   memory: false,
 })
 

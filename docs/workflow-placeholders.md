@@ -2,7 +2,9 @@
 
 The stage order is wired in `src/ai/workflow.ai.ts`. Detective is connected to the existing `agent_product_brand_lookup` wrapper. Replace the remaining `null` entries in `default_dependency.specialists` as you implement agents. Keep their execution order in the chain.
 
-Detective validates `{ query_type, found, message }`. A found product or brand completes its step; an unresolved lookup returns `needs_input`. It retains the lookup agent's existing Groq configuration and tools. The workflow supplies its cancellation signal and wraps each lookup tool call in the shared tool budget. Successful Open Food Facts results require the Bait Tester callback before their text reaches the model; that callback is still a placeholder.
+Detective builds and validates `{ query_type, found, sources_checked, products, brands, message }` from lookup tool results. One matching product or brand completes its step; missing or ambiguous matches return `needs_input`. It retains the lookup agent's existing Groq configuration and tools. The workflow supplies its cancellation signal and wraps each lookup tool call in the shared tool budget. Successful Open Food Facts results require the Bait Tester callback before their text reaches the model; that callback is still a placeholder.
+
+The Groq lookup call uses ordinary text output while calling tools. The backend normalizes and validates the returned tool records instead of using the model's final text as the factual payload. Do not add `Output.object(...)` to this tool-enabled call: [Groq does not support structured outputs together with tool use](https://console.groq.com/docs/structured-outputs).
 
 With Detective connected and later agents still missing, a successful lookup normally produces public `needs_review`. The final API result keeps analysis fields empty until final review. Detective's unreviewed message remains inside the workflow.
 

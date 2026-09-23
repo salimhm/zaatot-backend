@@ -1,7 +1,7 @@
 import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
-import { ai_google } from '@ai/provider.ai'
+import { ai_groq } from '@ai/provider.ai'
 import { prompt_agent_conductor } from '@agent/conductor/conductor.prompt.agent'
 import { schema_agent_conductor_plan } from '@agent/conductor/conductor.schema.agent'
 
@@ -9,7 +9,7 @@ export const $agent_conductor = new Agent({
   name: 'Conductor',
   purpose: 'Interpret the request and plan the consumer workflow',
   instructions: prompt_agent_conductor,
-  model: ai_google(process.env.AI_CONDUCTOR_MODEL || 'gemini-3.5-flash-lite'),
+  model: ai_groq(process.env.AI_CONDUCTOR_MODEL || 'openai/gpt-oss-20b'),
   memory: false
 })
 

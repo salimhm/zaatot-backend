@@ -3,7 +3,7 @@ import type { type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispa
 import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
-import { ai_google } from '@ai/provider.ai'
+import { ai_groq } from '@ai/provider.ai'
 import { prompt_agent_dispatcher } from '@agent/dispatcher/dispatcher.prompt.agent'
 import { schema_agent_dispatcher, schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 
@@ -11,7 +11,7 @@ export const $agent_dispatcher = new Agent({
   name: 'Dispatcher',
   purpose: 'Select required agents, dependencies and bounded execution budgets',
   instructions: prompt_agent_dispatcher,
-  model: ai_google(process.env.AI_DISPATCHER_MODEL || 'gemini-3.5-flash-lite'),
+  model: ai_groq(process.env.AI_DISPATCHER_MODEL || 'openai/gpt-oss-20b'),
   memory: false,
 })
 

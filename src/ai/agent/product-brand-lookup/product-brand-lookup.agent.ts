@@ -122,7 +122,6 @@ export const agent_product_brand_lookup = async (
     signal?.throwIfAborted()
     let tool_error: Error | undefined
     const result = await $agent_product_brand_lookup.generateText(message, {
-      temperature: 0,
       maxSteps: 4,
       maxRetries: 0,
       abortSignal: signal,
@@ -133,6 +132,8 @@ export const agent_product_brand_lookup = async (
         },
       },
     })
+
+    console.log('teeeeeeeeeeast', result.text, result.output)
 
     signal?.throwIfAborted()
     if (tool_error) throw tool_error
