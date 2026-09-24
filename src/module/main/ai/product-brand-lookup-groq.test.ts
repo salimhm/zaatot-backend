@@ -1,6 +1,5 @@
-import { describe, expect, it, spyOn } from 'bun:test'
-
 import { createGroq } from '@ai-sdk/groq'
+import { describe, expect, it, spyOn } from 'bun:test'
 
 import { $agent_product_brand_lookup, agent_product_brand_lookup } from '@agent/product-brand-lookup/product-brand-lookup.agent'
 
@@ -26,7 +25,7 @@ describe('Detective Groq request compatibility', () => {
           id: `lookup-test-${requests.length}`,
           object: 'chat.completion',
           created: 1,
-          model: 'openai/gpt-oss-20b',
+          model: 'gemini-3.5-flash-lite',
           choices: [
             {
               index: 0,
@@ -54,7 +53,7 @@ describe('Detective Groq request compatibility', () => {
       },
       { preconnect: () => {} },
     )
-    const transport = createGroq({ apiKey: 'test-key', fetch: mock_fetch })('openai/gpt-oss-20b')
+    const transport = createGroq({ apiKey: 'test-key', fetch: mock_fetch })('gemini-3.5-flash-lite')
     const model = $agent_product_brand_lookup.model as typeof transport
     const generate = spyOn(model, 'doGenerate').mockImplementation((options) => transport.doGenerate(options))
     const find = spyOn(service_brand, 'find').mockResolvedValue({

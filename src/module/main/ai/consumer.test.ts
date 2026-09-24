@@ -1,8 +1,7 @@
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 import type { type_schema_agent_bodyguard } from '@agent/bodyguard/bodyguard.schema.agent'
 import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 import type { consumer_dependency } from '@ai/workflow.ai'
-
-import { describe, expect, it, mock, spyOn } from 'bun:test'
 
 import { run_consumer_workflow } from '@ai/workflow.ai'
 import { $agent_bait_tester } from '@agent/bait-tester/bait-tester.agent'
@@ -77,7 +76,7 @@ describe('Consumer workflow startup', () => {
           budget_limits: { ...dispatcher_budget_limit, timeout_ms: expect.any(Number) },
         })
         expect(input.budget_limits.timeout_ms).toBeGreaterThan(0)
-        expect(input.budget_limits.timeout_ms).toBeLessThanOrEqual(60_000)
+        expect(input.budget_limits.timeout_ms).toBeLessThanOrEqual(dispatcher_budget_limit.timeout_ms)
         return dispatcher_plan_fixture(input)
       }),
     })
@@ -491,6 +490,37 @@ describe('Consumer workflow startup', () => {
     expect(result.status).toBe('error')
     expect(dependency.bodyguard).not.toHaveBeenCalled()
     expect(dependency.dispatcher).not.toHaveBeenCalled()
+  })
+
+  it('returns at the deadline even when Bodyguard ignores cancellation', async () => {
+    const pending = Promise.withResolvers<unknown>()
+    const dependency = dependencies({ bodyguard: mock(async () => pending.promise) })
+    const result = await run_consumer_workflow(request, { dependency, timeout_ms: 30 })
+    expect(result.status).toBe('error')
+    expect(result.limitations[0]).toContain('time limit during bodyguard')
+    expect(dependency.conductor).not.toHaveBeenCalled()
+    pending.resolve(allowed)
+    await Bun.sleep(10)
+    expect(dependency.conductor).not.toHaveBeenCalled()
+  })
+
+  it('cancels a stalled Dispatcher on client disconnect without waiting for the deadline', async () => {
+    const pending = Promise.withResolvers<unknown>()
+    const controller = new AbortController()
+    const started = Promise.withResolvers<void>()
+    const dependency = dependencies({
+      dispatcher: mock(async () => {
+        started.resolve()
+        return pending.promise
+      }),
+    })
+    const running = run_consumer_workflow(request, { dependency, signal: controller.signal, timeout_ms: 2000 })
+    await started.promise
+    controller.abort()
+    const result = await running
+    expect(result.status).toBe('error')
+    expect(result.limitations[0]).toContain('cancelled')
+    pending.resolve({})
   })
 
   it('propagates a deadline and stops before planning', async () => {

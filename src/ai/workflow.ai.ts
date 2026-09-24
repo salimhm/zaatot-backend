@@ -5,6 +5,7 @@ import type { consumer_execution_data, consumer_execution_dependency } from '@ai
 import { andThen, createWorkflowChain } from '@voltagent/core'
 
 import { create_consumer_execution, merge_consumer_parallel } from '@ai/execution.ai'
+import { ai_workflow_timeout_ms, run_workflow_step, WorkflowStepError } from '@ai/runtime.ai'
 import { inspect_external_content } from '@agent/bait-tester/bait-tester.agent'
 import { agent_bodyguard } from '@agent/bodyguard/bodyguard.agent'
 import { SecurityDecision } from '@agent/bodyguard/bodyguard.schema.agent'
@@ -50,9 +51,8 @@ const default_dependency: consumer_dependency = {
       })
       if (!result.success) throw new Error('Detective lookup failed', { cause: result.data })
 
-
-      const output = schema_agent_product_brand_lookup.parse(result.data)
-      const resolved = output.found && output.query_type !== 'unknown'
+      const output = schema_agent_detective.parse(result.data)
+      const resolved = output.status === 'identified' && output.subject !== null
       return {
         status: resolved ? 'completed' : 'needs_input',
         output,
@@ -140,6 +140,7 @@ const describe_workflow_failure = (error: unknown, signal: AbortSignal) => {
   let cause = error
 
   for (let depth = 0; depth < 8 && cause && typeof cause === 'object'; depth++) {
+    if (cause instanceof WorkflowStepError) step = cause.workflow_step
     const detail = cause as { name?: unknown; message?: unknown; statusCode?: unknown; cause?: unknown }
     const message = typeof detail.message === 'string' ? detail.message : ''
     if (message === 'Bodyguard assessment failed') step = 'bodyguard'
@@ -156,7 +157,9 @@ const describe_workflow_failure = (error: unknown, signal: AbortSignal) => {
   if (signal.aborted || timed_out) {
     if (signal.aborted) timed_out = signal.reason instanceof Error && signal.reason.name === 'TimeoutError'
     code = timed_out ? 'workflow_timeout' : 'workflow_cancelled'
-    limitation = timed_out ? 'Workflow startup exceeded its time limit. No analysis result is available.' : 'Workflow execution was cancelled.'
+    limitation = timed_out
+      ? `Workflow exceeded its time limit${step === 'unknown' ? '' : ` during ${step}`}. No validated analysis result is available.`
+      : 'Workflow execution was cancelled.'
   } else if (invalid_api_key || provider_status === 401) {
     code = 'provider_authentication_failed'
     limitation = 'The AI provider rejected the server API key. Check GOOGLE_GENERATIVE_AI_API_KEY in the server environment.'
@@ -194,7 +197,9 @@ export const create_consumer_workflow = (dependency: consumer_dependency, signal
         id: 'bodyguard',
         execute: async ({ data }) => {
           signal.throwIfAborted()
-          const bodyguard = SecurityDecision.parse(await dependency.bodyguard(data.prompt, signal))
+          const bodyguard = await run_workflow_step(data.execution_id, 'bodyguard', signal, async () =>
+            SecurityDecision.parse(await dependency.bodyguard(data.prompt, signal)),
+          )
           signal.throwIfAborted()
           return { ...data, bodyguard }
         },
@@ -206,7 +211,9 @@ export const create_consumer_workflow = (dependency: consumer_dependency, signal
           if (!data.bodyguard.safe || data.bodyguard.action !== 'allow') {
             return { ...data, plan: null }
           }
-          const plan = schema_agent_conductor_plan.parse(await dependency.conductor(data.prompt, signal))
+          const plan = await run_workflow_step(data.execution_id, 'conductor-plan', signal, async () =>
+            schema_agent_conductor_plan.parse(await dependency.conductor(data.prompt, signal)),
+          )
           signal.throwIfAborted()
           return { ...data, plan }
         },
@@ -220,15 +227,17 @@ export const create_consumer_workflow = (dependency: consumer_dependency, signal
           }
           const remaining_ms = Math.floor(deadline_ms - performance.now())
           if (remaining_ms <= 0) throw new DOMException('Workflow deadline exceeded', 'TimeoutError')
-          const dispatcher_plan = schema_agent_dispatcher.parse(
-            await dependency.dispatcher(
-              {
-                prompt: data.prompt,
-                bodyguard: data.bodyguard,
-                conductor_plan: data.plan,
-                budget_limits: { ...dispatcher_budget_limit, timeout_ms: Math.min(remaining_ms, dispatcher_budget_limit.timeout_ms) },
-              },
-              signal,
+          const dispatcher_plan = await run_workflow_step(data.execution_id, 'dispatcher-plan', signal, async () =>
+            schema_agent_dispatcher.parse(
+              await dependency.dispatcher(
+                {
+                  prompt: data.prompt,
+                  bodyguard: data.bodyguard,
+                  conductor_plan: data.plan,
+                  budget_limits: { ...dispatcher_budget_limit, timeout_ms: Math.min(remaining_ms, dispatcher_budget_limit.timeout_ms) },
+                },
+                signal,
+              ),
             ),
           )
           signal.throwIfAborted()
@@ -303,7 +312,7 @@ export const run_consumer_workflow = async (
 ): Promise<type_schema_agent_conductor_result> => {
   const data = schema_agent_conductor_input.parse(input)
   const execution_id = crypto.randomUUID()
-  const timeout_ms = options.timeout_ms ?? 240_000
+  const timeout_ms = options.timeout_ms ?? ai_workflow_timeout_ms
   const deadline_ms = performance.now() + timeout_ms
   const timeout = AbortSignal.timeout(timeout_ms)
   const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout

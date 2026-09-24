@@ -1,7 +1,8 @@
 import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
-import { ai_google } from '@ai/provider.ai'
+import { trusted_agent_generation_options } from '@ai/generation.ai'
+import { ai_google, ai_google_default_model } from '@ai/provider.ai'
 import { prompt_agent_bait_tester } from '@agent/bait-tester/bait-tester.prompt.agent'
 import { schema_agent_bait_tester } from '@agent/bait-tester/bait-tester.schema.agent'
 
@@ -10,7 +11,7 @@ export const $agent_bait_tester = new Agent({
   name: 'Ztroop Bait Tester',
   purpose: 'Isolate and classify untrusted external content before agent consumption',
   instructions: prompt_agent_bait_tester,
-  model: ai_google(process.env.AI_BAIT_TESTER_MODEL || 'gemini-3.5-flash-lite'),
+  model: ai_google(process.env.AI_BAIT_TESTER_MODEL || ai_google_default_model),
   tools: [],
   memory: false,
 })
@@ -19,6 +20,7 @@ export const agent_bait_tester = async (text: string, signal?: AbortSignal) => {
   try {
     signal?.throwIfAborted()
     const result = await $agent_bait_tester.generateText(text, {
+      ...trusted_agent_generation_options,
       output: Output.object({ schema: schema_agent_bait_tester }),
       temperature: 0,
       maxRetries: 0,

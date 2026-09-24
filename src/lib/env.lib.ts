@@ -49,8 +49,6 @@ const required = [
   'OPEN_FOOD_FACTS_USER_AGENT',
   'OPEN_FOOD_FACTS_BASE_URL',
   'OPEN_FOOD_FACTS_TIMEOUT_MS',
-  'GROQ_API_KEY',
-  'GROQ_DEFAULT_AI_MODEL_NAME',
 ] as const
 
 const missing = required.filter((key) => !process.env[key])

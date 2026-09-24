@@ -245,6 +245,37 @@ describe('Consumer specialist workflow slots', () => {
     }
   })
 
+  it('stops a stalled specialist at the Dispatcher deadline even if it ignores the signal', async () => {
+    const { dependency, handlers, plan } = fixture(core)
+    dependency.dispatcher = mock(async (input) => ({ ...plan(input), budgets: { ...plan(input).budgets, timeout_ms: 30 } }))
+    const pending = Promise.withResolvers<consumer_step_result>()
+    handlers.Detective.mockImplementation(async () => pending.promise)
+    const result = await run_consumer_workflow(request, { dependency, timeout_ms: 2000 })
+    expect(result.status).toBe('error')
+    expect(result.limitations[0]).toContain('time limit during detective')
+    expect(handlers.Detective.mock.calls[0]![1].aborted).toBe(true)
+    expect(handlers.Detective).toHaveBeenCalledTimes(1)
+    pending.resolve(complete())
+    await Bun.sleep(10)
+    expect(handlers.Skeptic).not.toHaveBeenCalled()
+  })
+
+  it('prevents further tool calls after a stalled tool consumes the deadline', async () => {
+    const { dependency, handlers } = fixture(core)
+    const pending = Promise.withResolvers<void>()
+    const next_tool = mock(async () => 'must not run')
+    handlers.Detective.mockImplementation(async (input) => {
+      await input.use_tool(() => pending.promise)
+      return complete(await input.use_tool(next_tool))
+    })
+    const result = await run_consumer_workflow(request, { dependency, timeout_ms: 50 })
+    expect(result.status).toBe('error')
+    pending.resolve()
+    await Bun.sleep(10)
+    expect(next_tool).not.toHaveBeenCalled()
+    expect(handlers.Skeptic).not.toHaveBeenCalled()
+  })
+
   it('propagates the Dispatcher deadline to a running specialist', async () => {
     const { dependency, handlers, plan } = fixture(core)
     dependency.dispatcher = mock(async (input) => ({ ...plan(input), budgets: { ...plan(input).budgets, timeout_ms: 50 } }))

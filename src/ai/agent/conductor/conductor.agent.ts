@@ -1,7 +1,8 @@
 import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
-import { ai_groq } from '@ai/provider.ai'
+import { trusted_agent_generation_options } from '@ai/generation.ai'
+import { ai_google, ai_google_default_model } from '@ai/provider.ai'
 import { prompt_agent_conductor } from '@agent/conductor/conductor.prompt.agent'
 import { schema_agent_conductor_plan } from '@agent/conductor/conductor.schema.agent'
 
@@ -9,13 +10,14 @@ export const $agent_conductor = new Agent({
   name: 'Conductor',
   purpose: 'Interpret the request and plan the consumer workflow',
   instructions: prompt_agent_conductor,
-  model: ai_groq(process.env.AI_CONDUCTOR_MODEL || 'openai/gpt-oss-20b'),
-  memory: false
+  model: ai_google(process.env.AI_CONDUCTOR_MODEL || ai_google_default_model),
+  memory: false,
 })
 
 export const agent_conductor = async (message: string, signal?: AbortSignal) => {
   try {
     const result = await $agent_conductor.generateText(message, {
+      ...trusted_agent_generation_options,
       output: Output.object({ schema: schema_agent_conductor_plan }),
       temperature: 0,
       maxRetries: 0,

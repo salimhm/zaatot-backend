@@ -1,8 +1,9 @@
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 import type { type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 
 import { Elysia } from 'elysia'
 
+import { ai_request_timeout_seconds, ai_workflow_timeout_ms } from '@ai/runtime.ai'
 import { run_consumer_workflow } from '@ai/workflow.ai'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
 
@@ -133,6 +134,29 @@ describe('AI HTTP boundary', () => {
       expect((await send('Bearer ' + token, extra)).status).toBe(422)
     }
     expect(dependency.bodyguard).not.toHaveBeenCalled()
+  })
+
+  it('keeps the AI HTTP connection open beyond the shared workflow deadline', async () => {
+    const { app } = app_fixture()
+    const token = await (await app.handle(new Request('http://localhost/test-token'))).text()
+    app.listen({ port: 0, hostname: '127.0.0.1', idleTimeout: 1 })
+    const server = app.server!
+    const timeout = spyOn(server, 'timeout')
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/ai/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ prompt: 'Check this cereal', user_id: 21 }),
+      })
+      expect(response.status).toBe(200)
+      await response.json()
+      expect(timeout).toHaveBeenCalledWith(expect.any(Request), ai_request_timeout_seconds)
+      expect(ai_request_timeout_seconds * 1000).toBeGreaterThan(ai_workflow_timeout_ms)
+      expect(ai_request_timeout_seconds).toBeLessThanOrEqual(255)
+    } finally {
+      timeout.mockRestore()
+      await app.stop(true)
+    }
   })
 
   it('enforces identity when the service is called directly', async () => {

@@ -1,9 +1,10 @@
 import type { type_product_lookup_record, type_schema_agent_detective } from '@agent/detective/detective.schema.agent'
 import type { product_lookup_runtime } from '@tool/product-lookup/product-lookup.tool'
 
-import { groq } from '@ai-sdk/groq'
 import { Agent } from '@voltagent/core'
 
+import { trusted_agent_generation_options } from '@ai/generation.ai'
+import { ai_google, ai_google_default_model } from '@ai/provider.ai'
 import { prompt_agent_detective } from '@agent/detective/detective.prompt.agent'
 import { schema_agent_detective, schema_product_lookup_tool_result } from '@agent/detective/detective.schema.agent'
 import { create_product_lookup_toolkit, toolkit_product_lookup } from '@tool/product-lookup/product-lookup.tool'
@@ -13,7 +14,7 @@ export const $agent_detective = new Agent({
   name: 'Ztroop Detective',
   purpose: 'Resolve product and brand identities and retrieve factual catalog information',
   instructions: prompt_agent_detective,
-  model: groq(process.env.GROQ_DEFAULT_AI_MODEL_NAME || 'openai/gpt-oss-20b'),
+  model: ai_google(process.env.AI_DETECTIVE_MODEL || ai_google_default_model),
   tools: [toolkit_product_lookup],
   memory: false,
 })
@@ -308,6 +309,7 @@ export const agent_detective = async (
     signal?.throwIfAborted()
     let tool_error: Error | undefined
     const result = await $agent_detective.generateText(message, {
+      ...trusted_agent_generation_options,
       temperature: 0,
       maxSteps: 6,
       maxRetries: 0,

@@ -2,6 +2,8 @@ import { Elysia } from 'elysia'
 
 import { z } from 'zod'
 
+import { ai_request_timeout_seconds } from '@ai/runtime.ai'
+
 import { enum_tenant_type } from '@lib/enum.lib'
 import { lib_error } from '@lib/error.lib'
 import { lib_jwt } from '@lib/jwt.lib'
@@ -40,8 +42,9 @@ export const create_controller_ai = (service: Pick<typeof service_ai, 'analyze'>
     })
     .post(
       '/analyze',
-      async ({ body, payload, request }) => {
+      async ({ body, payload, request, server }) => {
         if (body.user_id !== payload.user_id) throw lib_error.unauthorized
+        server?.timeout(request, ai_request_timeout_seconds)
         return await service.analyze(body, payload, request.signal)
       },
       dto_ai.analyze,

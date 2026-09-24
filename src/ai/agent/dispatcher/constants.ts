@@ -1,3 +1,5 @@
+import { ai_workflow_timeout_ms } from '@ai/runtime.ai'
+
 const enum_dispatcher_agent = [
   'Detective',
   'Vault Keeper',
@@ -28,7 +30,7 @@ const enum_dispatcher_check = [
 ] as const
 
 const dispatcher_budget_limit = {
-  timeout_ms: 60_000,
+  timeout_ms: ai_workflow_timeout_ms,
   max_tool_calls: 20,
   max_retries: 1,
   max_alternative_candidates: 3,

@@ -81,7 +81,15 @@ passes share the same global budgets. Otherwise use not_requested and set both
 alternative-candidate and candidate-review budgets to zero.
 
 BUDGETS
+budget_limits contains ceilings, not an instruction to allocate every allowance.
 Every budget must be no greater than its corresponding input budget_limits value.
+When Bargain Hunter is not selected, both max_alternative_candidates and
+max_candidate_review_passes must be zero even when their input ceilings are positive.
+The backend zeros these unused allocations before validating the complete plan.
+Disabling alternative work does not disable product retrieval or other required
+steps. Keep a positive available tool allowance for planned catalog retrieval.
+When no smaller allocation is justified, retain the input timeout_ms,
+max_tool_calls, max_retries and max_response_repairs ceilings.
 timeout_ms is the remaining total deadline, not a new deadline per agent.
 max_tool_calls covers the entire remaining plan, including candidate validation.
 max_retries applies per failed step but never extends the deadline or tool budget.

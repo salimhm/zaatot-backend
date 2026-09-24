@@ -1,6 +1,5 @@
-import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
-
 import { describe, expect, it, spyOn } from 'bun:test'
+import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 
 import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
 import { $agent_dispatcher, agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
@@ -135,6 +134,76 @@ describe('Dispatcher planning contract', () => {
       input.budget_limits.max_tool_calls = 1
       expect((await agent_dispatcher(input)).success).toBe(false)
       expect(generate.mock.calls[0]?.[1]?.maxRetries).toBe(0)
+    } finally {
+      generate.mockRestore()
+    }
+  })
+
+  it('zeros copied alternative ceilings for a plan that does not select Bargain Hunter', async () => {
+    const draft = { ...plan_fixture(), budgets: { ...dispatcher_budget_limit } }
+    // This is the exact cross-field violation reproduced with Groq.
+    expect(schema_agent_dispatcher.safeParse(draft).success).toBe(false)
+    const generate = spyOn($agent_dispatcher, 'generateText').mockResolvedValue({ output: draft } as Awaited<
+      ReturnType<typeof $agent_dispatcher.generateText>
+    >)
+    try {
+      const result = await agent_dispatcher(input_fixture())
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.budgets.max_alternative_candidates).toBe(0)
+        expect(result.data.budgets.max_candidate_review_passes).toBe(0)
+        expect(result.data.selected_agents).toEqual(draft.selected_agents)
+        expect(result.data.candidate_validation).toBe('not_requested')
+        expect(schema_agent_dispatcher.safeParse(result.data).success).toBe(true)
+      }
+      expect(draft.budgets.max_alternative_candidates).toBe(dispatcher_budget_limit.max_alternative_candidates)
+    } finally {
+      generate.mockRestore()
+    }
+  })
+
+  it('still rejects invalid dependencies, candidate policies and over-budget drafts after normalization', async () => {
+    const generate = spyOn($agent_dispatcher, 'generateText')
+    try {
+      const invalid_dependencies = plan_fixture()
+      invalid_dependencies.selected_agents.find((step) => step.agent === 'Storyteller')!.depends_on = []
+      for (const draft of [invalid_dependencies, { ...plan_fixture(), candidate_validation: 'repeat_required_checks' }]) {
+        generate.mockResolvedValue({ output: { ...draft, budgets: { ...dispatcher_budget_limit } } } as Awaited<
+          ReturnType<typeof $agent_dispatcher.generateText>
+        >)
+        expect((await agent_dispatcher(input_fixture())).success).toBe(false)
+      }
+      generate.mockResolvedValue({ output: { ...plan_fixture(), budgets: { ...dispatcher_budget_limit } } } as Awaited<
+        ReturnType<typeof $agent_dispatcher.generateText>
+      >)
+      const input = input_fixture()
+      input.budget_limits.max_alternative_candidates = 1
+      expect((await agent_dispatcher(input)).success).toBe(false)
+    } finally {
+      generate.mockRestore()
+    }
+  })
+
+  it('preserves valid alternative allocations and rejects missing candidate-review capacity', async () => {
+    const draft = plan_fixture()
+    draft.selected_agents.push({ agent: 'Bargain Hunter', depends_on: ['Detective', 'Referee'], run_when: 'always' })
+    draft.selected_agents.find((step) => step.agent === 'Storyteller')!.depends_on.push('Bargain Hunter')
+    draft.required_checks.push('alternatives')
+    draft.candidate_validation = 'repeat_required_checks'
+    draft.budgets.max_alternative_candidates = 2
+    draft.budgets.max_candidate_review_passes = 1
+    const generate = spyOn($agent_dispatcher, 'generateText').mockResolvedValue({ output: draft } as Awaited<
+      ReturnType<typeof $agent_dispatcher.generateText>
+    >)
+    try {
+      const result = await agent_dispatcher(input_fixture())
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.budgets.max_alternative_candidates).toBe(2)
+        expect(result.data.budgets.max_candidate_review_passes).toBe(1)
+      }
+      draft.budgets.max_candidate_review_passes = 0
+      expect((await agent_dispatcher(input_fixture())).success).toBe(false)
     } finally {
       generate.mockRestore()
     }

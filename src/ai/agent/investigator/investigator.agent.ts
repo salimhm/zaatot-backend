@@ -4,10 +4,11 @@ import type {
   type_schema_agent_investigator,
 } from '@agent/investigator/investigator.schema.agent'
 
-import { groq } from '@ai-sdk/groq'
 import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
+import { trusted_agent_generation_options } from '@ai/generation.ai'
+import { ai_google, ai_google_default_model } from '@ai/provider.ai'
 import { prompt_agent_investigator } from '@agent/investigator/investigator.prompt.agent'
 import {
   schema_agent_investigator,
@@ -33,7 +34,7 @@ export const $agent_investigator = new Agent({
   name: 'Ztroop Investigator',
   purpose: 'Gather and summarize sourced boycott and related-entity evidence without making a final verdict',
   instructions: prompt_agent_investigator,
-  model: groq(process.env.GROQ_DEFAULT_AI_MODEL_NAME || 'openai/gpt-oss-20b'),
+  model: ai_google(process.env.AI_INVESTIGATOR_MODEL || ai_google_default_model),
   tools: [],
   memory: false,
 })
@@ -88,6 +89,7 @@ async function resolve_investigator_input(
 
   const { query } = schema_query_agent_investigator.parse(input)
   const result = await $agent_investigator.generateText(`EXTRACT_ENTITY\n${JSON.stringify({ query })}`, {
+    ...trusted_agent_generation_options,
     temperature: 0,
     output: Output.object({ schema: schema_extracted_subject_agent_investigator }),
     abortSignal: signal,
@@ -305,7 +307,7 @@ export const agent_investigator = async (
             })),
             limitations,
           })}`,
-          { temperature: 0, abortSignal: options.signal },
+          { ...trusted_agent_generation_options, temperature: 0, abortSignal: options.signal },
         )
         analysis_draft = result.text.trim().slice(0, 800) || null
       } catch {

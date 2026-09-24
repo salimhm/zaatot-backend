@@ -8,6 +8,7 @@ import type { type_schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.
 
 import { z } from 'zod'
 
+import { run_workflow_step } from '@ai/runtime.ai'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
 
 export type consumer_specialist_name = type_schema_agent_dispatcher['selected_agents'][number]['agent']
@@ -84,6 +85,7 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
   let tool_calls = 0
   let budget_exhausted = false
   let budgets: type_schema_agent_dispatcher['budgets'] | null = null
+  let execution_id = ''
 
   const check_deadline = () => {
     signal.throwIfAborted()
@@ -97,7 +99,7 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
       throw new Error('The shared workflow tool-call budget is exhausted')
     }
     tool_calls++
-    const result = await call()
+    const result = await run_workflow_step(execution_id, 'tool', signal, call)
     check_deadline()
     return result
   }
@@ -105,7 +107,8 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
   const inspect_content = async (text: string) => {
     check_deadline()
     if (!dependency.bait_tester) throw new Error('Bait Tester is not implemented; external text cannot be consumed')
-    const result = await dependency.bait_tester(text, signal)
+    const inspect = dependency.bait_tester
+    const result = await run_workflow_step(execution_id, 'bait-tester', signal, () => inspect(text, signal))
     check_deadline()
     if (result.usable !== true || typeof result.text !== 'string') throw new Error('Bait Tester did not approve this external text')
     return result.text
@@ -113,6 +116,7 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
 
   const initialize = (data: Omit<consumer_execution_data, 'agent_results' | 'candidate_review'>): consumer_execution_data => {
     check_deadline()
+    execution_id = data.execution_id
     budgets = data.dispatcher_plan ? { ...data.dispatcher_plan.budgets } : null
     if (budgets) {
       execution_deadline = Math.min(deadline_ms, performance.now() + budgets.timeout_ms)
@@ -123,16 +127,17 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
     return { ...data, agent_results: {}, candidate_review: null }
   }
 
-  const invoke = async (handler: consumer_specialist, input: consumer_specialist_input): Promise<consumer_step_result> => {
+  const invoke = async (step: string, handler: consumer_specialist, input: consumer_specialist_input): Promise<consumer_step_result> => {
     for (let attempt = 0; ; attempt++) {
       check_deadline()
       if (budget_exhausted) return { status: 'needs_review', output: null, limitations: ['The shared tool-call budget is exhausted.'] }
       try {
-        const result = schema_step_result.parse(await handler(input, signal))
+        const result = await run_workflow_step(input.execution_id, step, signal, async () => schema_step_result.parse(await handler(input, signal)))
         check_deadline()
         if (budget_exhausted) return { status: 'needs_review', output: null, limitations: ['The shared tool-call budget is exhausted.'] }
         return result
-      } catch {
+      } catch (error) {
+        if (signal.aborted) throw error
         check_deadline()
         if (budget_exhausted || attempt >= (budgets?.max_retries ?? 0)) {
           return {
@@ -187,7 +192,7 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
     const input = input_for(data, step.depends_on)
     if (agent === 'Vault Keeper') input.user_id = data.user_id
     if (feedback) input.feedback = feedback
-    const result = await invoke(handler, input)
+    const result = await invoke(agent.toLowerCase().replaceAll(' ', '-'), handler, input)
     // Only Vault Keeper can grant permissions; agent-local data stays internal until final review.
     if (agent !== 'Vault Keeper') delete result.permissions
     return result
@@ -217,6 +222,7 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
     // Skeptic, Referee and permitted Coach checks using the same use_tool / deadline.
     const candidate_review = dependency.candidate_review
       ? await invoke(
+          'candidate-review',
           dependency.candidate_review,
           input_for(
             data,
