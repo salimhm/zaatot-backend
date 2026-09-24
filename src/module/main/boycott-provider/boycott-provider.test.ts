@@ -101,6 +101,8 @@ describe('Boycott Provider Service', () => {
 
     expect(result.data.provider).toBe('boycat')
     expect(result.data.provider_status).toBe('matched')
+    expect(result.data.requested_name).toBe('Coca Cola')
+    expect(result.data.provider_matched_name).toBe('Coca Cola')
     expect(result.data.decision_status).toBe('boycott')
     expect(result.data.confidence).toBe(100)
     expect(result.data.reason).toBe('The Coca-Cola Company owns Coca Cola.')
@@ -112,6 +114,119 @@ describe('Boycott Provider Service', () => {
         method: 'GET',
       }),
     )
+  })
+
+  it('resolves a uniquely matching provider spelling before requesting its details', async () => {
+    const api_key = Buffer.alloc(32, 7).toString('base64').replace(/=+$/, '')
+    process.env.BOYCAT_API_KEY = api_key
+    process.env.BOYCAT_COMPLIANCE_URL = 'https://boycat.test/api/compliance'
+    const absent = { success: false, result: null }
+    const calls: string[] = []
+    const spy_fetch = spyOn(globalThis, 'fetch').mockImplementation((async (input, init) => {
+      const url = String(input)
+      calls.push(`${init?.method} ${url}`)
+      const payload = init?.method === 'POST' ? boycat_search_payload : url.includes('Coca-Cola') ? absent : boycat_details_payload
+      return new Response(JSON.stringify(encrypt_payload(payload, api_key)), { status: 200 })
+    }) as typeof fetch)
+
+    const result = await service_boycott_provider.decide({ provider: 'boycat', brand_name: 'Coca-Cola' })
+
+    expect(result.data.provider_status).toBe('matched')
+    expect(result.data.requested_name).toBe('Coca-Cola')
+    expect(result.data.provider_matched_name).toBe('Coca Cola')
+    expect(result.data.matched_entity?.match_type).toBe('alias')
+    expect(result.data.matched_entity?.matched_name).toBe('Coca-Cola')
+    expect(calls).toEqual([
+      'GET https://boycat.test/api/compliance?brand=Coca-Cola',
+      'POST https://boycat.test/api/compliance',
+      'GET https://boycat.test/api/compliance?brand=Coca%2520Cola',
+    ])
+    expect(spy_fetch.mock.calls[1]?.[1]?.body).toBe(JSON.stringify({ type: 'SEARCH_BOYCOTTED_BRANDS', searchText: 'Coca Cola' }))
+  })
+
+  it('searches after an HTTP 404 from direct details instead of assuming the brand is absent', async () => {
+    const api_key = Buffer.alloc(32, 7).toString('base64').replace(/=+$/, '')
+    process.env.BOYCAT_API_KEY = api_key
+    process.env.BOYCAT_COMPLIANCE_URL = 'https://boycat.test/api/compliance'
+    let get_calls = 0
+    const spy_fetch = spyOn(globalThis, 'fetch').mockImplementation((async (_input, init) => {
+      if (init?.method === 'POST') {
+        return new Response(JSON.stringify(encrypt_payload(boycat_search_payload, api_key)), { status: 200 })
+      }
+      get_calls++
+      return get_calls === 1
+        ? new Response(null, { status: 404 })
+        : new Response(JSON.stringify(encrypt_payload(boycat_details_payload, api_key)), { status: 200 })
+    }) as typeof fetch)
+
+    const result = await service_boycott_provider.decide({ provider: 'boycat', brand_name: 'Coca-Cola' })
+
+    expect(result.data.provider_status).toBe('matched')
+    expect(result.data.provider_matched_name).toBe('Coca Cola')
+    expect(spy_fetch).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not use Boycat claims when two provider spellings match the same identity key', async () => {
+    const api_key = Buffer.alloc(32, 7).toString('base64').replace(/=+$/, '')
+    process.env.BOYCAT_API_KEY = api_key
+    process.env.BOYCAT_COMPLIANCE_URL = 'https://boycat.test/api/compliance'
+    const spy_fetch = spyOn(globalThis, 'fetch').mockImplementation((async (_input, init) => {
+      const payload =
+        init?.method === 'POST'
+          ? { success: true, result: [{ brand_name: 'Coca Cola' }, { brand_name: 'Coca-Cola' }] }
+          : { success: false, result: null }
+      return new Response(JSON.stringify(encrypt_payload(payload, api_key)), { status: 200 })
+    }) as typeof fetch)
+
+    const result = await service_boycott_provider.decide({ provider: 'boycat', brand_name: 'Coca-Cola' })
+
+    expect(result.data.provider_status).toBe('ambiguous')
+    expect(result.data.decision_status).toBe('unknown')
+    expect(result.data.matched_entity).toBeNull()
+    expect(result.data.sources).toEqual([])
+    expect(result.data.identity_candidates).toEqual(['Coca Cola', 'Coca-Cola'])
+    expect(spy_fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not erase meaningful symbols to force a different brand match', async () => {
+    const api_key = Buffer.alloc(32, 7).toString('base64').replace(/=+$/, '')
+    process.env.BOYCAT_API_KEY = api_key
+    process.env.BOYCAT_COMPLIANCE_URL = 'https://boycat.test/api/compliance'
+    const spy_fetch = spyOn(globalThis, 'fetch').mockImplementation((async (_input, init) => {
+      const payload = init?.method === 'POST' ? { success: true, result: [{ brand_name: 'HM' }] } : { success: false, result: null }
+      return new Response(JSON.stringify(encrypt_payload(payload, api_key)), { status: 200 })
+    }) as typeof fetch)
+
+    const result = await service_boycott_provider.decide({ provider: 'boycat', brand_name: 'H&M' })
+
+    expect(result.data.provider_status).toBe('not_found')
+    expect(result.data.matched_entity).toBeNull()
+    expect(spy_fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('compares apostrophes and accents without changing the displayed brand name', async () => {
+    const api_key = Buffer.alloc(32, 7).toString('base64').replace(/=+$/, '')
+    process.env.BOYCAT_API_KEY = api_key
+    process.env.BOYCAT_COMPLIANCE_URL = 'https://boycat.test/api/compliance'
+    let get_calls = 0
+    const spy_fetch = spyOn(globalThis, 'fetch').mockImplementation((async (_input, init) => {
+      if (init?.method !== 'POST') get_calls++
+      const payload =
+        init?.method === 'POST'
+          ? { success: true, result: [{ brand_name: "L'Oreal" }] }
+          : get_calls === 1
+            ? { success: false, result: null }
+            : { success: true, result: { details: { name: "L'Oreal", campaigns: [] } } }
+      return new Response(JSON.stringify(encrypt_payload(payload, api_key)), { status: 200 })
+    }) as typeof fetch)
+
+    const result = await service_boycott_provider.decide({ provider: 'boycat', brand_name: "L'Oréal" })
+
+    expect(result.data.provider_status).toBe('matched')
+    expect(result.data.requested_name).toBe("L'Oréal")
+    expect(result.data.provider_matched_name).toBe("L'Oreal")
+    expect(result.data.matched_entity?.match_type).toBe('alias')
+    expect(spy_fetch).toHaveBeenCalledTimes(3)
   })
 
   it('should return unknown when Boycat details have no campaign evidence', async () => {

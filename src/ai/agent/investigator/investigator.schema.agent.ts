@@ -5,6 +5,7 @@ const schema_investigator_source = z.enum(['boycat', 'local_knowledge'])
 
 export const schema_input_agent_investigator = z.object({
   brand_name: z.string().trim().min(2).max(255).nullable(),
+  brand_candidates: z.array(z.string().trim().min(2).max(255)).max(5).optional(),
   product_name: z.string().trim().min(2).max(255).optional(),
 })
 
@@ -20,6 +21,7 @@ export const schema_extracted_subject_agent_investigator = z.object({
 export const schema_agent_investigator = z.object({
   subject: z.object({
     brand_name: z.string().nullable(),
+    brand_candidates: z.array(z.string()).max(5),
     product_name: z.string().nullable(),
   }),
   status: z.enum(['evidence_found', 'no_matching_evidence', 'needs_review', 'unavailable', 'needs_input']),
@@ -27,7 +29,7 @@ export const schema_agent_investigator = z.object({
   checks: z.array(
     z.object({
       source: schema_investigator_source,
-      status: z.enum(['matched', 'not_found', 'unavailable', 'invalid_response']),
+      status: z.enum(['matched', 'not_found', 'ambiguous', 'unavailable', 'invalid_response']),
       decision_status: schema_investigator_decision_status.nullable(),
       confidence: z.number().min(0).max(100).nullable(),
       reason: z.string().nullable(),

@@ -110,6 +110,29 @@ function get_decision_brand(body: Static<typeof dto_boycott_provider.decide.body
   )
 }
 
+// This key is for identity comparison only. Keep significant symbols such as & and +,
+// and retain the original spelling for display and provenance.
+function brand_identity_key(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[\u2010-\u2015-]/g, ' ')
+    .replace(/[\u2018\u2019']/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function brand_search_query(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[\u2010-\u2015-]/g, ' ')
+    .replace(/[\u2018\u2019']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function build_boycat_decision_url(brand_name: string) {
   const url = new URL(process.env.BOYCAT_COMPLIANCE_URL || boycat_compliance_url)
 
@@ -118,7 +141,7 @@ function build_boycat_decision_url(brand_name: string) {
   return url.toString()
 }
 
-async function fetch_boycat_search_encrypted_payload(query: string) {
+async function fetch_boycat_search_encrypted_payload(query: string, signal?: AbortSignal) {
   const timeout_ms = Number(process.env.BOYCAT_TIMEOUT_MS || 8000)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeout_ms)
@@ -134,7 +157,7 @@ async function fetch_boycat_search_encrypted_payload(query: string) {
         type: 'SEARCH_BOYCOTTED_BRANDS',
         searchText: query,
       }),
-      signal: controller.signal,
+      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
     })
 
     if (!response.ok) return null
@@ -148,7 +171,7 @@ async function fetch_boycat_search_encrypted_payload(query: string) {
   }
 }
 
-async function fetch_boycat_details_encrypted_payload(brand_name: string) {
+async function fetch_boycat_details_encrypted_payload(brand_name: string, signal?: AbortSignal) {
   const timeout_ms = Number(process.env.BOYCAT_TIMEOUT_MS || 8000)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeout_ms)
@@ -159,7 +182,7 @@ async function fetch_boycat_details_encrypted_payload(brand_name: string) {
       headers: {
         accept: 'application/json, text/plain, */*',
       },
-      signal: controller.signal,
+      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
     })
 
     if (!response.ok) return null
@@ -236,11 +259,16 @@ function build_decision_empty_response(
   provider: boycott_provider_name,
   provider_status: boycott_provider_status,
   reason: string,
+  requested_name?: string,
+  identity_candidates: string[] = [],
 ): Static<typeof dto_boycott_provider.decide.response> {
   return {
     data: {
       provider,
       provider_status,
+      requested_name,
+      provider_matched_name: null,
+      identity_candidates,
       decision_status: 'unknown',
       confidence: 0,
       reason,
@@ -286,33 +314,37 @@ function normalize_boycat_search_response(response: boycat_search_response, quer
 
 function normalize_boycat_details_response(
   response: boycat_details_response,
-  brand_name: string,
+  requested_name: string,
 ): Static<typeof dto_boycott_provider.decide.response> {
   const details = response.result?.details
   const name = details?.name?.trim()
 
   if (!response.success || !details || !name) {
-    return build_decision_empty_response('boycat', 'not_found', 'Boycat did not return details for this brand or product.')
+    return build_decision_empty_response('boycat', 'not_found', 'Boycat did not return details for this brand or product.', requested_name)
   }
 
   const campaigns = (details.campaigns || []).map(normalize_campaign)
   const confidence = calculate_campaign_confidence(campaigns)
   const first_campaign = campaigns[0]
-  const match_score = build_match_score(brand_name, name)
+  const match_score = build_match_score(requested_name, name)
+  const match_type = requested_name.toLowerCase() === name.toLowerCase() ? 'exact' : 'alias'
 
   if (campaigns.length === 0) {
     return {
       data: {
         provider: 'boycat',
         provider_status: 'matched',
+        requested_name,
+        provider_matched_name: name,
+        identity_candidates: [],
         decision_status: 'unknown',
         confidence: 50,
         reason: `Boycat returned ${name}, but did not return campaign evidence. Treat this as unknown until another source confirms the status.`,
         matched_entity: {
           entity_type: 'brand',
           name,
-          matched_name: brand_name,
-          match_type: match_score === 100 ? 'exact' : 'fuzzy',
+          matched_name: requested_name,
+          match_type,
           match_score,
         },
         campaigns,
@@ -332,14 +364,17 @@ function normalize_boycat_details_response(
     data: {
       provider: 'boycat',
       provider_status: 'matched',
+      requested_name,
+      provider_matched_name: name,
+      identity_candidates: [],
       decision_status: get_decision_status_from_confidence(confidence),
       confidence,
       reason: first_campaign?.reasoning || 'Boycat returned active campaign evidence for this brand.',
       matched_entity: {
         entity_type: 'brand',
         name,
-        matched_name: brand_name,
-        match_type: match_score === 100 ? 'exact' : 'fuzzy',
+        matched_name: requested_name,
+        match_type,
         match_score,
       },
       campaigns,
@@ -369,31 +404,34 @@ async function decrypt_boycat_payload<T>(encrypted_payload: string) {
   return parse_json(decrypted) as T
 }
 
-async function load_boycat_search_response(query: string) {
+async function load_boycat_search_response(query: string, signal?: AbortSignal) {
   if (!process.env.BOYCAT_API_KEY) return null
 
-  const encrypted_payload = await fetch_boycat_search_encrypted_payload(query)
+  const encrypted_payload = await fetch_boycat_search_encrypted_payload(query, signal)
   if (!encrypted_payload) return null
 
   return await decrypt_boycat_payload<boycat_search_response>(encrypted_payload)
 }
 
-async function load_boycat_details_response(brand_name: string) {
+async function load_boycat_details_response(brand_name: string, signal?: AbortSignal) {
   if (!process.env.BOYCAT_API_KEY) return null
 
-  const encrypted_payload = await fetch_boycat_details_encrypted_payload(brand_name)
+  const encrypted_payload = await fetch_boycat_details_encrypted_payload(brand_name, signal)
   if (!encrypted_payload) return null
 
   return await decrypt_boycat_payload<boycat_details_response>(encrypted_payload)
 }
 
 export const service_boycott_provider = {
-  async search(body: Static<typeof dto_boycott_provider.search.body>): Promise<Static<typeof dto_boycott_provider.search.response>> {
+  async search(
+    body: Static<typeof dto_boycott_provider.search.body>,
+    signal?: AbortSignal,
+  ): Promise<Static<typeof dto_boycott_provider.search.response>> {
     const provider = body.provider || 'boycat'
     const query = body.query.trim()
 
     try {
-      const response = await load_boycat_search_response(query)
+      const response = await load_boycat_search_response(query, signal)
 
       if (!response) return build_search_empty_response(provider, 'unavailable', query)
 
@@ -403,11 +441,14 @@ export const service_boycott_provider = {
     }
   },
 
-  async decide(body: Static<typeof dto_boycott_provider.decide.body>): Promise<Static<typeof dto_boycott_provider.decide.response>> {
+  async decide(
+    body: Static<typeof dto_boycott_provider.decide.body>,
+    signal?: AbortSignal,
+  ): Promise<Static<typeof dto_boycott_provider.decide.response>> {
     const provider = body.provider || 'boycat'
-    const brand_name = get_decision_brand(body)
+    const requested_name = get_decision_brand(body)
 
-    if (!brand_name)
+    if (!requested_name)
       return build_decision_empty_response(
         provider,
         'not_found',
@@ -415,22 +456,78 @@ export const service_boycott_provider = {
       )
 
     try {
-      const response = await load_boycat_details_response(brand_name)
+      const response = await load_boycat_details_response(requested_name, signal)
+      const direct_unavailable = response === null
+      const direct_name = response?.success ? response.result?.details?.name?.trim() : null
+      if (response && direct_name && brand_identity_key(direct_name) === brand_identity_key(requested_name)) {
+        return normalize_boycat_details_response(response, requested_name)
+      }
 
-      if (!response) {
+      // One provider search, not a combinatorial sequence of spelling guesses.
+      const search = await service_boycott_provider.search({ provider, query: brand_search_query(requested_name) }, signal)
+      if (search.data.provider_status === 'unavailable' || search.data.provider_status === 'invalid_response') {
         return build_decision_empty_response(
           provider,
-          'unavailable',
-          'Boycat compliance API is not configured or did not return a usable encrypted response. Configure BOYCAT_API_KEY and optionally BOYCAT_COMPLIANCE_URL.',
+          search.data.provider_status,
+          'Boycat could not complete the brand-identity search.',
+          requested_name,
         )
       }
 
-      return normalize_boycat_details_response(response, brand_name)
+      const matching_names = [
+        ...new Set(
+          search.data.results
+            .map((candidate) => candidate.brand_name.trim())
+            .filter((name) => name && brand_identity_key(name) === brand_identity_key(requested_name)),
+        ),
+      ]
+      if (matching_names.length > 1) {
+        return build_decision_empty_response(
+          provider,
+          'ambiguous',
+          'Boycat returned multiple possible brand identities; select or verify one before using its claims.',
+          requested_name,
+          matching_names.slice(0, 5),
+        )
+      }
+
+      const canonical_name = matching_names[0]
+      if (!canonical_name) {
+        return build_decision_empty_response(
+          provider,
+          direct_name ? 'ambiguous' : direct_unavailable ? 'unavailable' : 'not_found',
+          direct_name
+            ? 'Boycat returned a different brand identity that could not be verified against the requested name.'
+            : direct_unavailable
+              ? 'Boycat direct details were unavailable, so a missing search result cannot confirm absence.'
+              : 'Boycat did not return a verified brand match.',
+          requested_name,
+          direct_name ? [direct_name] : [],
+        )
+      }
+
+      const canonical_response = await load_boycat_details_response(canonical_name, signal)
+      if (!canonical_response) {
+        return build_decision_empty_response(provider, 'unavailable', 'Boycat did not return usable details for the matched brand.', requested_name)
+      }
+      const resolved_name = canonical_response.success ? canonical_response.result?.details?.name?.trim() : null
+      if (!resolved_name || brand_identity_key(resolved_name) !== brand_identity_key(requested_name)) {
+        return build_decision_empty_response(
+          provider,
+          'ambiguous',
+          'Boycat search and details returned different brand identities; no claims were assigned.',
+          requested_name,
+          [canonical_name],
+        )
+      }
+
+      return normalize_boycat_details_response(canonical_response, requested_name)
     } catch {
       return build_decision_empty_response(
         provider,
         'invalid_response',
         'Provider returned a response that could not be parsed, decrypted, or normalized.',
+        requested_name,
       )
     }
   },

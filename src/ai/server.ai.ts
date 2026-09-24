@@ -3,11 +3,13 @@ import '@lib/env.lib'
 import { VoltAgent } from '@voltagent/core'
 import { elysiaServer } from '@voltagent/server-elysia'
 
-import { $agent_product_brand_lookup } from '@agent/product-brand-lookup/product-brand-lookup.agent'
+import { $agent_bait_tester } from '@agent/bait-tester/bait-tester.agent'
+import { $agent_detective } from '@agent/detective/detective.agent'
 
 export const ai_server = new VoltAgent({
   agents: {
-    product_brand_lookup: $agent_product_brand_lookup,
+    detective: $agent_detective,
+    bait_tester: $agent_bait_tester,
   },
 
   server: elysiaServer({

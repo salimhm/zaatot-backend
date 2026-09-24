@@ -58,19 +58,22 @@ describe('Investigator agent', () => {
     expect(result.success).toBe(true)
     if (!result.success) return
     expect(result.data.subject.brand_name).toBe('Coca Cola')
-    expect(service_boycott_decision.decide).toHaveBeenCalledWith({ product_brand_name: 'Coca Cola', product_name: undefined })
-    expect(service_boycott_provider.decide).toHaveBeenCalledWith({ provider: 'boycat', brand_name: 'Coca Cola', product_name: undefined })
+    expect(result.data.subject.brand_candidates).toEqual(['Coca Cola'])
+    expect(service_boycott_decision.decide).toHaveBeenCalledWith({ product_brand_name: 'Coca Cola', candidate_names: [] })
+    expect(service_boycott_provider.decide).toHaveBeenCalledWith({ provider: 'boycat', brand_name: 'Coca Cola' })
   })
 
-  it('can extract a product name without inventing a brand', async () => {
+  it('requires a brand after extracting only a product name', async () => {
     mock_extraction('product', 'Choco Bar')
 
     const result = await agent_investigator({ query: 'investigate product Choco Bar' })
 
     expect(result.success).toBe(true)
     if (!result.success) return
-    expect(result.data.subject).toEqual({ brand_name: null, product_name: 'Choco Bar' })
-    expect(service_boycott_provider.decide).toHaveBeenCalledWith({ provider: 'boycat', brand_name: undefined, product_name: 'Choco Bar' })
+    expect(result.data.subject).toEqual({ brand_name: null, brand_candidates: [], product_name: 'Choco Bar' })
+    expect(result.data.status).toBe('needs_input')
+    expect(service_boycott_decision.decide).not.toHaveBeenCalled()
+    expect(service_boycott_provider.decide).not.toHaveBeenCalled()
   })
 
   it('rejects an extracted name that was not present in the request', async () => {
@@ -85,15 +88,26 @@ describe('Investigator agent', () => {
     expect(service_boycott_provider.decide).not.toHaveBeenCalled()
   })
 
-  it('requires a single resolved brand before consulting evidence services', async () => {
-    const result = await agent_investigator({ brand_name: 'One Brand, Another Brand' })
+  it('treats structured provider labels as bounded brand candidates', async () => {
+    const result = await agent_investigator({
+      brand_name: 'Coca-Cola',
+      brand_candidates: ['COCA-COLA SERVICES SA/NV', 'Coca-Cola'],
+      product_name: 'Coca-Cola Original Taste',
+    })
 
     expect(result.success).toBe(true)
     if (!result.success) return
-    expect(result.data.status).toBe('needs_input')
-    expect(result.data.checks).toEqual([])
-    expect(service_boycott_decision.decide).not.toHaveBeenCalled()
-    expect(service_boycott_provider.decide).not.toHaveBeenCalled()
+    expect(result.data.status).toBe('no_matching_evidence')
+    expect(result.data.subject.brand_candidates).toEqual(['Coca-Cola', 'COCA-COLA SERVICES SA/NV'])
+    expect(service_boycott_decision.decide).toHaveBeenCalledWith({
+      product_brand_name: 'Coca-Cola',
+      candidate_names: ['COCA-COLA SERVICES SA/NV'],
+    })
+    expect(service_boycott_provider.decide).toHaveBeenNthCalledWith(1, { provider: 'boycat', brand_name: 'Coca-Cola' })
+    expect(service_boycott_provider.decide).toHaveBeenNthCalledWith(2, {
+      provider: 'boycat',
+      brand_name: 'COCA-COLA SERVICES SA/NV',
+    })
   })
 
   it('reports cited local evidence without making a final verdict', async () => {
@@ -132,6 +146,31 @@ describe('Investigator agent', () => {
     if (!result.success) return
     expect(result.data.status).toBe('no_matching_evidence')
     expect(result.data.limitations).toContain('No matching evidence is not proof that a brand is safe.')
+  })
+
+  it('uses the workflow tool budget, signal and Bait Tester for provider evidence', async () => {
+    const signal = new AbortController().signal
+    const use_tool_spy = mock(async (call: () => Promise<unknown>) => await call())
+    const use_tool = async <T>(call: () => Promise<T>): Promise<T> => (await use_tool_spy(call)) as T
+    const inspect_content = mock(async (text: string) => text)
+
+    const result = await agent_investigator(
+      { brand_name: 'Example Brand' },
+      { signal, runtime: { use_tool, inspect_content }, include_analysis_draft: false },
+    )
+
+    expect(result.success).toBe(true)
+    expect(use_tool_spy).toHaveBeenCalledTimes(2)
+    expect(service_boycott_provider.decide).toHaveBeenCalledWith({ provider: 'boycat', brand_name: 'Example Brand' }, signal)
+    expect(inspect_content).toHaveBeenCalledWith(JSON.stringify(boycat_not_found))
+  })
+
+  it('does not call evidence services after workflow cancellation', async () => {
+    const result = await agent_investigator({ brand_name: 'Example Brand' }, { signal: AbortSignal.abort() })
+
+    expect(result.success).toBe(false)
+    expect(service_boycott_decision.decide).not.toHaveBeenCalled()
+    expect(service_boycott_provider.decide).not.toHaveBeenCalled()
   })
 
   it('reports an unavailable provider separately from no matching evidence', async () => {
@@ -173,6 +212,29 @@ describe('Investigator agent', () => {
     expect(result.data.status).toBe('needs_review')
   })
 
+  it('requires review when Boycat cannot distinguish multiple brand identities', async () => {
+    spyOn(service_boycott_provider, 'decide').mockImplementation(() =>
+      Promise.resolve({
+        data: {
+          ...boycat_not_found,
+          provider_status: 'ambiguous',
+          reason: 'Multiple possible brand identities.',
+          identity_candidates: ['Coca Cola', 'Coca-Cola'],
+        },
+      }),
+    )
+
+    const result = await agent_investigator({ brand_name: 'Coca-Cola' })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.status).toBe('needs_review')
+    expect(result.data.checks[1]?.status).toBe('ambiguous')
+    expect(result.data.limitations).toContain(
+      'Boycat returned multiple possible brand identities; no provider claim was assigned to an unverified match.',
+    )
+  })
+
   it('does not treat Boycat’s generic home page as supporting evidence', async () => {
     spyOn(service_boycott_provider, 'decide').mockImplementation(() =>
       Promise.resolve({
@@ -199,5 +261,34 @@ describe('Investigator agent', () => {
     if (!result.success) return
     expect(result.data.status).toBe('needs_review')
     expect(result.data.limitations).toContain('At least one match has no specific supporting citation URL in the service response.')
+  })
+
+  it('requires review when candidates resolve to distinct verified brand identities', async () => {
+    spyOn(service_boycott_provider, 'decide').mockImplementation(
+      async ({ brand_name }): Promise<boycat_response> => ({
+        data: {
+          ...boycat_not_found,
+          provider_status: 'matched',
+          decision_status: 'boycott',
+          confidence: 90,
+          matched_entity: {
+            entity_type: 'brand',
+            name: brand_name!,
+            matched_name: brand_name!,
+            match_type: 'exact',
+            match_score: 100,
+          },
+          sources: [{ source_name: 'Boycat', source_url: 'https://boycat.io', url: `https://boycat.io/brands/${brand_name}` }],
+        },
+      }),
+    )
+
+    const result = await agent_investigator({ brand_name: 'Brand One', brand_candidates: ['Brand One', 'Brand Two'] })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.status).toBe('needs_review')
+    expect(result.data.checks.filter((check) => check.source === 'boycat')).toHaveLength(2)
+    expect(result.data.limitations).toContain('Evidence sources matched more than one distinct brand identity; the identity requires review.')
   })
 })

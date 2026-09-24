@@ -2,8 +2,7 @@ import { z } from 'zod'
 
 import { SecurityDecision } from '@agent/bodyguard/bodyguard.schema.agent'
 import { schema_agent_conductor_plan } from '@agent/conductor/conductor.schema.agent'
-
-import { dispatcher_budget_limit, enum_dispatcher_agent, enum_dispatcher_check } from './constants'
+import { dispatcher_budget_limit, enum_dispatcher_agent, enum_dispatcher_check } from '@agent/dispatcher/constants'
 
 export const schema_agent_dispatcher_budget = z.object({
   timeout_ms: z

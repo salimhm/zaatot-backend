@@ -4,7 +4,7 @@ import { enum_boycott_decision_status, enum_boycott_entity_type, enum_boycott_ma
 
 export const enum_boycott_provider_name = ['boycat'] as const
 
-export const enum_boycott_provider_status = ['matched', 'not_found', 'unavailable', 'invalid_response'] as const
+export const enum_boycott_provider_status = ['matched', 'not_found', 'ambiguous', 'unavailable', 'invalid_response'] as const
 
 export const dto_schema_boycott_provider_campaign_tier = t.Object({
   level: t.Optional(t.Number()),
@@ -61,6 +61,9 @@ export const dto_schema_boycott_provider_search = t.Object({
 export const dto_schema_boycott_provider_decision = t.Object({
   provider: t.UnionEnum(enum_boycott_provider_name),
   provider_status: t.UnionEnum(enum_boycott_provider_status),
+  requested_name: t.Optional(t.String()),
+  provider_matched_name: t.Optional(t.Union([t.String(), t.Null()])),
+  identity_candidates: t.Optional(t.Array(t.String())),
   decision_status: t.UnionEnum(enum_boycott_decision_status),
   confidence: t.Number({ minimum: 0, maximum: 100 }),
   reason: t.String(),

@@ -5,12 +5,16 @@ import type { consumer_dependency } from '@ai/workflow.ai'
 import { describe, expect, it, mock, spyOn } from 'bun:test'
 
 import { run_consumer_workflow } from '@ai/workflow.ai'
+import { $agent_bait_tester } from '@agent/bait-tester/bait-tester.agent'
 import { $agent_bodyguard } from '@agent/bodyguard/bodyguard.agent'
 import { $agent_conductor } from '@agent/conductor/conductor.agent'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
+import { $agent_detective } from '@agent/detective/detective.agent'
 import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
 import { $agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
-import { $agent_product_brand_lookup } from '@agent/product-brand-lookup/product-brand-lookup.agent'
+
+import { service_boycott_decision } from '@module/main/boycott-decision/boycott-decision.service'
+import { service_boycott_provider } from '@module/main/boycott-provider/boycott-provider.service'
 
 const request = { prompt: 'Check this cereal', user_id: 7 }
 const allowed: type_schema_agent_bodyguard = {
@@ -153,7 +157,7 @@ describe('Consumer workflow startup', () => {
       const input = JSON.parse(message as string) as type_schema_agent_dispatcher_input
       return { output: dispatcher_plan_fixture(input) } as Awaited<ReturnType<typeof $agent_dispatcher.generateText>>
     })
-    const lookup = spyOn($agent_product_brand_lookup, 'generateText')
+    const lookup = spyOn($agent_detective, 'generateText')
     try {
       const cases = [
         {
@@ -185,7 +189,7 @@ describe('Consumer workflow startup', () => {
       ] as const
       for (const { toolResults, status } of cases) {
         lookup.mockResolvedValue({ toolResults, text: 'Unreviewed lookup details' } as unknown as Awaited<
-          ReturnType<typeof $agent_product_brand_lookup.generateText>
+          ReturnType<typeof $agent_detective.generateText>
         >)
         const result = await run_consumer_workflow(request)
         expect(result.status).toBe(status)
@@ -213,6 +217,125 @@ describe('Consumer workflow startup', () => {
       conductor.mockRestore()
       dispatcher.mockRestore()
       lookup.mockRestore()
+    }
+  })
+
+  it('passes Detective resolved identities to the connected Investigator and skips unresolved identities', async () => {
+    const bodyguard = spyOn($agent_bodyguard, 'generateText').mockResolvedValue({ output: allowed } as Awaited<
+      ReturnType<typeof $agent_bodyguard.generateText>
+    >)
+    const conductor = spyOn($agent_conductor, 'generateText').mockResolvedValue({
+      output: { intent: 'Investigate product ethics', steps: [{ agent: 'Dispatcher', purpose: 'Plan ethics checks' }] },
+    } as Awaited<ReturnType<typeof $agent_conductor.generateText>>)
+    const dispatcher = spyOn($agent_dispatcher, 'generateText').mockImplementation(async (message) => {
+      const input = JSON.parse(message as string) as type_schema_agent_dispatcher_input
+      return {
+        output: {
+          selected_agents: [
+            { agent: 'Detective', depends_on: [], run_when: 'always' },
+            { agent: 'Investigator', depends_on: ['Detective'], run_when: 'always' },
+            { agent: 'Skeptic', depends_on: ['Detective', 'Investigator'], run_when: 'always' },
+            { agent: 'Referee', depends_on: ['Skeptic'], run_when: 'always' },
+            { agent: 'Storyteller', depends_on: ['Skeptic', 'Referee'], run_when: 'always' },
+            { agent: 'Gatekeeper', depends_on: ['Storyteller'], run_when: 'always' },
+          ],
+          required_checks: ['identity', 'ethics', 'evidence', 'hard_constraints', 'final_response'],
+          budgets: { ...input.budget_limits, max_alternative_candidates: 0, max_candidate_review_passes: 0 },
+          untrusted_content_policy: 'bait_tester_before_consumption',
+          candidate_validation: 'not_requested',
+        },
+      } as Awaited<ReturnType<typeof $agent_dispatcher.generateText>>
+    })
+    const lookup = spyOn($agent_detective, 'generateText')
+    const local = spyOn(service_boycott_decision, 'decide').mockResolvedValue({
+      data: {
+        decision_status: 'unknown',
+        confidence: 0,
+        reason: 'No local match.',
+        matched_entity: null,
+        matched_path: [],
+        sources: [],
+        alternatives: [],
+      },
+    })
+    const provider_data = {
+      provider: 'boycat' as const,
+      provider_status: 'not_found' as const,
+      decision_status: 'unknown' as const,
+      confidence: 0,
+      reason: 'No Boycat match.',
+      matched_entity: null,
+      campaigns: [],
+      sources: [],
+      alternatives: [],
+    }
+    const provider = spyOn(service_boycott_provider, 'decide').mockResolvedValue({ data: provider_data })
+    const bait_tester = spyOn($agent_bait_tester, 'generateText').mockResolvedValue({
+      output: { safe: true, action: 'allow', risks: [], reason: 'Provider data is safe to consume.', confidence: 1 },
+    } as Awaited<ReturnType<typeof $agent_bait_tester.generateText>>)
+
+    try {
+      lookup.mockResolvedValue({
+        toolResults: [
+          { toolName: 'tool_product_lookup_brand_by_name', output: { found: true, source: 'local_database', data: [{ brand_name: 'Coca-Cola' }] } },
+        ],
+      } as unknown as Awaited<ReturnType<typeof $agent_detective.generateText>>)
+      const brand_result = await run_consumer_workflow({ ...request, prompt: 'Investigate Coca-Cola' })
+      expect(brand_result.status).toBe('needs_review')
+      expect(brand_result.limitations.join(' ')).not.toContain('Investigator is not implemented')
+      expect(local).toHaveBeenNthCalledWith(1, { product_brand_name: 'Coca-Cola', candidate_names: [] })
+      expect(provider).toHaveBeenNthCalledWith(1, { provider: 'boycat', brand_name: 'Coca-Cola' }, expect.any(AbortSignal))
+
+      lookup.mockResolvedValue({
+        toolResults: [
+          {
+            toolName: 'tool_product_lookup_local_by_barcode',
+            output: {
+              found: true,
+              source: 'local_database',
+              data: [
+                {
+                  product_name: 'Coca-Cola Original Taste',
+                  product_brand_name: 'COCA-COLA SERVICES SA/NV, Coca-Cola',
+                  product_brand_names: ['COCA-COLA SERVICES SA/NV', 'Coca-Cola'],
+                  product_barcode: '5449000054227',
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown as Awaited<ReturnType<typeof $agent_detective.generateText>>)
+      const product_result = await run_consumer_workflow({ ...request, prompt: 'Investigate barcode 5449000054227' })
+      expect(product_result.status).toBe('needs_review')
+      expect(local).toHaveBeenNthCalledWith(2, {
+        product_brand_name: 'Coca-Cola',
+        candidate_names: ['COCA-COLA SERVICES SA/NV'],
+      })
+      expect(provider).toHaveBeenNthCalledWith(2, { provider: 'boycat', brand_name: 'Coca-Cola' }, expect.any(AbortSignal))
+      expect(provider).toHaveBeenNthCalledWith(3, { provider: 'boycat', brand_name: 'COCA-COLA SERVICES SA/NV' }, expect.any(AbortSignal))
+      expect(bait_tester).toHaveBeenCalledTimes(3)
+      expect(bait_tester.mock.calls[0]?.[0]).toBe(JSON.stringify(provider_data))
+
+      lookup.mockResolvedValue({
+        toolResults: [
+          {
+            toolName: 'tool_product_lookup_local_by_name',
+            output: { found: true, source: 'local_database', data: [{ product_name: 'Cola A' }, { product_name: 'Cola B' }] },
+          },
+        ],
+      } as unknown as Awaited<ReturnType<typeof $agent_detective.generateText>>)
+      const unresolved = await run_consumer_workflow({ ...request, prompt: 'Investigate cola' })
+      expect(unresolved.status).toBe('needs_input')
+      expect(local).toHaveBeenCalledTimes(2)
+      expect(provider).toHaveBeenCalledTimes(3)
+    } finally {
+      bodyguard.mockRestore()
+      conductor.mockRestore()
+      dispatcher.mockRestore()
+      lookup.mockRestore()
+      local.mockRestore()
+      provider.mockRestore()
+      bait_tester.mockRestore()
     }
   })
 

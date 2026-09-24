@@ -31,6 +31,7 @@ beforeEach(() => {
       product_type: 'food',
       product_name: 'test-product',
       product_brand_name: 'test-brand',
+      product_brand_names: ['test-brand'],
       product_images: null,
       product_nova_group: null,
       product_ecoscore: null,

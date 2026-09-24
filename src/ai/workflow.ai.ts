@@ -5,16 +5,18 @@ import type { consumer_execution_data, consumer_execution_dependency } from '@ai
 import { andThen, createWorkflowChain } from '@voltagent/core'
 
 import { create_consumer_execution, merge_consumer_parallel } from '@ai/execution.ai'
+import { inspect_external_content } from '@agent/bait-tester/bait-tester.agent'
 import { agent_bodyguard } from '@agent/bodyguard/bodyguard.agent'
 import { SecurityDecision } from '@agent/bodyguard/bodyguard.schema.agent'
 import { agent_conductor } from '@agent/conductor/conductor.agent'
 import { schema_agent_conductor, schema_agent_conductor_input, schema_agent_conductor_plan } from '@agent/conductor/conductor.schema.agent'
+import { agent_detective } from '@agent/detective/detective.agent'
+import { schema_agent_detective } from '@agent/detective/detective.schema.agent'
+import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
 import { agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
 import { schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.schema.agent'
-import { agent_product_brand_lookup } from '@agent/product-brand-lookup/product-brand-lookup.agent'
-import { schema_agent_product_brand_lookup } from '@agent/product-brand-lookup/product-brand-lookup.schema.agent'
-
-import { dispatcher_budget_limit } from './agent/dispatcher/constants'
+import { agent_investigator } from '@agent/investigator/investigator.agent'
+import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
 
 export type consumer_dependency = consumer_execution_dependency & {
   bodyguard: (prompt: string, signal: AbortSignal) => Promise<unknown>
@@ -42,23 +44,80 @@ const default_dependency: consumer_dependency = {
   // Validate the real agent's output in the adapter. See docs/workflow-placeholders.md.
   specialists: {
     Detective: async (input, signal) => {
-      const result = await agent_product_brand_lookup(input.prompt, signal, {
+      const result = await agent_detective(input.prompt, signal, {
         use_tool: input.use_tool,
         inspect_content: input.inspect_content,
       })
       if (!result.success) throw new Error('Detective lookup failed', { cause: result.data })
 
-      const output = schema_agent_product_brand_lookup.parse(result.data)
-      const resolved = output.found && output.query_type !== 'unknown'
+      const output = schema_agent_detective.parse(result.data)
+      const resolved = output.status === 'identified'
       return {
         status: resolved ? 'completed' : 'needs_input',
         output,
-        limitations: resolved ? [] : ['Detective could not resolve the product or brand. Provide a more specific name or barcode.'],
+        limitations: resolved
+          ? []
+          : [
+              output.status === 'requires_selection'
+                ? 'Detective found multiple possible matches. Select a brand or a specific product.'
+                : output.status === 'unavailable'
+                  ? 'The external product provider is temporarily unavailable. Try again later.'
+                  : 'Detective could not resolve the product or brand. Provide a more specific name or barcode.',
+            ],
       }
     },
     'Vault Keeper': null, // TODO: agent_vault_keeper — consent and permitted context.
     Medic: null, // TODO: agent_medic — ingredient / clinical checks.
-    Investigator: null, // TODO: agent_investigator — ownership / ethics checks.
+    Investigator: async (input, signal) => {
+      const detective_step = input.dependencies.Detective
+      if (detective_step?.status !== 'completed') {
+        return {
+          status: 'needs_input',
+          output: null,
+          limitations: ['Investigator requires a product or brand identity resolved by Detective.'],
+        }
+      }
+
+      const detective = schema_agent_detective.parse(detective_step.output)
+      if (detective.status !== 'identified' || !detective.subject) {
+        return {
+          status: 'needs_input',
+          output: null,
+          limitations: ['Investigator requires one resolved product or brand identity.'],
+        }
+      }
+
+      const subject =
+        detective.subject.type === 'brand'
+          ? { brand_name: detective.subject.name, brand_candidates: [detective.subject.name] }
+          : {
+              brand_name: detective.subject.brand_name,
+              brand_candidates: detective.subject.brand_candidates,
+              ...(detective.subject.name ? { product_name: detective.subject.name } : {}),
+            }
+      const result = await agent_investigator(subject, {
+        include_analysis_draft: false,
+        signal,
+        runtime: {
+          use_tool: input.use_tool,
+          inspect_content: input.inspect_content,
+        },
+      })
+      if (!result.success) throw new Error('Investigator evidence lookup failed', { cause: result.data })
+
+      const output = schema_agent_investigator.parse(result.data)
+      const status =
+        output.status === 'evidence_found' || output.status === 'no_matching_evidence'
+          ? 'completed'
+          : output.status === 'needs_input'
+            ? 'needs_input'
+            : 'needs_review'
+      return {
+        status,
+        output,
+        limitations: output.limitations,
+      }
+    },
     'Eco Scout': null, // TODO: agent_eco_scout — environmental evidence.
     Historian: null, // TODO: agent_historian — permitted history only.
     Skeptic: null, // TODO: agent_skeptic — evidence review.
@@ -69,7 +128,7 @@ const default_dependency: consumer_dependency = {
     Gatekeeper: null, // TODO: agent_gatekeeper — output the validated final API response.
   },
   candidate_review: null, // TODO: bounded candidate identity / specialist / evidence / constraint review.
-  bait_tester: null, // TODO: isolated external-text inspection; invoked through input.inspect_content.
+  bait_tester: inspect_external_content,
 }
 
 const describe_workflow_failure = (error: unknown, signal: AbortSignal) => {
@@ -243,7 +302,7 @@ export const run_consumer_workflow = async (
 ): Promise<type_schema_agent_conductor_result> => {
   const data = schema_agent_conductor_input.parse(input)
   const execution_id = crypto.randomUUID()
-  const timeout_ms = options.timeout_ms ?? 60_000
+  const timeout_ms = options.timeout_ms ?? 240_000
   const deadline_ms = performance.now() + timeout_ms
   const timeout = AbortSignal.timeout(timeout_ms)
   const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout

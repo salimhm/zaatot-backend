@@ -23,6 +23,11 @@ type investigator_check = type_schema_agent_investigator['checks'][number]
 type local_decision = Awaited<ReturnType<typeof service_boycott_decision.decide>>['data']
 type boycat_decision = Awaited<ReturnType<typeof service_boycott_provider.decide>>['data']
 
+export type investigator_runtime = {
+  use_tool: <T>(call: () => Promise<T>) => Promise<T>
+  inspect_content: (text: string) => Promise<string>
+}
+
 export const $agent_investigator = new Agent({
   id: 'investigator',
   name: 'Ztroop Investigator',
@@ -43,8 +48,41 @@ function normalize_entity_text(value: string): string {
     .replace(/\s+/g, ' ')
 }
 
+function resolve_brand_candidates(subject: type_input_agent_investigator): string[] {
+  const names = [subject.brand_name, ...(subject.brand_candidates ?? [])]
+  const candidates: string[] = []
+  const keys = new Set<string>()
+
+  for (const value of names) {
+    if (!value) continue
+    for (const part of value.split(/[,;|]/)) {
+      const name = part.trim()
+      const key = normalize_entity_text(name)
+      if (!name || !key || keys.has(key)) continue
+      keys.add(key)
+      candidates.push(name)
+      if (candidates.length === 5) return candidates
+    }
+  }
+  return candidates
+}
+
+function unique_brand_names(names: Array<string | null | undefined>): string[] {
+  const result: string[] = []
+  const keys = new Set<string>()
+  for (const name of names) {
+    if (!name) continue
+    const key = normalize_entity_text(name)
+    if (!key || keys.has(key)) continue
+    keys.add(key)
+    result.push(name)
+  }
+  return result
+}
+
 async function resolve_investigator_input(
   input: type_input_agent_investigator | type_query_agent_investigator,
+  signal?: AbortSignal,
 ): Promise<type_input_agent_investigator> {
   if (!('query' in input)) return schema_input_agent_investigator.parse(input)
 
@@ -52,16 +90,19 @@ async function resolve_investigator_input(
   const result = await $agent_investigator.generateText(`EXTRACT_ENTITY\n${JSON.stringify({ query })}`, {
     temperature: 0,
     output: Output.object({ schema: schema_extracted_subject_agent_investigator }),
+    abortSignal: signal,
   })
   const extracted = schema_extracted_subject_agent_investigator.parse(result.output)
   const normalized_query = normalize_entity_text(query)
   const normalized_name = extracted.entity_name ? normalize_entity_text(extracted.entity_name) : ''
   const name_is_in_query = normalized_name.length > 0 && ` ${normalized_query} `.includes(` ${normalized_name} `)
 
-  if (!name_is_in_query || extracted.entity_type === 'unknown') return { brand_name: null }
-  if (extracted.entity_type === 'product') return { brand_name: null, product_name: extracted.entity_name ?? undefined }
+  if (!name_is_in_query || extracted.entity_type === 'unknown') return { brand_name: null, brand_candidates: [] }
+  if (extracted.entity_type === 'product') {
+    return { brand_name: null, brand_candidates: [], product_name: extracted.entity_name ?? undefined }
+  }
 
-  return { brand_name: extracted.entity_name }
+  return { brand_name: extracted.entity_name, brand_candidates: extracted.entity_name ? [extracted.entity_name] : [] }
 }
 
 function normalize_local_decision(result: local_decision): investigator_check {
@@ -122,8 +163,13 @@ function has_specific_citation(check: investigator_check): boolean {
 function get_report_status(checks: investigator_check[]): type_schema_agent_investigator['status'] {
   const boycott = checks.some((check) => check.status === 'matched' && check.decision_status === 'boycott')
   const not_boycotted = checks.some((check) => check.status === 'matched' && check.decision_status === 'not_boycotted')
+  const matched_identities = new Set(
+    checks.filter((check) => check.status === 'matched' && check.matched_entity).map((check) => normalize_entity_text(check.matched_entity!.name)),
+  )
 
   if (boycott && not_boycotted) return 'needs_review'
+  if (matched_identities.size > 1) return 'needs_review'
+  if (checks.some((check) => check.status === 'ambiguous')) return 'needs_review'
   if (checks.some((check) => check.status === 'matched' && has_specific_citation(check))) return 'evidence_found'
   if (checks.some((check) => check.status === 'matched')) return 'needs_review'
   if (checks.some((check) => check.status === 'unavailable' || check.status === 'invalid_response')) return 'unavailable'
@@ -146,6 +192,15 @@ function get_report_limitations(checks: investigator_check[]): string[] {
   if (checks.some((check) => check.status === 'matched' && !has_specific_citation(check))) {
     limitations.push('At least one match has no specific supporting citation URL in the service response.')
   }
+  if (checks.some((check) => check.status === 'ambiguous')) {
+    limitations.push('Boycat returned multiple possible brand identities; no provider claim was assigned to an unverified match.')
+  }
+  const matched_identities = new Set(
+    checks.filter((check) => check.status === 'matched' && check.matched_entity).map((check) => normalize_entity_text(check.matched_entity!.name)),
+  )
+  if (matched_identities.size > 1) {
+    limitations.push('Evidence sources matched more than one distinct brand identity; the identity requires review.')
+  }
   if (checks.some((check) => check.matched_entity?.match_type === 'fuzzy' || check.matched_entity?.match_type === 'related_entity')) {
     limitations.push('At least one match is fuzzy or follows a related-entity path; verify the identity before drawing conclusions.')
   }
@@ -155,37 +210,75 @@ function get_report_limitations(checks: investigator_check[]): string[] {
 
 export const agent_investigator = async (
   input: type_input_agent_investigator | type_query_agent_investigator,
-  options: { include_analysis_draft?: boolean } = {},
+  options: { include_analysis_draft?: boolean; signal?: AbortSignal; runtime?: investigator_runtime } = {},
 ): Promise<{ success: true; data: type_schema_agent_investigator } | { success: false; data: unknown }> => {
   try {
-    const subject = await resolve_investigator_input(input)
+    options.signal?.throwIfAborted()
+    const subject = await resolve_investigator_input(input, options.signal)
     const checked_at = new Date().toISOString()
+    const brand_candidates = resolve_brand_candidates(subject)
+    const primary_brand = brand_candidates[0] ?? null
 
-    const lookup_name = subject.brand_name ?? subject.product_name
-    if (!lookup_name || /[,;|]/.test(lookup_name)) {
+    if (!primary_brand) {
       return {
         success: true,
         data: schema_agent_investigator.parse({
-          subject: { brand_name: subject.brand_name, product_name: subject.product_name ?? null },
+          subject: { brand_name: null, brand_candidates, product_name: subject.product_name ?? null },
           status: 'needs_input',
           checked_at,
           checks: [],
-          limitations: ['Provide one identifiable product or brand name before investigating. Multiple names must be disambiguated first.'],
-          message: 'A single identifiable product or brand name is required.',
+          limitations: ['A product was identified, but its brand could not be resolved for investigation.'],
+          message: 'An identifiable brand is required before investigating.',
           analysis_draft: null,
         }),
       }
     }
 
-    const [local_result, boycat_result] = await Promise.allSettled([
-      service_boycott_decision.decide({ product_brand_name: subject.brand_name ?? undefined, product_name: subject.product_name }),
-      service_boycott_provider.decide({ provider: 'boycat', brand_name: subject.brand_name ?? undefined, product_name: subject.product_name }),
-    ])
+    const run_tool = async <T>(call: () => Promise<T>) => {
+      options.signal?.throwIfAborted()
+      const result = options.runtime ? await options.runtime.use_tool(call) : await call()
+      options.signal?.throwIfAborted()
+      return result
+    }
+    let local_check: investigator_check
+    try {
+      const result = await run_tool(() =>
+        service_boycott_decision.decide({
+          product_brand_name: primary_brand,
+          candidate_names: brand_candidates.slice(1),
+        }),
+      )
+      local_check = normalize_local_decision(result.data)
+    } catch {
+      options.signal?.throwIfAborted()
+      local_check = unavailable_check('local_knowledge')
+    }
+    const boycat_names = unique_brand_names([local_check.matched_entity?.name, primary_brand, ...brand_candidates]).slice(0, 5)
+    const boycat_checks: investigator_check[] = []
 
-    const checks: investigator_check[] = [
-      local_result.status === 'fulfilled' ? normalize_local_decision(local_result.value.data) : unavailable_check('local_knowledge'),
-      boycat_result.status === 'fulfilled' ? normalize_boycat_decision(boycat_result.value.data) : unavailable_check('boycat'),
-    ]
+    for (const brand_name of boycat_names) {
+      let result: Awaited<ReturnType<typeof service_boycott_provider.decide>>
+      try {
+        result = await run_tool(() =>
+          options.signal
+            ? service_boycott_provider.decide({ provider: 'boycat', brand_name }, options.signal)
+            : service_boycott_provider.decide({ provider: 'boycat', brand_name }),
+        )
+      } catch {
+        options.signal?.throwIfAborted()
+        boycat_checks.push(unavailable_check('boycat'))
+        break
+      }
+      if (options.runtime) {
+        const serialized = JSON.stringify(result.data)
+        const inspected = await options.runtime.inspect_content(serialized)
+        if (inspected !== serialized) throw new Error('Bait Tester changed the Boycat evidence payload')
+      }
+      boycat_checks.push(normalize_boycat_decision(result.data))
+    }
+    options.signal?.throwIfAborted()
+
+    const checks: investigator_check[] = [local_check, ...(boycat_checks.length > 0 ? boycat_checks : [unavailable_check('boycat')])]
     const status = get_report_status(checks)
     const limitations = get_report_limitations(checks)
     const message =
@@ -212,7 +305,7 @@ export const agent_investigator = async (
             })),
             limitations,
           })}`,
-          { temperature: 0 },
+          { temperature: 0, abortSignal: options.signal },
         )
         analysis_draft = result.text.trim().slice(0, 800) || null
       } catch {
@@ -223,7 +316,7 @@ export const agent_investigator = async (
     return {
       success: true,
       data: schema_agent_investigator.parse({
-        subject: { brand_name: subject.brand_name, product_name: subject.product_name ?? null },
+        subject: { brand_name: primary_brand, brand_candidates, product_name: subject.product_name ?? null },
         status,
         checked_at,
         checks,

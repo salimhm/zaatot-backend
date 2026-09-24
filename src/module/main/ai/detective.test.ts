@@ -4,7 +4,7 @@ import type { Toolkit } from '@voltagent/core'
 import { Tool } from '@voltagent/core'
 import { describe, expect, it, mock, spyOn } from 'bun:test'
 
-import { $agent_product_brand_lookup, agent_product_brand_lookup } from '@agent/product-brand-lookup/product-brand-lookup.agent'
+import { $agent_detective, agent_detective } from '@agent/detective/detective.agent'
 import { create_product_lookup_toolkit, toolkit_product_lookup } from '@tool/product-lookup/product-lookup.tool'
 
 import { service_product_provider } from '@module/main/product-provider/product-provider.service'
@@ -16,9 +16,9 @@ function lookup_tool(toolkit: Toolkit, index: number) {
   return tool
 }
 
-describe('Product-brand lookup workflow integration', () => {
+describe('Detective workflow integration', () => {
   it('builds structured output from tool results and rejects inconsistent results', async () => {
-    const generate = spyOn($agent_product_brand_lookup, 'generateText')
+    const generate = spyOn($agent_detective, 'generateText')
     const signal = new AbortController().signal
     try {
       generate.mockResolvedValue({
@@ -29,16 +29,18 @@ describe('Product-brand lookup workflow integration', () => {
             output: { found: true, source: 'local_database', data: [{ brand_id: 7, brand_name: 'Example' }] },
           },
         ],
-      } as Awaited<ReturnType<typeof $agent_product_brand_lookup.generateText>>)
-      expect(await agent_product_brand_lookup('Find this brand', signal)).toEqual({
+      } as Awaited<ReturnType<typeof $agent_detective.generateText>>)
+      expect(await agent_detective('Find this brand', signal)).toEqual({
         success: true,
         data: {
+          status: 'identified',
           query_type: 'brand',
           found: true,
+          subject: { type: 'brand', source: 'local_database', brand_id: 7, name: 'Example' },
+          selection: { required: false, options: [], total_options: 0 },
+          related_products: { relation: 'none', items: [], total: 0, page: 1, page_size: 0, has_more: false },
           sources_checked: ['local_database'],
-          products: [],
-          brands: [{ source: 'local_database', brand_id: 7, name: 'Example' }],
-          message: 'Found 1 brand.',
+          message: 'Identified the Example brand.',
         },
       })
       expect(generate.mock.calls[0]![1]?.output).toBeUndefined()
@@ -47,8 +49,8 @@ describe('Product-brand lookup workflow integration', () => {
 
       generate.mockResolvedValue({
         toolResults: [{ toolName: 'tool_product_lookup_brand_by_name', output: { found: true, source: 'local_database', data: [] } }],
-      } as Awaited<ReturnType<typeof $agent_product_brand_lookup.generateText>>)
-      expect((await agent_product_brand_lookup('Find this brand', signal)).success).toBe(false)
+      } as Awaited<ReturnType<typeof $agent_detective.generateText>>)
+      expect((await agent_detective('Find this brand', signal)).success).toBe(false)
     } finally {
       generate.mockRestore()
     }
@@ -56,18 +58,18 @@ describe('Product-brand lookup workflow integration', () => {
 
   it('does not start a cancelled lookup and discards a result arriving after cancellation', async () => {
     const controller = new AbortController()
-    const generate = spyOn($agent_product_brand_lookup, 'generateText')
+    const generate = spyOn($agent_detective, 'generateText')
     try {
       controller.abort()
-      expect((await agent_product_brand_lookup('Find this brand', controller.signal)).success).toBe(false)
+      expect((await agent_detective('Find this brand', controller.signal)).success).toBe(false)
       expect(generate).not.toHaveBeenCalled()
 
       const late = new AbortController()
       generate.mockImplementation(async () => {
         late.abort()
-        return { toolResults: [] } as unknown as Awaited<ReturnType<typeof $agent_product_brand_lookup.generateText>>
+        return { toolResults: [] } as unknown as Awaited<ReturnType<typeof $agent_detective.generateText>>
       })
-      expect((await agent_product_brand_lookup('Find this brand', late.signal)).success).toBe(false)
+      expect((await agent_detective('Find this brand', late.signal)).success).toBe(false)
     } finally {
       generate.mockRestore()
     }
@@ -75,13 +77,13 @@ describe('Product-brand lookup workflow integration', () => {
 
   it('does not accept a successful-looking answer after a tool failure', async () => {
     const error = new Error('Lookup failed')
-    const generate = spyOn($agent_product_brand_lookup, 'generateText').mockImplementation(async (_message, options) => {
+    const generate = spyOn($agent_detective, 'generateText').mockImplementation(async (_message, options) => {
       const on_error = options!.hooks!.onToolError!
       await on_error({ originalError: error } as Parameters<typeof on_error>[0])
-      return { toolResults: [] } as unknown as Awaited<ReturnType<typeof $agent_product_brand_lookup.generateText>>
+      return { toolResults: [] } as unknown as Awaited<ReturnType<typeof $agent_detective.generateText>>
     })
     try {
-      expect(await agent_product_brand_lookup('Find this product')).toEqual({ success: false, data: error })
+      expect(await agent_detective('Find this product')).toEqual({ success: false, data: error })
     } finally {
       generate.mockRestore()
     }
@@ -127,6 +129,8 @@ describe('Product-brand lookup workflow integration', () => {
     try {
       expect(await lookup.execute!({ barcode: '1234567890' })).toEqual({
         found: true,
+        available: true,
+        issue: null,
         source: 'open_food_facts',
         data: { product_name: 'Untrusted name' },
       })
@@ -139,10 +143,77 @@ describe('Product-brand lookup workflow integration', () => {
       await expect(lookup.execute!({ barcode: '1234567890' }) as Promise<unknown>).rejects.toThrow('Bait Tester is not implemented')
 
       provider.mockResolvedValue(null)
-      expect(await lookup.execute!({ barcode: '1234567890' })).toEqual({ found: false, source: 'open_food_facts', data: null })
+      expect(await lookup.execute!({ barcode: '1234567890' })).toEqual({
+        found: false,
+        available: true,
+        issue: null,
+        source: 'open_food_facts',
+        data: null,
+      })
       expect(inspect).toHaveBeenCalledTimes(3)
     } finally {
       provider.mockRestore()
+    }
+  })
+
+  it('inspects and validates external product-name and brand-name search results', async () => {
+    const products = [
+      { product_barcode: '5449000054227', product_name: 'Coca-Cola Original Taste', product_brand_name: 'Coca-Cola' },
+      { product_barcode: '5449000131805', product_name: 'Coca-Cola Zero Sugar', product_brand_name: 'Coca-Cola' },
+    ]
+    const search_products = spyOn(service_product_provider, 'search_by_product_name').mockResolvedValue({
+      products,
+      total: 2238,
+      page: 1,
+      page_size: 5,
+    } as Awaited<ReturnType<typeof service_product_provider.search_by_product_name>>)
+    const search_brand = spyOn(service_product_provider, 'search_by_brand_name').mockResolvedValue({
+      brand_name: 'Coca-Cola',
+      products,
+      total: 2238,
+      page: 1,
+      page_size: 5,
+    } as Awaited<ReturnType<typeof service_product_provider.search_by_brand_name>>)
+    const inspect = mock(async (text: string) => text)
+    const toolkit = create_product_lookup_toolkit({ use_tool: async (call) => await call(), inspect_content: inspect })
+
+    try {
+      expect(await lookup_tool(toolkit, 4).execute!({ product_name: 'Coca Cola' })).toEqual({
+        found: true,
+        available: true,
+        issue: null,
+        source: 'open_food_facts',
+        data: { products, total: 2238, page: 1, page_size: 5 },
+      })
+      expect(await lookup_tool(toolkit, 5).execute!({ brand_name: 'Coca Cola' })).toEqual({
+        found: true,
+        available: true,
+        issue: null,
+        source: 'open_food_facts',
+        data: { brand_name: 'Coca-Cola', products, total: 2238, page: 1, page_size: 5 },
+      })
+      expect(search_products).toHaveBeenCalledWith({ product_name: 'Coca Cola', take: 5, page: 1 }, undefined)
+      expect(search_brand).toHaveBeenCalledWith({ brand_name: 'Coca Cola', take: 5, page: 1 }, undefined)
+      expect(inspect).toHaveBeenCalledTimes(2)
+    } finally {
+      search_products.mockRestore()
+      search_brand.mockRestore()
+    }
+  })
+
+  it('returns a structured unavailable result instead of throwing provider outages', async () => {
+    const unavailable = Object.assign(new Error('private upstream details'), { code: 'open-food-facts-unavailable' })
+    const search_brand = spyOn(service_product_provider, 'search_by_brand_name').mockRejectedValue(unavailable)
+    try {
+      expect(await lookup_tool(toolkit_product_lookup, 5).execute!({ brand_name: 'Coca Cola' })).toEqual({
+        found: false,
+        available: false,
+        issue: 'temporarily_unavailable',
+        source: 'open_food_facts',
+        data: null,
+      })
+    } finally {
+      search_brand.mockRestore()
     }
   })
 })

@@ -78,7 +78,7 @@ export interface ConsumerWorkflowDefinition {
 export const consumer_workflow_definition = {
   workflow_name: 'consumer_product_analysis',
   implementation_status:
-    'Workflow scaffold: Bodyguard, Conductor and Dispatcher are implemented. Parallel specialist stages, sequential gates, candidate review and response repair are wired with replaceable placeholders. Missing agents never produce findings or successful checks.',
+    'Workflow scaffold: Bodyguard, Conductor, Dispatcher, Detective, on-demand Bait Tester and Investigator are implemented and connected. Remaining specialist stages, sequential gates, candidate review and response repair use replaceable placeholders. Missing agents never produce findings or successful checks.',
   design: {
     supervisor: 'Conductor',
     principle: 'Integrate all 16 roles, but execute only the specialists required for each request.',
