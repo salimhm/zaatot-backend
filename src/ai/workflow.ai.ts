@@ -50,8 +50,9 @@ const default_dependency: consumer_dependency = {
       })
       if (!result.success) throw new Error('Detective lookup failed', { cause: result.data })
 
-      const output = schema_agent_detective.parse(result.data)
-      const resolved = output.status === 'identified'
+
+      const output = schema_agent_product_brand_lookup.parse(result.data)
+      const resolved = output.found && output.query_type !== 'unknown'
       return {
         status: resolved ? 'completed' : 'needs_input',
         output,
