@@ -58,6 +58,30 @@ export const schema_agent_dispatcher_draft = z.object({
     .describe('Alternatives require identity resolution, applicable specialists, Skeptic, Referee and Coach when selected'),
 })
 
+export type type_schema_agent_dispatcher_draft = z.infer<typeof schema_agent_dispatcher_draft>
+
+export const normalize_dispatcher_plan = (draft: type_schema_agent_dispatcher_draft): type_schema_agent_dispatcher_draft => {
+  const has_detective = draft.selected_agents.some((step) => step.agent === 'Detective')
+  const has_investigator = draft.selected_agents.some((step) => step.agent === 'Investigator')
+  if (!has_detective || has_investigator) return draft
+
+  const selected_agents = draft.selected_agents.flatMap((step) => {
+    const normalized =
+      step.agent === 'Skeptic' && !step.depends_on.includes('Investigator')
+        ? { ...step, depends_on: [...step.depends_on, 'Investigator' as const] }
+        : step
+    return step.agent === 'Detective'
+      ? [normalized, { agent: 'Investigator' as const, depends_on: ['Detective' as const], run_when: 'always' as const }]
+      : [normalized]
+  })
+
+  return {
+    ...draft,
+    selected_agents,
+    required_checks: draft.required_checks.includes('ethics') ? [...draft.required_checks] : [...draft.required_checks, 'ethics'],
+  }
+}
+
 export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine((plan, context) => {
   const names = plan.selected_agents.map((step) => step.agent)
   const has = (name: (typeof enum_dispatcher_agent)[number]) => names.includes(name)
@@ -65,7 +89,7 @@ export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine
 
   if (new Set(names).size !== names.length) reject('Each agent must be selected only once')
   if (new Set(plan.required_checks).size !== plan.required_checks.length) reject('Required checks must be unique')
-  for (const agent of ['Detective', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'] as const) {
+  for (const agent of ['Detective', 'Investigator', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'] as const) {
     if (!has(agent)) reject(`${agent} is required for an analysis plan`)
   }
 

@@ -13,13 +13,16 @@ export interface ElysiaJWT {
   verify: (jwt?: string, options?: Record<string, unknown>) => Promise<Record<string, unknown> | string | false | null>
 }
 
-export const apply_security_headers = ({ set }: Pick<Context, 'set'>): void => {
+export const apply_security_headers = ({ set, request }: Pick<Context, 'set' | 'request'>): void => {
   set.headers['X-Content-Type-Options'] = 'nosniff'
   set.headers['X-Frame-Options'] = 'DENY'
   set.headers['X-XSS-Protection'] = '1; mode=block'
   set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
   set.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
-  set.headers['Content-Security-Policy'] = "default-src 'none'; frame-ancestors 'none';"
+  const ai_test = process.env.ENV === 'dev' && new URL(request.url).pathname.startsWith('/ai/test')
+  set.headers['Content-Security-Policy'] = ai_test
+    ? "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; connect-src 'self'; script-src 'self'; style-src 'self'"
+    : "default-src 'none'; frame-ancestors 'none';"
   set.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
   set.headers['Cross-Origin-Resource-Policy'] = 'same-origin'
   set.headers['Cross-Origin-Opener-Policy'] = 'same-origin'

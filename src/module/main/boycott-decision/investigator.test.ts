@@ -1,3 +1,4 @@
+import type { ai_tool_activity } from '@ai/runtime.ai'
 import type { Static } from 'elysia'
 
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
@@ -136,6 +137,7 @@ describe('Investigator agent', () => {
     if (!result.success) return
     expect(result.data.status).toBe('evidence_found')
     expect(result.data.checks[0]?.citations[0]?.url).toBe('https://example.org/evidence')
+    expect(result.data.limitations).not.toContain('No matching evidence is not proof that a brand is safe.')
     expect(result.data.analysis_draft).toBeNull()
   })
 
@@ -150,8 +152,8 @@ describe('Investigator agent', () => {
 
   it('uses the workflow tool budget, signal and Bait Tester for provider evidence', async () => {
     const signal = new AbortController().signal
-    const use_tool_spy = mock(async (call: () => Promise<unknown>) => await call())
-    const use_tool = async <T>(call: () => Promise<T>): Promise<T> => (await use_tool_spy(call)) as T
+    const use_tool_spy = mock(async (call: () => Promise<unknown>, _activity?: ai_tool_activity) => await call())
+    const use_tool = async <T>(call: () => Promise<T>, activity?: ai_tool_activity): Promise<T> => (await use_tool_spy(call, activity)) as T
     const inspect_content = mock(async (text: string) => text)
 
     const result = await agent_investigator(
@@ -161,6 +163,7 @@ describe('Investigator agent', () => {
 
     expect(result.success).toBe(true)
     expect(use_tool_spy).toHaveBeenCalledTimes(2)
+    expect(use_tool_spy.mock.calls.map((call) => call[1]?.title)).toEqual(['Checking local boycott knowledge', 'Checking Boycat evidence'])
     expect(service_boycott_provider.decide).toHaveBeenCalledWith({ provider: 'boycat', brand_name: 'Example Brand' }, signal)
     expect(inspect_content).toHaveBeenCalledWith(JSON.stringify(boycat_not_found))
   })

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Ztroop · Workflow test</title>
+    <link rel="stylesheet" href="/ai/test.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="/ai/test" aria-label="Ztroop workflow test home">
+        <span class="wordmark-mark" aria-hidden="true">Z</span>
+        <span>Ztroop</span>
+      </a>
+      <p>Agent workflow test</p>
+    </header>
+
+    <main>
+      <section class="query-section" aria-labelledby="query-title">
+        <div class="query-intro">
+          <p class="eyebrow">Temporary testing surface</p>
+          <h1 id="query-title">Ask about a product or brand.</h1>
+          <p class="lede">Run the current Detective and Investigator workflow, then inspect its evidence and limitations.</p>
+        </div>
+
+        <form id="analysis-form" class="analysis-form">
+          <label for="prompt">Question</label>
+          <div class="prompt-row">
+            <textarea id="prompt" name="prompt" rows="2" required maxlength="4000" placeholder="Give me info about Coca-Cola"></textarea>
+            <button id="submit-button" type="submit">
+              <span>Analyze</span>
+              <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+
+          <div class="examples" aria-label="Example questions">
+            <span>Try</span>
+            <button type="button" data-prompt="Give me info about Coca-Cola">Coca-Cola</button>
+            <button type="button" data-prompt="Give me info about Hawai">Hawai</button>
+            <button type="button" data-prompt="Give me info about barcode 5449000054227">Barcode 5449000054227</button>
+          </div>
+
+          <details class="credentials">
+            <summary>API credentials</summary>
+            <div class="credential-fields">
+              <label for="user-id">User ID</label>
+              <input id="user-id" name="user_id" type="number" min="1" step="1" value="1" required />
+              <label for="token">Bearer token</label>
+              <input id="token" name="token" type="password" autocomplete="off" required placeholder="Paste an authenticated JWT" />
+            </div>
+            <p>The token stays in this page's memory and is not saved to browser storage.</p>
+          </details>
+        </form>
+      </section>
+
+      <section id="request-state" class="request-state" aria-live="polite">
+        <div id="idle-state" class="idle-state">
+          <span class="idle-rule" aria-hidden="true"></span>
+          <p>Your analyzed result will appear here.</p>
+        </div>
+
+        <div id="loading-state" class="loading-state" hidden>
+          <div class="loading-heading">
+            <span class="loading-orbit" aria-hidden="true"></span>
+            <div>
+              <strong>Analyzing the request</strong>
+              <p>Live workflow activity · <span id="elapsed-time">0s</span></p>
+            </div>
+          </div>
+          <ol id="live-step-list" class="workflow-step-list" aria-label="Live workflow steps"></ol>
+        </div>
+
+        <div id="error-state" class="error-state" hidden>
+          <p class="eyebrow">Request failed</p>
+          <h2>We couldn't complete this analysis.</h2>
+          <p id="error-message"></p>
+        </div>
+      </section>
+
+      <article id="result" class="result" hidden>
+        <header class="result-header">
+          <div>
+            <p id="subject-type" class="eyebrow"></p>
+            <h2 id="subject-name"></h2>
+            <p id="subject-meta" class="subject-meta"></p>
+          </div>
+          <span id="outcome-badge" class="outcome-badge"></span>
+        </header>
+
+        <div class="result-layout">
+          <div class="result-primary">
+            <section class="answer-section" aria-labelledby="answer-title">
+              <p id="answer-title" class="section-label">Ztroop answer</p>
+              <p id="answer-summary" class="answer-summary"></p>
+              <ol id="answer-reasons" class="reason-list"></ol>
+            </section>
+
+            <section id="sources-section" class="sources-section" aria-labelledby="sources-title">
+              <div class="section-heading">
+                <h3 id="sources-title">Sources</h3>
+                <span id="source-count"></span>
+              </div>
+              <ul id="source-list" class="source-list"></ul>
+            </section>
+          </div>
+
+          <aside class="result-context">
+            <details id="limitations-panel" open>
+              <summary>About this result <span id="limitation-count"></span></summary>
+              <ul id="limitation-list"></ul>
+            </details>
+
+            <details id="activity-panel" open>
+              <summary>Workflow activity <span id="activity-count"></span></summary>
+              <ol id="activity-list" class="workflow-step-list"></ol>
+            </details>
+          </aside>
+        </div>
+
+        <footer class="result-footer">
+          <span>Execution</span>
+          <code id="execution-id"></code>
+        </footer>
+      </article>
+    </main>
+
+    <script src="/ai/test.js" defer></script>
+  </body>
+</html>

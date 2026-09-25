@@ -1,3 +1,4 @@
+import type { ai_tool_activity } from '@ai/runtime.ai'
 import type { Tool, ToolSchema } from '@voltagent/core'
 import type { ZodType } from 'zod'
 
@@ -242,8 +243,26 @@ export const toolkit_product_lookup = createToolkit({
 })
 
 export type product_lookup_runtime = {
-  use_tool: <T>(call: () => Promise<T>) => Promise<T>
+  use_tool: <T>(call: () => Promise<T>, activity?: ai_tool_activity) => Promise<T>
   inspect_content: (text: string) => Promise<string>
+}
+
+function product_lookup_activity(tool_name: string, args: Record<string, unknown>): ai_tool_activity {
+  const query = String(args.barcode ?? args.product_name ?? args.brand_name ?? '').trim()
+  const detail = query ? `Searching for ${query}.` : undefined
+  if (tool_name === 'tool_product_lookup_local_by_barcode' || tool_name === 'tool_product_lookup_local_by_name') {
+    return { name: tool_name, title: 'Searching the local product catalog', detail }
+  }
+  if (tool_name === 'tool_product_lookup_brand_by_name') {
+    return { name: tool_name, title: 'Searching the local brand catalog', detail }
+  }
+  if (tool_name === 'tool_product_lookup_provider_by_brand_name') {
+    return { name: tool_name, title: 'Searching Open Food Facts by brand', detail }
+  }
+  if (tool_name === 'tool_product_lookup_provider_by_product_name') {
+    return { name: tool_name, title: 'Searching Open Food Facts by product', detail }
+  }
+  return { name: tool_name, title: 'Looking up the barcode in Open Food Facts', detail }
 }
 
 // Per-call wrappers keep each workflow's budget separate while reusing the existing tools.
@@ -254,14 +273,17 @@ export const create_product_lookup_toolkit = (runtime: product_lookup_runtime) =
       description: tool.description,
       parameters: tool.parameters,
       execute: async (args, options) =>
-        runtime.use_tool(async () => {
-          const output = await tool.execute!(args, options)
-          if (inspection_schema && output && typeof output === 'object' && 'found' in output && output.found === true && 'data' in output) {
-            const inspected = await runtime.inspect_content(JSON.stringify(output.data))
-            return { ...output, data: inspection_schema.parse(JSON.parse(inspected)) }
-          }
-          return output
-        }),
+        runtime.use_tool(
+          async () => {
+            const output = await tool.execute!(args, options)
+            if (inspection_schema && output && typeof output === 'object' && 'found' in output && output.found === true && 'data' in output) {
+              const inspected = await runtime.inspect_content(JSON.stringify(output.data))
+              return { ...output, data: inspection_schema.parse(JSON.parse(inspected)) }
+            }
+            return output
+          },
+          product_lookup_activity(tool.name, args as Record<string, unknown>),
+        ),
     })
 
   return createToolkit({

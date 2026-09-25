@@ -1,17 +1,23 @@
 import type { type_schema_agent_bodyguard } from '@agent/bodyguard/bodyguard.schema.agent'
 import type {
+  type_ai_workflow_step,
   type_schema_agent_conductor_input,
   type_schema_agent_conductor_plan,
   type_schema_agent_conductor_result,
 } from '@agent/conductor/conductor.schema.agent'
 import type { type_schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.schema.agent'
+import type { type_schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
+import type { ai_tool_activity } from '@ai/runtime.ai'
 
 import { z } from 'zod'
 
 import { run_workflow_step } from '@ai/runtime.ai'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
+import { schema_agent_detective } from '@agent/detective/detective.schema.agent'
+import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
 
 export type consumer_specialist_name = type_schema_agent_dispatcher['selected_agents'][number]['agent']
+export type consumer_event_reporter = (event: Omit<type_ai_workflow_step, 'sequence' | 'execution_id' | 'timestamp'>) => void
 
 // Adapters validate their own agent output before returning this workflow envelope.
 const schema_step_result = z.object({
@@ -33,7 +39,7 @@ export type consumer_specialist_input = {
   feedback?: consumer_step_result
   budgets: type_schema_agent_dispatcher['budgets']
   /** Adapters must wrap each real tool call to charge the shared budget. */
-  use_tool: <T>(call: () => Promise<T>) => Promise<T>
+  use_tool: <T>(call: () => Promise<T>, activity?: ai_tool_activity) => Promise<T>
   /** Inspect external free text before passing it to an agent. No private context is supplied. */
   inspect_content: (text: string) => Promise<string>
 }
@@ -68,6 +74,85 @@ const placeholder = (name: string): consumer_step_result => ({
   limitations: [`${name} is not implemented. Its required work has not been executed.`],
 })
 
+const readable_label = (value: string) => value.replaceAll('_', ' ')
+
+const valid_source_url = (...values: Array<string | null | undefined>): string | null => {
+  for (const value of values) {
+    if (!value) continue
+    try {
+      const url = new URL(value)
+      if (url.protocol === 'http:' || url.protocol === 'https:') return url.toString()
+    } catch {
+      // Ignore malformed provider URLs instead of invalidating the complete API response.
+    }
+  }
+  return null
+}
+
+const summarize_investigator = (output: type_schema_agent_investigator): string => {
+  const checks = output.checks.map((check) => {
+    const source = readable_label(check.source)
+    const entity = check.matched_entity?.name ?? output.subject.brand_name ?? 'the requested brand'
+    const decision = check.decision_status ? readable_label(check.decision_status) : 'no decision'
+    const confidence = check.confidence === null ? '' : `, ${check.confidence}% confidence`
+    const reason = check.reason ? ` ${check.reason}` : ''
+
+    if (check.status === 'matched') return `${source}: ${decision} for ${entity}${confidence}.${reason}`
+    return `${source}: ${readable_label(check.status)}.${reason}`
+  })
+
+  return [output.message, ...checks].join(' ')
+}
+
+const collect_investigator_sources = (output: type_schema_agent_investigator) => {
+  const sources: type_schema_agent_conductor_result['sources'] = []
+  const source_ids: string[] = []
+  const ids_by_key = new Map<string, string>()
+
+  for (const check of output.checks) {
+    for (const citation of check.citations) {
+      const url = valid_source_url(citation.url, citation.source_url)
+      const provider = citation.source_name.trim() || readable_label(check.source)
+      const key = `${provider}\u0000${url ?? citation.title ?? ''}`
+      let id = ids_by_key.get(key)
+      if (!id) {
+        id = `investigator-source-${sources.length + 1}`
+        ids_by_key.set(key, id)
+        sources.push({ id, provider, url, retrieved_at: output.checked_at })
+      }
+      if (!source_ids.includes(id)) source_ids.push(id)
+    }
+  }
+
+  return { sources, source_ids }
+}
+
+// TEMPORARY: replace this deterministic presenter when Storyteller/Gatekeeper are implemented.
+const build_temporary_explanation = (
+  subject: NonNullable<type_schema_agent_conductor_result['subject']>,
+  outcome: NonNullable<type_schema_agent_conductor_result['outcome']>,
+  investigator: type_schema_agent_investigator | null,
+  citation_ids: string[],
+): NonNullable<type_schema_agent_conductor_result['explanation']> => {
+  const summaries: Record<typeof outcome, string> = {
+    evidence_found: `Boycott-related evidence was found for ${subject.name} in the sources checked by Ztroop. This is sourced evidence rather than a final independent judgment.`,
+    no_matching_evidence: `No matching boycott-related evidence was found for ${subject.name} in the sources checked by Ztroop. This does not prove that the brand is safe.`,
+    needs_input: `More information is required before Ztroop can investigate ${subject.name}.`,
+    needs_review: `The evidence or identity associated with ${subject.name} requires review before drawing a conclusion.`,
+    unavailable: `Ztroop could not check every required evidence source for ${subject.name}. Try again later.`,
+  }
+  const reasons = [
+    ...new Set((investigator?.checks ?? []).filter((check) => check.status === 'matched' && check.reason).map((check) => check.reason as string)),
+  ].slice(0, 4)
+
+  return {
+    summary: summaries[outcome],
+    reasons,
+    tradeoffs: investigator?.limitations ?? [],
+    citation_ids,
+  }
+}
+
 // andAll returns an array. Merge only each branch's own additions, preserving the common input.
 export const merge_consumer_parallel = (branches: consumer_parallel_result[]): consumer_execution_data => {
   const first = branches[0]
@@ -79,7 +164,12 @@ export const merge_consumer_parallel = (branches: consumer_parallel_result[]): c
 }
 
 // One executor per request, sharing its deadline and counters across parallel branches and repairs.
-export const create_consumer_execution = (dependency: consumer_execution_dependency, parent_signal: AbortSignal, deadline_ms: number) => {
+export const create_consumer_execution = (
+  dependency: consumer_execution_dependency,
+  parent_signal: AbortSignal,
+  deadline_ms: number,
+  report_event: consumer_event_reporter = () => undefined,
+) => {
   let signal = parent_signal
   let execution_deadline = deadline_ms
   let tool_calls = 0
@@ -92,26 +182,102 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
     if (performance.now() >= execution_deadline) throw new DOMException('Workflow deadline exceeded', 'TimeoutError')
   }
 
-  const use_tool = async <T>(call: () => Promise<T>): Promise<T> => {
+  const use_tool = async <T>(call: () => Promise<T>, activity?: ai_tool_activity, agent: consumer_specialist_name | null = null): Promise<T> => {
     check_deadline()
     if (!budgets || tool_calls >= budgets.max_tool_calls) {
       budget_exhausted = true
       throw new Error('The shared workflow tool-call budget is exhausted')
     }
     tool_calls++
-    const result = await run_workflow_step(execution_id, 'tool', signal, call)
-    check_deadline()
-    return result
+    const step_id = crypto.randomUUID()
+    const started_at = performance.now()
+    const tool = activity?.name ?? 'workflow-tool'
+    const title = activity?.title ?? 'Calling a workflow tool'
+    report_event({
+      step_id,
+      type: 'tool.started',
+      agent,
+      status: 'running',
+      title,
+      detail: activity?.detail ?? null,
+      metadata: { tool, duration_ms: null },
+    })
+    try {
+      const result = await run_workflow_step(execution_id, tool, signal, call)
+      check_deadline()
+      const result_detail =
+        result && typeof result === 'object' && 'available' in result && result.available === false
+          ? 'The external source was unavailable.'
+          : result && typeof result === 'object' && 'found' in result
+            ? result.found === true
+              ? 'A matching record was found.'
+              : 'No matching record was found.'
+            : 'The tool call completed.'
+      report_event({
+        step_id,
+        type: 'tool.completed',
+        agent,
+        status: 'completed',
+        title,
+        detail: result_detail,
+        metadata: { tool, duration_ms: Math.round(performance.now() - started_at) },
+      })
+      return result
+    } catch (error) {
+      report_event({
+        step_id,
+        type: 'tool.failed',
+        agent,
+        status: 'error',
+        title,
+        detail: 'The tool call could not be completed.',
+        metadata: { tool, duration_ms: Math.round(performance.now() - started_at) },
+      })
+      throw error
+    }
   }
 
-  const inspect_content = async (text: string) => {
+  const inspect_content = async (text: string, consuming_agent: consumer_specialist_name | null = null) => {
     check_deadline()
     if (!dependency.bait_tester) throw new Error('Bait Tester is not implemented; external text cannot be consumed')
     const inspect = dependency.bait_tester
-    const result = await run_workflow_step(execution_id, 'bait-tester', signal, () => inspect(text, signal))
-    check_deadline()
-    if (result.usable !== true || typeof result.text !== 'string') throw new Error('Bait Tester did not approve this external text')
-    return result.text
+    const step_id = crypto.randomUUID()
+    const started_at = performance.now()
+    report_event({
+      step_id,
+      type: 'agent.started',
+      agent: 'Bait Tester',
+      status: 'running',
+      title: 'Inspecting external content',
+      detail: consuming_agent ? `Checking content before ${consuming_agent} uses it.` : 'Checking untrusted external content.',
+      metadata: { tool: null, duration_ms: null },
+    })
+    try {
+      const result = await run_workflow_step(execution_id, 'bait-tester', signal, () => inspect(text, signal))
+      check_deadline()
+      if (result.usable !== true || typeof result.text !== 'string') throw new Error('Bait Tester did not approve this external text')
+      report_event({
+        step_id,
+        type: 'agent.completed',
+        agent: 'Bait Tester',
+        status: 'completed',
+        title: 'External content approved',
+        detail: 'The retrieved content passed the isolation check.',
+        metadata: { tool: null, duration_ms: Math.round(performance.now() - started_at) },
+      })
+      return result.text
+    } catch (error) {
+      report_event({
+        step_id,
+        type: 'agent.failed',
+        agent: 'Bait Tester',
+        status: 'error',
+        title: 'External content rejected',
+        detail: 'The retrieved content could not be approved for downstream use.',
+        metadata: { tool: null, duration_ms: Math.round(performance.now() - started_at) },
+      })
+      throw error
+    }
   }
 
   const initialize = (data: Omit<consumer_execution_data, 'agent_results' | 'candidate_review'>): consumer_execution_data => {
@@ -127,30 +293,117 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
     return { ...data, agent_results: {}, candidate_review: null }
   }
 
-  const invoke = async (step: string, handler: consumer_specialist, input: consumer_specialist_input): Promise<consumer_step_result> => {
-    for (let attempt = 0; ; attempt++) {
-      check_deadline()
-      if (budget_exhausted) return { status: 'needs_review', output: null, limitations: ['The shared tool-call budget is exhausted.'] }
-      try {
-        const result = await run_workflow_step(input.execution_id, step, signal, async () => schema_step_result.parse(await handler(input, signal)))
+  const agent_title = (agent: consumer_specialist_name) => {
+    if (agent === 'Detective') return 'Looking up the product or brand'
+    if (agent === 'Investigator') return 'Investigating the resolved brand'
+    return `Running ${agent}`
+  }
+
+  const agent_completion = (agent: consumer_specialist_name, result: consumer_step_result) => {
+    if (agent === 'Detective') {
+      const output = schema_agent_detective.safeParse(result.output)
+      if (output.success && output.data.status === 'identified' && output.data.subject) {
+        return { title: `Identified ${output.data.subject.name}`, detail: output.data.message }
+      }
+      if (output.success) return { title: 'Product lookup finished', detail: output.data.message }
+    }
+    if (agent === 'Investigator') {
+      const output = schema_agent_investigator.safeParse(result.output)
+      if (output.success) {
+        const brand = output.data.subject.brand_name ?? 'the resolved brand'
+        const title = output.data.status === 'evidence_found' ? `Evidence found for ${brand}` : `Investigation finished for ${brand}`
+        return { title, detail: output.data.message }
+      }
+    }
+    return { title: `${agent} finished`, detail: result.limitations[0] ?? null }
+  }
+
+  const event_status = (status: consumer_step_result['status']): type_ai_workflow_step['status'] => {
+    if (status === 'repair_required') return 'needs_review'
+    if (status === 'not_implemented') return 'skipped'
+    return status
+  }
+
+  const invoke = async (
+    step: string,
+    handler: consumer_specialist,
+    input: consumer_specialist_input,
+    agent?: consumer_specialist_name,
+  ): Promise<consumer_step_result> => {
+    const step_id = crypto.randomUUID()
+    const started_at = performance.now()
+    if (agent) {
+      report_event({
+        step_id,
+        type: 'agent.started',
+        agent,
+        status: 'running',
+        title: agent_title(agent),
+        detail: agent === 'Detective' ? `Resolving “${input.prompt}”.` : null,
+        metadata: { tool: null, duration_ms: null },
+      })
+    }
+
+    try {
+      for (let attempt = 0; ; attempt++) {
         check_deadline()
-        if (budget_exhausted) return { status: 'needs_review', output: null, limitations: ['The shared tool-call budget is exhausted.'] }
-        return result
-      } catch (error) {
-        if (signal.aborted) throw error
-        check_deadline()
-        if (budget_exhausted || attempt >= (budgets?.max_retries ?? 0)) {
-          return {
-            status: 'needs_review',
-            output: null,
-            limitations: [budget_exhausted ? 'The shared tool-call budget is exhausted.' : 'The agent could not produce a validated result.'],
+        let result: consumer_step_result
+        if (budget_exhausted) {
+          result = { status: 'needs_review', output: null, limitations: ['The shared tool-call budget is exhausted.'] }
+        } else {
+          try {
+            result = await run_workflow_step(input.execution_id, step, signal, async () => schema_step_result.parse(await handler(input, signal)))
+            check_deadline()
+            if (budget_exhausted) {
+              result = { status: 'needs_review', output: null, limitations: ['The shared tool-call budget is exhausted.'] }
+            }
+          } catch (error) {
+            if (signal.aborted) throw error
+            check_deadline()
+            if (!budget_exhausted && attempt < (budgets?.max_retries ?? 0)) continue
+            result = {
+              status: 'needs_review',
+              output: null,
+              limitations: [budget_exhausted ? 'The shared tool-call budget is exhausted.' : 'The agent could not produce a validated result.'],
+            }
           }
         }
+
+        if (agent) {
+          const completion = agent_completion(agent, result)
+          report_event({
+            step_id,
+            type: 'agent.completed',
+            agent,
+            status: event_status(result.status),
+            title: completion.title,
+            detail: completion.detail,
+            metadata: { tool: null, duration_ms: Math.round(performance.now() - started_at) },
+          })
+        }
+        return result
       }
+    } catch (error) {
+      if (agent) {
+        report_event({
+          step_id,
+          type: 'agent.failed',
+          agent,
+          status: 'error',
+          title: `${agent} failed`,
+          detail: 'The agent could not complete its assigned work.',
+          metadata: { tool: null, duration_ms: Math.round(performance.now() - started_at) },
+        })
+      }
+      throw error
     }
   }
 
-  const input_for = (data: consumer_execution_data, required: consumer_specialist_name[]): consumer_specialist_input => {
+  const input_for = (
+    data: consumer_execution_data,
+    required: consumer_specialist_name[],
+    agent: consumer_specialist_name | null = null,
+  ): consumer_specialist_input => {
     if (!budgets) throw new Error('Specialist execution requires a Dispatcher plan')
     return {
       prompt: data.prompt,
@@ -162,8 +415,8 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
         timeout_ms: Math.max(0, Math.floor(execution_deadline - performance.now())),
         max_tool_calls: Math.max(0, budgets.max_tool_calls - tool_calls),
       },
-      use_tool,
-      inspect_content,
+      use_tool: (call, activity) => use_tool(call, activity, agent),
+      inspect_content: (text) => inspect_content(text, agent),
     }
   }
 
@@ -172,27 +425,41 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
     const step = data.dispatcher_plan?.selected_agents.find((selected) => selected.agent === agent)
     if (!step) return undefined
     const handler = dependency.specialists?.[agent]
-    if (!handler) return placeholder(agent)
+    // The workflow definition includes future slots, but only connected adapters
+    // participate in the current execution.
+    if (!handler) return undefined
 
     const permissions = data.agent_results['Vault Keeper']?.permissions
-    if (step.run_when === 'personalization_permitted' && permissions?.personalization !== true) {
-      return skipped('Vault Keeper has not permitted personalization.')
+    const report_skipped = (reason: string) => {
+      report_event({
+        step_id: crypto.randomUUID(),
+        type: 'agent.skipped',
+        agent,
+        status: 'skipped',
+        title: `${agent} skipped`,
+        detail: reason,
+        metadata: { tool: null, duration_ms: 0 },
+      })
+      return skipped(reason)
     }
-    if (step.run_when === 'history_permitted' && permissions?.history !== true) return skipped('Vault Keeper has not permitted history use.')
+    if (step.run_when === 'personalization_permitted' && permissions?.personalization !== true) {
+      return report_skipped('Vault Keeper has not permitted personalization.')
+    }
+    if (step.run_when === 'history_permitted' && permissions?.history !== true) return report_skipped('Vault Keeper has not permitted history use.')
     const unavailable = step.depends_on.filter((name) => data.agent_results[name]?.status !== 'completed')
-    if (unavailable.length) return skipped(`Required inputs are unavailable: ${unavailable.join(', ')}.`)
+    if (unavailable.length) return report_skipped(`Required inputs are unavailable: ${unavailable.join(', ')}.`)
     if (
       agent === 'Storyteller' &&
       data.dispatcher_plan?.candidate_validation === 'repeat_required_checks' &&
       data.candidate_review?.status !== 'completed'
     ) {
-      return skipped('Alternative candidates have not passed the required review.')
+      return report_skipped('Alternative candidates have not passed the required review.')
     }
 
-    const input = input_for(data, step.depends_on)
+    const input = input_for(data, step.depends_on, agent)
     if (agent === 'Vault Keeper') input.user_id = data.user_id
     if (feedback) input.feedback = feedback
-    const result = await invoke(agent.toLowerCase().replaceAll(' ', '-'), handler, input)
+    const result = await invoke(agent.toLowerCase().replaceAll(' ', '-'), handler, input, agent)
     // Only Vault Keeper can grant permissions; agent-local data stays internal until final review.
     if (agent !== 'Vault Keeper') delete result.permissions
     return result
@@ -215,6 +482,7 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
   const review_candidates = async (data: consumer_execution_data): Promise<consumer_execution_data> => {
     check_deadline()
     if (data.dispatcher_plan?.candidate_validation !== 'repeat_required_checks') return data
+    if (!dependency.specialists?.['Bargain Hunter']) return data
     if (data.agent_results['Bargain Hunter']?.status !== 'completed') {
       return { ...data, candidate_review: skipped('Alternative candidate retrieval has not completed.') }
     }
@@ -256,40 +524,105 @@ export const create_consumer_execution = (dependency: consumer_execution_depende
   const result = (data: consumer_execution_data): type_schema_agent_conductor_result => {
     check_deadline()
     const allowed = data.bodyguard.safe && data.bodyguard.action === 'allow'
-    const steps = Object.values(data.agent_results)
-    const incomplete = data.dispatcher_plan?.selected_agents.filter((step) => data.agent_results[step.agent]?.status !== 'completed') ?? []
-    const candidate_pending = data.dispatcher_plan?.candidate_validation === 'repeat_required_checks' && data.candidate_review?.status !== 'completed'
+    const selected_implemented = data.dispatcher_plan?.selected_agents.filter((step) => Boolean(dependency.specialists?.[step.agent])) ?? []
+    const steps = selected_implemented.flatMap((step) => {
+      const result = data.agent_results[step.agent]
+      return result ? [{ agent: step.agent, result }] : []
+    })
+    const incomplete = selected_implemented.filter((step) => data.agent_results[step.agent]?.status !== 'completed')
+    const candidate_pending =
+      Boolean(dependency.specialists?.['Bargain Hunter']) &&
+      data.dispatcher_plan?.candidate_validation === 'repeat_required_checks' &&
+      data.candidate_review?.status !== 'completed'
     const gatekeeper = data.agent_results.Gatekeeper
     if (allowed && incomplete.length === 0 && !candidate_pending && gatekeeper?.status === 'completed') {
       // The Gatekeeper adapter must return the complete validated API response as output.
       const approved = schema_agent_conductor_result.parse(gatekeeper.output)
       return { ...approved, execution_id: data.execution_id }
     }
-    const placeholders_only = steps.every((step) => step.status === 'not_implemented' || step.status === 'skipped')
+
+    const detective = schema_agent_detective.safeParse(data.agent_results.Detective?.output)
+    const investigator = schema_agent_investigator.safeParse(data.agent_results.Investigator?.output)
+    const investigator_sources = investigator.success ? collect_investigator_sources(investigator.data) : { sources: [], source_ids: [] }
+    const detective_subject = detective.success && detective.data.status === 'identified' ? detective.data.subject : null
+    const subject: type_schema_agent_conductor_result['subject'] = detective_subject?.name
+      ? {
+          type: detective_subject.type,
+          name: detective_subject.name,
+          barcode: detective_subject.type === 'product' ? detective_subject.barcode : null,
+          brand: detective_subject.type === 'brand' ? detective_subject.name : detective_subject.brand_name,
+        }
+      : null
+    const product =
+      subject?.type === 'product'
+        ? {
+            barcode: subject.barcode,
+            name: subject.name,
+            brand: subject.brand,
+          }
+        : null
+
+    let outcome: type_schema_agent_conductor_result['outcome'] = null
+    if (allowed && investigator.success) outcome = investigator.data.status
+    else if (allowed && detective.success && detective.data.status === 'unavailable') outcome = 'unavailable'
+    else if (allowed && detective.success && detective.data.status !== 'identified') outcome = 'needs_input'
+    else if (allowed && subject) outcome = 'needs_review'
+
+    const explanation =
+      subject && outcome
+        ? build_temporary_explanation(subject, outcome, investigator.success ? investigator.data : null, investigator_sources.source_ids)
+        : null
+
+    const assessment_status = (status: consumer_step_result['status']) => {
+      if (status === 'repair_required') return 'needs_review' as const
+      if (status === 'not_implemented') return 'skipped' as const
+      return status
+    }
+    const assessments = steps.map(({ agent, result }) => {
+      const summary =
+        agent === 'Detective' && detective.success
+          ? detective.data.message
+          : agent === 'Investigator' && investigator.success
+            ? summarize_investigator(investigator.data)
+            : (result.limitations[0] ?? `${agent} ${result.status}.`)
+      return {
+        agent,
+        status: assessment_status(result.status),
+        summary,
+        source_ids: agent === 'Investigator' ? investigator_sources.source_ids : [],
+        limitations: result.limitations,
+      }
+    })
+
     let status: type_schema_agent_conductor_result['status'] = 'needs_review'
     if (!allowed) status = data.bodyguard.action === 'human_review' ? 'needs_review' : 'blocked'
-    else if (steps.some((step) => step.status === 'blocked')) status = 'blocked'
-    else if (steps.some((step) => step.status === 'error')) status = 'error'
-    else if (steps.some((step) => step.status === 'needs_input')) status = 'needs_input'
-    else if (placeholders_only) status = 'partial'
+    else if (steps.some(({ result }) => result.status === 'blocked')) status = 'blocked'
+    else if (steps.some(({ result }) => result.status === 'error')) status = 'error'
+    else if (steps.some(({ result }) => result.status === 'needs_input')) status = 'needs_input'
+    else if (steps.some(({ result }) => result.status === 'needs_review' || result.status === 'repair_required')) status = 'needs_review'
+    else if (selected_implemented.length === 0) status = 'partial'
+    else if (incomplete.length > 0 || candidate_pending) status = 'needs_review'
+    else status = 'completed'
+
     return {
       execution_id: data.execution_id,
       status,
-      product: null,
-      assessments: [],
+      subject,
+      outcome,
+      product,
+      assessments,
       alternatives: [],
-      explanation: null,
-      sources: [],
+      explanation,
+      sources: investigator_sources.sources,
       limitations: !allowed
         ? ['The request did not pass the entry policy. No further agents were executed.']
         : [
-            ...(placeholders_only
-              ? ['Bodyguard, Conductor planning and Dispatcher planning ran. Selected specialist checks have not been executed.']
-              : []),
-            ...new Set(steps.flatMap((step) => step.limitations)),
+            ...(selected_implemented.length === 0 ? ['No implemented specialist was selected for this request.'] : []),
+            ...new Set(steps.flatMap(({ result }) => result.limitations)),
             ...(data.candidate_review?.limitations ?? []),
-            ...(incomplete.length ? [`Unresolved required agents: ${incomplete.map((step) => step.agent).join(', ')}.`] : []),
+            ...(incomplete.length ? [`Unresolved implemented agents: ${incomplete.map((step) => step.agent).join(', ')}.`] : []),
           ],
+      steps: [],
     }
   }
 

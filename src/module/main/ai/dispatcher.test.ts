@@ -1,5 +1,6 @@
-import { describe, expect, it, spyOn } from 'bun:test'
 import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
+
+import { describe, expect, it, spyOn } from 'bun:test'
 
 import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
 import { $agent_dispatcher, agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
@@ -9,12 +10,13 @@ function plan_fixture(): type_schema_agent_dispatcher {
   return {
     selected_agents: [
       { agent: 'Detective', depends_on: [], run_when: 'always' },
-      { agent: 'Skeptic', depends_on: ['Detective'], run_when: 'always' },
+      { agent: 'Investigator', depends_on: ['Detective'], run_when: 'always' },
+      { agent: 'Skeptic', depends_on: ['Detective', 'Investigator'], run_when: 'always' },
       { agent: 'Referee', depends_on: ['Skeptic'], run_when: 'always' },
       { agent: 'Storyteller', depends_on: ['Skeptic', 'Referee'], run_when: 'always' },
       { agent: 'Gatekeeper', depends_on: ['Storyteller'], run_when: 'always' },
     ],
-    required_checks: ['identity', 'evidence', 'hard_constraints', 'final_response'],
+    required_checks: ['identity', 'ethics', 'evidence', 'hard_constraints', 'final_response'],
     budgets: { ...dispatcher_budget_limit, max_alternative_candidates: 0, max_candidate_review_passes: 0 },
     untrusted_content_policy: 'bait_tester_before_consumption',
     candidate_validation: 'not_requested',
@@ -30,9 +32,9 @@ function input_fixture(): type_schema_agent_dispatcher_input {
 }
 
 describe('Dispatcher planning contract', () => {
-  it('accepts a general information plan without guessing private goals or selecting every specialist', () => {
+  it('requires brand investigation for a general information plan without selecting unrelated specialists', () => {
     const plan = schema_agent_dispatcher.parse(plan_fixture())
-    expect(plan.selected_agents.map((step) => step.agent)).toEqual(['Detective', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'])
+    expect(plan.selected_agents.map((step) => step.agent)).toEqual(['Detective', 'Investigator', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'])
   })
 
   it('permits independent selected specialists after identity resolution and waits for both before evidence review', () => {
@@ -52,7 +54,9 @@ describe('Dispatcher planning contract', () => {
     const plan = plan_fixture()
     expect(schema_agent_dispatcher.safeParse({ ...plan, selected_agents: plan.selected_agents.slice(0, -1) }).success).toBe(false)
     expect(schema_agent_dispatcher.safeParse({ ...plan, selected_agents: [...plan.selected_agents, plan.selected_agents[0]] }).success).toBe(false)
-    expect(schema_agent_dispatcher.safeParse({ ...plan, required_checks: [...plan.required_checks, 'ethics'] }).success).toBe(false)
+    expect(schema_agent_dispatcher.safeParse({ ...plan, required_checks: plan.required_checks.filter((check) => check !== 'ethics') }).success).toBe(
+      false,
+    )
   })
 
   it('rejects self-dependencies, missing dependencies and review before evidence checks', () => {

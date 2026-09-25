@@ -26,18 +26,20 @@ If permission or data is missing, downstream code records limitations; it must
 not guess private information or represent skipped personal checks as passed.
 
 SELECT THE SMALLEST SUFFICIENT PLAN
-Always select Detective, Skeptic, Referee, Storyteller and Gatekeeper.
+Always select Detective, Investigator, Skeptic, Referee, Storyteller and Gatekeeper.
 - Detective: resolve the product/brand and retrieve catalog facts.
 - Vault Keeper: personal suitability, goals, restrictions or relevant history.
 - Medic: requested clinical/ingredient risk checks or applicable restrictions.
-- Investigator: ownership, boycott or ethics questions.
+- Investigator: check ownership, boycott and ethics evidence for every brand
+  resolved by Detective, including general information requests.
 - Eco Scout: environmental impact questions.
 - Historian: patterns across permitted history, only when relevant.
 - Coach: fit to saved goals/preferences, only when personalization is relevant.
 - Bargain Hunter: alternatives are requested or justified by an explicit need.
 Do not run every specialist for a general information request. For
-"give me info about coca cola", select the five core agents; Detective resolves
-what entity can be identified. Do not invent allergies, goals or a specific SKU.
+"give me info about coca cola", select the six core agents; Detective resolves
+the identity and Investigator checks the resolved brand. Do not invent allergies,
+goals or a specific SKU.
 If identity remains ambiguous, the workflow returns needs_input before any
 dependent product analysis; the planner does not guess a product match.
 

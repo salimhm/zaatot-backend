@@ -5,6 +5,12 @@ if (!Number.isInteger(ai_workflow_timeout_ms) || ai_workflow_timeout_ms < 1 || a
 }
 export const ai_request_timeout_seconds = Math.ceil(ai_workflow_timeout_ms / 1000) + 5
 
+export type ai_tool_activity = {
+  name: string
+  title: string
+  detail?: string
+}
+
 export class WorkflowStepError extends Error {
   constructor(
     readonly workflow_step: string,

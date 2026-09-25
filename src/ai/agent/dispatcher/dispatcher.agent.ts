@@ -6,7 +6,12 @@ import { Output } from 'ai'
 import { trusted_agent_generation_options } from '@ai/generation.ai'
 import { ai_google, ai_google_default_model } from '@ai/provider.ai'
 import { prompt_agent_dispatcher } from '@agent/dispatcher/dispatcher.prompt.agent'
-import { schema_agent_dispatcher, schema_agent_dispatcher_draft, schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
+import {
+  normalize_dispatcher_plan,
+  schema_agent_dispatcher,
+  schema_agent_dispatcher_draft,
+  schema_agent_dispatcher_input,
+} from '@agent/dispatcher/dispatcher.schema.agent'
 
 export const $agent_dispatcher = new Agent({
   name: 'Dispatcher',
@@ -37,14 +42,16 @@ export const agent_dispatcher = async (input: type_schema_agent_dispatcher_input
     }
     const alternatives_selected = draft.selected_agents.some((step) => step.agent === 'Bargain Hunter')
     // Unused alternative limits are not allocations. Never spend them without Bargain Hunter.
-    const plan = schema_agent_dispatcher.parse({
-      ...draft,
-      budgets: {
-        ...draft.budgets,
-        max_alternative_candidates: alternatives_selected ? draft.budgets.max_alternative_candidates : 0,
-        max_candidate_review_passes: alternatives_selected ? draft.budgets.max_candidate_review_passes : 0,
-      },
-    })
+    const plan = schema_agent_dispatcher.parse(
+      normalize_dispatcher_plan({
+        ...draft,
+        budgets: {
+          ...draft.budgets,
+          max_alternative_candidates: alternatives_selected ? draft.budgets.max_alternative_candidates : 0,
+          max_candidate_review_passes: alternatives_selected ? draft.budgets.max_candidate_review_passes : 0,
+        },
+      }),
+    )
     const remaining_ms = data.budget_limits.timeout_ms - Math.ceil(performance.now() - started_at)
     if (remaining_ms <= 0) throw new Error('Dispatcher exhausted the workflow deadline')
     plan.budgets.timeout_ms = Math.min(plan.budgets.timeout_ms, remaining_ms)

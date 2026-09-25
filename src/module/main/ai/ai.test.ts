@@ -1,7 +1,8 @@
-import { describe, expect, it, mock, spyOn } from 'bun:test'
 import type { type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 
 import { Elysia } from 'elysia'
+
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 
 import { ai_request_timeout_seconds, ai_workflow_timeout_ms } from '@ai/runtime.ai'
 import { run_consumer_workflow } from '@ai/workflow.ai'
@@ -20,19 +21,20 @@ function app_fixture() {
     dispatcher: mock(async (input: type_schema_agent_dispatcher_input) => ({
       selected_agents: [
         { agent: 'Detective', depends_on: [], run_when: 'always' },
-        { agent: 'Skeptic', depends_on: ['Detective'], run_when: 'always' },
+        { agent: 'Investigator', depends_on: ['Detective'], run_when: 'always' },
+        { agent: 'Skeptic', depends_on: ['Detective', 'Investigator'], run_when: 'always' },
         { agent: 'Referee', depends_on: ['Skeptic'], run_when: 'always' },
         { agent: 'Storyteller', depends_on: ['Skeptic', 'Referee'], run_when: 'always' },
         { agent: 'Gatekeeper', depends_on: ['Storyteller'], run_when: 'always' },
       ],
-      required_checks: ['identity', 'evidence', 'hard_constraints', 'final_response'],
+      required_checks: ['identity', 'ethics', 'evidence', 'hard_constraints', 'final_response'],
       budgets: { ...input.budget_limits, max_alternative_candidates: 0, max_candidate_review_passes: 0 },
       untrusted_content_policy: 'bait_tester_before_consumption',
       candidate_validation: 'not_requested',
     })),
   }
-  const analyze = mock<typeof service_ai.analyze>(async (body, _payload, signal) => ({
-    data: await run_consumer_workflow(body, { dependency, signal }),
+  const analyze = mock<typeof service_ai.analyze>(async (body, _payload, signal, on_step) => ({
+    data: await run_consumer_workflow(body, { dependency, signal, on_step }),
   }))
   const app = new Elysia()
     .onError(handle_error)
@@ -78,16 +80,59 @@ describe('AI HTTP boundary', () => {
     const data = schema_agent_conductor_result.parse(body.data)
     expect(data.status).toBe('partial')
     expect(Object.keys(body.data as object).sort()).toEqual(
-      ['execution_id', 'status', 'product', 'assessments', 'alternatives', 'explanation', 'sources', 'limitations'].sort(),
+      [
+        'execution_id',
+        'status',
+        'subject',
+        'outcome',
+        'product',
+        'assessments',
+        'alternatives',
+        'explanation',
+        'sources',
+        'limitations',
+        'steps',
+      ].sort(),
     )
+    expect(data.subject).toBeNull()
+    expect(data.outcome).toBeNull()
     expect(data.product).toBeNull()
     expect(data.assessments).toEqual([])
     expect(data.explanation).toBeNull()
+    expect(data.steps[0]).toMatchObject({ sequence: 1, type: 'workflow.started', status: 'running', title: 'Analysis started' })
+    expect(data.steps.at(-1)).toMatchObject({ type: 'workflow.completed', status: 'partial', title: 'Analysis finished' })
+    expect(data.steps.filter((step) => step.type === 'agent.completed').map((step) => step.agent)).toEqual(['Bodyguard', 'Conductor', 'Dispatcher'])
     expect(body.data).not.toHaveProperty('bodyguard')
     expect(body.data).not.toHaveProperty('conductor')
     expect(body.data).not.toHaveProperty('dispatcher_plan')
     expect(dependency.dispatcher).toHaveBeenCalledTimes(1)
     expect(analyze.mock.calls[0]?.[1].user_id).toBe(21)
+  })
+
+  it('streams ordered workflow steps and the final aggregate from the same endpoint', async () => {
+    const { app } = app_fixture()
+    const token = await (await app.handle(new Request('http://localhost/test-token'))).text()
+    const response = await app.handle(
+      new Request('http://localhost/ai/analyze', {
+        method: 'POST',
+        headers: {
+          Accept: 'text/event-stream',
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: 'Check this cereal', user_id: 21 }),
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toContain('text/event-stream')
+    const stream = await response.text()
+    expect(stream).toContain('event: step')
+    expect(stream).toContain('"type":"workflow.started"')
+    expect(stream).toContain('"type":"agent.started"')
+    expect(stream).toContain('"type":"workflow.completed"')
+    expect(stream).toContain('event: result')
+    expect(stream.indexOf('event: step')).toBeLessThan(stream.indexOf('event: result'))
   })
 
   it('serializes the final aggregate from multiple agents without requiring a Bodyguard result', async () => {
@@ -96,6 +141,8 @@ describe('AI HTTP boundary', () => {
     const result = schema_agent_conductor_result.parse({
       execution_id: crypto.randomUUID(),
       status: 'completed',
+      subject: { type: 'product', name: product.name, barcode: product.barcode, brand: product.brand },
+      outcome: 'evidence_found',
       product,
       assessments: [
         { agent: 'Medic', status: 'completed', summary: 'Contains oats.', source_ids: ['catalog'], limitations: [] },

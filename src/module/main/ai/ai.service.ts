@@ -1,3 +1,4 @@
+import type { type_ai_workflow_step } from '@agent/conductor/conductor.schema.agent'
 import type { lib_dto_payload } from '@lib/dto.lib'
 import type { Static } from 'elysia'
 
@@ -12,8 +13,9 @@ export const service_ai = {
     body: Static<typeof dto_ai.analyze.body>,
     payload: lib_dto_payload,
     signal?: AbortSignal,
+    on_step?: (event: type_ai_workflow_step) => void,
   ): Promise<Static<typeof dto_ai.analyze.response>> {
     if (!Number.isSafeInteger(payload.user_id) || payload.user_id <= 0 || body.user_id !== payload.user_id) throw lib_error.unauthorized
-    return { data: await run_consumer_workflow({ ...body, user_id: payload.user_id }, { signal }) }
+    return { data: await run_consumer_workflow({ ...body, user_id: payload.user_id }, { signal, on_step }) }
   },
 }

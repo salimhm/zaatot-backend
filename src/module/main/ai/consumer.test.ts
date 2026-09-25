@@ -1,7 +1,8 @@
-import { describe, expect, it, mock, spyOn } from 'bun:test'
 import type { type_schema_agent_bodyguard } from '@agent/bodyguard/bodyguard.schema.agent'
 import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 import type { consumer_dependency } from '@ai/workflow.ai'
+
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 
 import { run_consumer_workflow } from '@ai/workflow.ai'
 import { $agent_bait_tester } from '@agent/bait-tester/bait-tester.agent'
@@ -29,12 +30,13 @@ function dispatcher_plan_fixture(input: type_schema_agent_dispatcher_input): typ
   return {
     selected_agents: [
       { agent: 'Detective', depends_on: [], run_when: 'always' },
-      { agent: 'Skeptic', depends_on: ['Detective'], run_when: 'always' },
+      { agent: 'Investigator', depends_on: ['Detective'], run_when: 'always' },
+      { agent: 'Skeptic', depends_on: ['Detective', 'Investigator'], run_when: 'always' },
       { agent: 'Referee', depends_on: ['Skeptic'], run_when: 'always' },
       { agent: 'Storyteller', depends_on: ['Skeptic', 'Referee'], run_when: 'always' },
       { agent: 'Gatekeeper', depends_on: ['Storyteller'], run_when: 'always' },
     ],
-    required_checks: ['identity', 'evidence', 'hard_constraints', 'final_response'],
+    required_checks: ['identity', 'ethics', 'evidence', 'hard_constraints', 'final_response'],
     budgets: { ...input.budget_limits, max_alternative_candidates: 0, max_candidate_review_passes: 0 },
     untrusted_content_policy: 'bait_tester_before_consumption',
     candidate_validation: 'not_requested',
@@ -94,8 +96,7 @@ describe('Consumer workflow startup', () => {
     expect(result).not.toHaveProperty('dispatcher_plan')
     expect(result).not.toHaveProperty('selected_agents')
     expect(order).toEqual(['Bodyguard', 'Conductor', 'Dispatcher'])
-    expect(result.limitations.join(' ')).toContain('Dispatcher planning')
-    expect(result.limitations.join(' ')).toContain('have not been executed')
+    expect(result.limitations).toEqual(['No implemented specialist was selected for this request.'])
   })
 
   for (const decision of [
@@ -157,25 +158,57 @@ describe('Consumer workflow startup', () => {
       return { output: dispatcher_plan_fixture(input) } as Awaited<ReturnType<typeof $agent_dispatcher.generateText>>
     })
     const lookup = spyOn($agent_detective, 'generateText')
+    const local = spyOn(service_boycott_decision, 'decide').mockResolvedValue({
+      data: {
+        decision_status: 'unknown',
+        confidence: 0,
+        reason: 'No local match.',
+        matched_entity: null,
+        matched_path: [],
+        sources: [],
+        alternatives: [],
+      },
+    })
+    const provider_data = {
+      provider: 'boycat' as const,
+      provider_status: 'not_found' as const,
+      decision_status: 'unknown' as const,
+      confidence: 0,
+      reason: 'No Boycat match.',
+      matched_entity: null,
+      campaigns: [],
+      sources: [],
+      alternatives: [],
+    }
+    const provider = spyOn(service_boycott_provider, 'decide').mockResolvedValue({ data: provider_data })
+    const bait_tester = spyOn($agent_bait_tester, 'generateText').mockResolvedValue({
+      output: { safe: true, action: 'allow', risks: [], reason: 'Provider data is safe to consume.', confidence: 1 },
+    } as Awaited<ReturnType<typeof $agent_bait_tester.generateText>>)
     try {
       const cases = [
         {
           toolResults: [
-            { toolName: 'tool_product_lookup_local_by_barcode', output: { found: true, source: 'local_database', data: [{ product_name: 'Cola' }] } },
+            {
+              toolName: 'tool_product_lookup_local_by_barcode',
+              output: { found: true, source: 'local_database', data: [{ product_name: 'Cola', product_brand_name: 'Cola Brand' }] },
+            },
           ],
-          status: 'needs_review',
+          status: 'completed',
+          product_name: 'Cola',
         },
         {
           toolResults: [
             { toolName: 'tool_product_lookup_brand_by_name', output: { found: true, source: 'local_database', data: [{ brand_name: 'Example' }] } },
           ],
-          status: 'needs_review',
+          status: 'completed',
+          product_name: null,
         },
         {
           toolResults: [{ toolName: 'tool_product_lookup_local_by_barcode', output: { found: false, source: 'local_database', data: [] } }],
           status: 'needs_input',
+          product_name: null,
         },
-        { toolResults: [], status: 'needs_input' },
+        { toolResults: [], status: 'needs_input', product_name: null },
         {
           toolResults: [
             {
@@ -184,18 +217,19 @@ describe('Consumer workflow startup', () => {
             },
           ],
           status: 'needs_input',
+          product_name: null,
         },
       ] as const
-      for (const { toolResults, status } of cases) {
+      for (const { toolResults, status, product_name } of cases) {
         lookup.mockResolvedValue({ toolResults, text: 'Unreviewed lookup details' } as unknown as Awaited<
           ReturnType<typeof $agent_detective.generateText>
         >)
         const result = await run_consumer_workflow(request)
         expect(result.status).toBe(status)
-        expect(result.product).toBeNull()
-        expect(result.assessments).toEqual([])
+        expect(result.product?.name ?? null).toBe(product_name)
+        expect(result.assessments.map((assessment) => assessment.agent)).toEqual(['Detective', 'Investigator'])
         expect(result.limitations.join(' ')).not.toContain('Detective is not implemented')
-        expect(result.limitations.join(' ')).toContain('Gatekeeper is not implemented')
+        expect(result.limitations.join(' ')).not.toContain('Gatekeeper is not implemented')
         expect(JSON.stringify(result)).not.toContain('Unreviewed lookup details')
       }
       expect(bodyguard).toHaveBeenCalledTimes(cases.length)
@@ -216,6 +250,9 @@ describe('Consumer workflow startup', () => {
       conductor.mockRestore()
       dispatcher.mockRestore()
       lookup.mockRestore()
+      local.mockRestore()
+      provider.mockRestore()
+      bait_tester.mockRestore()
     }
   })
 
@@ -280,7 +317,8 @@ describe('Consumer workflow startup', () => {
         ],
       } as unknown as Awaited<ReturnType<typeof $agent_detective.generateText>>)
       const brand_result = await run_consumer_workflow({ ...request, prompt: 'Investigate Coca-Cola' })
-      expect(brand_result.status).toBe('needs_review')
+      expect(brand_result.status).toBe('completed')
+      expect(brand_result.assessments.map((assessment) => assessment.agent)).toEqual(['Detective', 'Investigator'])
       expect(brand_result.limitations.join(' ')).not.toContain('Investigator is not implemented')
       expect(local).toHaveBeenNthCalledWith(1, { product_brand_name: 'Coca-Cola', candidate_names: [] })
       expect(provider).toHaveBeenNthCalledWith(1, { provider: 'boycat', brand_name: 'Coca-Cola' }, expect.any(AbortSignal))
@@ -305,7 +343,12 @@ describe('Consumer workflow startup', () => {
         ],
       } as unknown as Awaited<ReturnType<typeof $agent_detective.generateText>>)
       const product_result = await run_consumer_workflow({ ...request, prompt: 'Investigate barcode 5449000054227' })
-      expect(product_result.status).toBe('needs_review')
+      expect(product_result.status).toBe('completed')
+      expect(product_result.product).toEqual({
+        barcode: '5449000054227',
+        name: 'Coca-Cola Original Taste',
+        brand: 'Coca-Cola',
+      })
       expect(local).toHaveBeenNthCalledWith(2, {
         product_brand_name: 'Coca-Cola',
         candidate_names: ['COCA-COLA SERVICES SA/NV'],

@@ -1,13 +1,14 @@
-import { describe, expect, it, mock } from 'bun:test'
 import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 import type { consumer_specialist, consumer_specialist_name, consumer_step_result } from '@ai/execution.ai'
 import type { consumer_dependency } from '@ai/workflow.ai'
+
+import { describe, expect, it, mock } from 'bun:test'
 
 import { run_consumer_workflow } from '@ai/workflow.ai'
 import { schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.schema.agent'
 
 const request = { prompt: 'Check this cereal and suggest an alternative', user_id: 7 }
-const core: consumer_specialist_name[] = ['Detective', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper']
+const core: consumer_specialist_name[] = ['Detective', 'Investigator', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper']
 const dependencies: Record<consumer_specialist_name, consumer_specialist_name[]> = {
   Detective: [],
   'Vault Keeper': [],
@@ -51,6 +52,8 @@ function fixture(selected = all) {
           return complete({
             execution_id: input.execution_id,
             status: 'completed',
+            subject: { type: 'product', name: 'Reviewed cereal', barcode: null, brand: null },
+            outcome: 'evidence_found',
             product: { barcode: null, name: 'Reviewed cereal', brand: null },
             assessments: [],
             alternatives: [],
@@ -94,7 +97,7 @@ function fixture(selected = all) {
 }
 
 describe('Consumer specialist workflow slots', () => {
-  it('keeps missing agents as placeholders without fabricating analysis or final approval', async () => {
+  it('ignores unavailable agent slots without reporting each future agent as a failure', async () => {
     const { dependency } = fixture()
     dependency.specialists = {}
     const result = await run_consumer_workflow(request, { dependency })
@@ -102,8 +105,115 @@ describe('Consumer specialist workflow slots', () => {
     expect(result.product).toBeNull()
     expect(result.assessments).toEqual([])
     expect(result.explanation).toBeNull()
-    for (const name of all) expect(result.limitations.join(' ')).toContain(`${name} is not implemented`)
+    expect(result.limitations).toEqual(['No implemented specialist was selected for this request.'])
+    expect(result.limitations.join(' ')).not.toContain('is not implemented')
     expect(result).not.toHaveProperty('agent_results')
+  })
+
+  it('returns validated Detective and Investigator results without waiting for future agents', async () => {
+    const { dependency, handlers } = fixture(core)
+    handlers.Detective.mockResolvedValue(
+      complete({
+        status: 'identified',
+        query_type: 'product',
+        found: true,
+        subject: {
+          type: 'product',
+          source: 'open_food_facts',
+          name: 'Coca-Cola Original Taste',
+          barcode: '5449000054227',
+          brand_name: 'Coca-Cola',
+          brand_candidates: ['Coca-Cola'],
+        },
+        selection: { required: false, options: [], total_options: 0 },
+        related_products: { relation: 'none', items: [], total: 0, page: 1, page_size: 0, has_more: false },
+        sources_checked: ['open_food_facts'],
+        message: 'Product identified.',
+      }),
+    )
+    handlers.Investigator.mockResolvedValue(
+      complete({
+        subject: {
+          brand_name: 'Coca-Cola',
+          brand_candidates: ['Coca-Cola'],
+          product_name: 'Coca-Cola Original Taste',
+        },
+        status: 'evidence_found',
+        checked_at: '2026-09-24T12:00:00.000Z',
+        checks: [
+          {
+            source: 'local_knowledge',
+            status: 'matched',
+            decision_status: 'boycott',
+            confidence: 100,
+            reason: 'Listed by a cited campaign guide.',
+            matched_entity: {
+              entity_type: 'brand',
+              name: 'Coca-Cola',
+              matched_name: 'Coca-Cola',
+              match_type: 'exact',
+              match_score: 100,
+            },
+            matched_path: ['input:Coca-Cola', 'brand:Coca-Cola'],
+            citations: [
+              {
+                source_name: 'Campaign guide',
+                source_url: 'https://example.org',
+                title: 'Brand evidence',
+                url: 'https://example.org/evidence/coca-cola',
+                quote: null,
+              },
+            ],
+          },
+        ],
+        limitations: ['checked_at records lookup time, not the publication date or freshness of the underlying evidence.'],
+        message: 'Sourced evidence was found; a separate review must assess its significance.',
+        analysis_draft: null,
+      }),
+    )
+    dependency.specialists = {
+      Detective: handlers.Detective,
+      Investigator: handlers.Investigator,
+    }
+
+    const result = await run_consumer_workflow(request, { dependency })
+
+    expect(result.status).toBe('completed')
+    expect(result.subject).toEqual({
+      type: 'product',
+      name: 'Coca-Cola Original Taste',
+      barcode: '5449000054227',
+      brand: 'Coca-Cola',
+    })
+    expect(result.outcome).toBe('evidence_found')
+    expect(result.product).toEqual({
+      barcode: '5449000054227',
+      name: 'Coca-Cola Original Taste',
+      brand: 'Coca-Cola',
+    })
+    expect(result.assessments.map((assessment) => assessment.agent)).toEqual(['Detective', 'Investigator'])
+    expect(result.assessments[1]?.summary).toContain('boycott for Coca-Cola, 100% confidence')
+    expect(result.assessments[1]?.source_ids).toEqual(['investigator-source-1'])
+    expect(result.explanation).toEqual({
+      summary:
+        'Boycott-related evidence was found for Coca-Cola Original Taste in the sources checked by Ztroop. This is sourced evidence rather than a final independent judgment.',
+      reasons: ['Listed by a cited campaign guide.'],
+      tradeoffs: ['checked_at records lookup time, not the publication date or freshness of the underlying evidence.'],
+      citation_ids: ['investigator-source-1'],
+    })
+    expect(result.sources).toEqual([
+      {
+        id: 'investigator-source-1',
+        provider: 'Campaign guide',
+        url: 'https://example.org/evidence/coca-cola',
+        retrieved_at: '2026-09-24T12:00:00.000Z',
+      },
+    ])
+    expect(result.limitations.join(' ')).not.toContain('is not implemented')
+    expect(handlers.Skeptic).not.toHaveBeenCalled()
+    expect(handlers.Referee).not.toHaveBeenCalled()
+    expect(handlers.Storyteller).not.toHaveBeenCalled()
+    expect(handlers.Gatekeeper).not.toHaveBeenCalled()
   })
 
   it('runs both parallel groups, merges every result, and preserves sequential gates', async () => {
@@ -149,12 +259,12 @@ describe('Consumer specialist workflow slots', () => {
     expect(JSON.stringify(result)).not.toContain('private-context')
   })
 
-  it('runs only selected agents and no candidate review for a general request', async () => {
+  it('runs the required investigation and no candidate review for a general request', async () => {
     const { dependency, handlers, candidate_review, calls } = fixture(core)
     const result = await run_consumer_workflow(request, { dependency })
     expect(result.status).toBe('completed')
     expect(calls).toEqual(core)
-    expect(handlers.Investigator).not.toHaveBeenCalled()
+    expect(handlers.Investigator).toHaveBeenCalledTimes(1)
     expect(handlers['Vault Keeper']).not.toHaveBeenCalled()
     expect(candidate_review).not.toHaveBeenCalled()
   })

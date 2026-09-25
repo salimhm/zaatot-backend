@@ -26,9 +26,47 @@ const schema_product = z.object({
   brand: z.string().nullable(),
 })
 
+const schema_subject = z.object({
+  type: z.enum(['product', 'brand']),
+  name: z.string().min(1),
+  barcode: z.string().nullable(),
+  brand: z.string().nullable(),
+})
+
+const schema_analysis_outcome = z.enum(['evidence_found', 'no_matching_evidence', 'needs_input', 'needs_review', 'unavailable'])
+
+export const schema_ai_workflow_step = z.object({
+  sequence: z.number().int().positive(),
+  step_id: z.string().min(1),
+  execution_id: z.string().uuid(),
+  timestamp: z.iso.datetime(),
+  type: z.enum([
+    'workflow.started',
+    'workflow.completed',
+    'workflow.failed',
+    'agent.started',
+    'agent.completed',
+    'agent.failed',
+    'agent.skipped',
+    'tool.started',
+    'tool.completed',
+    'tool.failed',
+  ]),
+  agent: z.enum(consumer_agent_names).nullable(),
+  status: z.enum(['running', 'completed', 'partial', 'blocked', 'needs_input', 'needs_review', 'error', 'skipped']),
+  title: z.string().min(1).max(200),
+  detail: z.string().min(1).max(1000).nullable(),
+  metadata: z.object({
+    tool: z.string().min(1).max(200).nullable(),
+    duration_ms: z.number().int().nonnegative().nullable(),
+  }),
+})
+
 export const schema_agent_conductor = z.object({
   execution_id: z.string().uuid(),
   status: z.enum(['completed', 'partial', 'blocked', 'needs_input', 'needs_review', 'error']),
+  subject: schema_subject.nullable().describe('Resolved product or brand identity for presentation, or null when unresolved'),
+  outcome: schema_analysis_outcome.nullable().describe('Analysis finding, separate from workflow execution status'),
   product: schema_product.nullable().describe('Product identity resolved by Detective, or null when unresolved'),
   assessments: z
     .array(
@@ -56,7 +94,7 @@ export const schema_agent_conductor = z.object({
       citation_ids: z.array(z.string()),
     })
     .nullable()
-    .describe('Storyteller explanation approved by Gatekeeper, or null before final review'),
+    .describe('Temporary deterministic explanation, later replaced by a Storyteller explanation approved by Gatekeeper'),
   sources: z.array(
     z.object({
       id: z.string(),
@@ -66,6 +104,7 @@ export const schema_agent_conductor = z.object({
     }),
   ),
   limitations: z.array(z.string()),
+  steps: z.array(schema_ai_workflow_step).default([]),
 })
 
 export const schema_agent_conductor_result = schema_agent_conductor
@@ -74,3 +113,4 @@ export type type_schema_agent_conductor = z.infer<typeof schema_agent_conductor>
 export type type_schema_agent_conductor_plan = z.infer<typeof schema_agent_conductor_plan>
 export type type_schema_agent_conductor_input = z.infer<typeof schema_agent_conductor_input>
 export type type_schema_agent_conductor_result = z.infer<typeof schema_agent_conductor_result>
+export type type_ai_workflow_step = z.infer<typeof schema_ai_workflow_step>

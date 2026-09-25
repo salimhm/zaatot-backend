@@ -1,3 +1,4 @@
+import type { ai_tool_activity } from '@ai/runtime.ai'
 import type { product_lookup_runtime } from '@tool/product-lookup/product-lookup.tool'
 import type { Toolkit } from '@voltagent/core'
 
@@ -92,10 +93,12 @@ describe('Detective workflow integration', () => {
   it('charges each tool call to its request budget without changing the shared toolkit', async () => {
     const find = spyOn(service_product, 'find').mockResolvedValue({ data: [], page: 1, take: 5, rows: 0, pages: 0 })
     let calls = 0
+    const activities: Array<ai_tool_activity | undefined> = []
     const runtime: product_lookup_runtime = {
-      use_tool: async (call) => {
+      use_tool: async (call, activity) => {
         if (calls >= 1) throw new Error('Budget exhausted')
         calls++
+        activities.push(activity)
         return await call()
       },
       inspect_content: mock(async (text) => text),
@@ -107,6 +110,11 @@ describe('Detective workflow integration', () => {
       const barcode = lookup_tool(toolkit, 0)
       const name = lookup_tool(toolkit, 1)
       expect(await barcode.execute!({ barcode: '1234567890' })).toEqual({ found: false, source: 'local_database', data: [] })
+      expect(activities[0]).toEqual({
+        name: 'tool_product_lookup_local_by_barcode',
+        title: 'Searching the local product catalog',
+        detail: 'Searching for 1234567890.',
+      })
       await expect(name.execute!({ product_name: 'Cereal' }) as Promise<unknown>).rejects.toThrow('Budget exhausted')
       expect(find).toHaveBeenCalledTimes(1)
       expect(runtime.inspect_content).not.toHaveBeenCalled()

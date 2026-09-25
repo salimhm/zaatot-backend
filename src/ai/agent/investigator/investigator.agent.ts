@@ -3,6 +3,7 @@ import type {
   type_query_agent_investigator,
   type_schema_agent_investigator,
 } from '@agent/investigator/investigator.schema.agent'
+import type { ai_tool_activity } from '@ai/runtime.ai'
 
 import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
@@ -25,7 +26,7 @@ type local_decision = Awaited<ReturnType<typeof service_boycott_decision.decide>
 type boycat_decision = Awaited<ReturnType<typeof service_boycott_provider.decide>>['data']
 
 export type investigator_runtime = {
-  use_tool: <T>(call: () => Promise<T>) => Promise<T>
+  use_tool: <T>(call: () => Promise<T>, activity?: ai_tool_activity) => Promise<T>
   inspect_content: (text: string) => Promise<string>
 }
 
@@ -179,11 +180,12 @@ function get_report_status(checks: investigator_check[]): type_schema_agent_inve
   return 'no_matching_evidence'
 }
 
-function get_report_limitations(checks: investigator_check[]): string[] {
-  const limitations = [
-    'No matching evidence is not proof that a brand is safe.',
-    'checked_at records lookup time, not the publication date or freshness of the underlying evidence.',
-  ]
+function get_report_limitations(checks: investigator_check[], status: type_schema_agent_investigator['status']): string[] {
+  const limitations = ['checked_at records lookup time, not the publication date or freshness of the underlying evidence.']
+
+  if (status === 'no_matching_evidence') {
+    limitations.unshift('No matching evidence is not proof that a brand is safe.')
+  }
 
   if (checks.some((check) => check.source === 'local_knowledge')) {
     limitations.push('Local knowledge is a limited curated seed, not a complete ownership or boycott registry.')
@@ -236,19 +238,25 @@ export const agent_investigator = async (
       }
     }
 
-    const run_tool = async <T>(call: () => Promise<T>) => {
+    const run_tool = async <T>(call: () => Promise<T>, activity: ai_tool_activity) => {
       options.signal?.throwIfAborted()
-      const result = options.runtime ? await options.runtime.use_tool(call) : await call()
+      const result = options.runtime ? await options.runtime.use_tool(call, activity) : await call()
       options.signal?.throwIfAborted()
       return result
     }
     let local_check: investigator_check
     try {
-      const result = await run_tool(() =>
-        service_boycott_decision.decide({
-          product_brand_name: primary_brand,
-          candidate_names: brand_candidates.slice(1),
-        }),
+      const result = await run_tool(
+        () =>
+          service_boycott_decision.decide({
+            product_brand_name: primary_brand,
+            candidate_names: brand_candidates.slice(1),
+          }),
+        {
+          name: 'service_boycott_decision.decide',
+          title: 'Checking local boycott knowledge',
+          detail: `Investigating ${primary_brand}.`,
+        },
       )
       local_check = normalize_local_decision(result.data)
     } catch {
@@ -261,10 +269,16 @@ export const agent_investigator = async (
     for (const brand_name of boycat_names) {
       let result: Awaited<ReturnType<typeof service_boycott_provider.decide>>
       try {
-        result = await run_tool(() =>
-          options.signal
-            ? service_boycott_provider.decide({ provider: 'boycat', brand_name }, options.signal)
-            : service_boycott_provider.decide({ provider: 'boycat', brand_name }),
+        result = await run_tool(
+          () =>
+            options.signal
+              ? service_boycott_provider.decide({ provider: 'boycat', brand_name }, options.signal)
+              : service_boycott_provider.decide({ provider: 'boycat', brand_name }),
+          {
+            name: 'service_boycott_provider.decide',
+            title: 'Checking Boycat evidence',
+            detail: `Investigating ${brand_name}.`,
+          },
         )
       } catch {
         options.signal?.throwIfAborted()
@@ -282,7 +296,7 @@ export const agent_investigator = async (
 
     const checks: investigator_check[] = [local_check, ...(boycat_checks.length > 0 ? boycat_checks : [unavailable_check('boycat')])]
     const status = get_report_status(checks)
-    const limitations = get_report_limitations(checks)
+    const limitations = get_report_limitations(checks, status)
     const message =
       status === 'evidence_found'
         ? 'Sourced evidence was found; a separate review must assess its significance.'

@@ -8,9 +8,45 @@ const product = t.Object({
   brand: t.Union([t.String(), t.Null()]),
 })
 
+const subject = t.Object({
+  type: t.UnionEnum(['product', 'brand']),
+  name: t.String({ minLength: 1 }),
+  barcode: t.Union([t.String(), t.Null()]),
+  brand: t.Union([t.String(), t.Null()]),
+})
+
+const workflow_step = t.Object({
+  sequence: t.Integer({ minimum: 1 }),
+  step_id: t.String({ minLength: 1 }),
+  execution_id: t.String({ format: 'uuid' }),
+  timestamp: t.String({ format: 'date-time' }),
+  type: t.UnionEnum([
+    'workflow.started',
+    'workflow.completed',
+    'workflow.failed',
+    'agent.started',
+    'agent.completed',
+    'agent.failed',
+    'agent.skipped',
+    'tool.started',
+    'tool.completed',
+    'tool.failed',
+  ]),
+  agent: t.Union([t.UnionEnum(consumer_agent_names), t.Null()]),
+  status: t.UnionEnum(['running', 'completed', 'partial', 'blocked', 'needs_input', 'needs_review', 'error', 'skipped']),
+  title: t.String({ minLength: 1, maxLength: 200 }),
+  detail: t.Union([t.String({ minLength: 1, maxLength: 1000 }), t.Null()]),
+  metadata: t.Object({
+    tool: t.Union([t.String({ minLength: 1, maxLength: 200 }), t.Null()]),
+    duration_ms: t.Union([t.Integer({ minimum: 0 }), t.Null()]),
+  }),
+})
+
 export const dto_schema_ai_result = t.Object({
   execution_id: t.String({ format: 'uuid' }),
   status: t.UnionEnum(['completed', 'partial', 'blocked', 'needs_input', 'needs_review', 'error']),
+  subject: t.Union([subject, t.Null()]),
+  outcome: t.Union([t.UnionEnum(['evidence_found', 'no_matching_evidence', 'needs_input', 'needs_review', 'unavailable']), t.Null()]),
   product: t.Union([product, t.Null()]),
   assessments: t.Array(
     t.Object({
@@ -35,6 +71,7 @@ export const dto_schema_ai_result = t.Object({
     }),
   ),
   limitations: t.Array(t.String()),
+  steps: t.Array(workflow_step),
 })
 
 export const dto_ai = {
