@@ -4,20 +4,22 @@ import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_google, ai_google_default_model } from '@ai/provider.ai'
+import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
 import { prompt_agent_dispatcher } from '@agent/dispatcher/dispatcher.prompt.agent'
 import {
   normalize_dispatcher_plan,
+  normalize_dispatcher_provider_draft,
   schema_agent_dispatcher,
   schema_agent_dispatcher_draft,
   schema_agent_dispatcher_input,
+  schema_agent_dispatcher_provider_draft,
 } from '@agent/dispatcher/dispatcher.schema.agent'
 
 export const $agent_dispatcher = new Agent({
   name: 'Dispatcher',
   purpose: 'Select required agents, dependencies and bounded execution budgets',
   instructions: prompt_agent_dispatcher,
-  model: ai_google(process.env.AI_DISPATCHER_MODEL || ai_google_default_model),
+  model: ai_groq(process.env.GROQ_DISPATCHER_MODEL || ai_groq_default_model),
   memory: false,
 })
 
@@ -30,13 +32,13 @@ export const agent_dispatcher = async (input: type_schema_agent_dispatcher_input
     const abort_signal = signal ? AbortSignal.any([signal, deadline]) : deadline
     const result = await $agent_dispatcher.generateText(JSON.stringify(data), {
       ...trusted_agent_generation_options,
-      output: Output.object({ schema: schema_agent_dispatcher_draft }),
+      output: Output.object({ schema: schema_agent_dispatcher_provider_draft }),
       temperature: 0,
       maxRetries: 0,
       abortSignal: abort_signal,
     })
     abort_signal.throwIfAborted()
-    const draft = schema_agent_dispatcher_draft.parse(result.output)
+    const draft = normalize_dispatcher_provider_draft(result.output)
     for (const key of Object.keys(data.budget_limits) as (keyof typeof data.budget_limits)[]) {
       if (draft.budgets[key] > data.budget_limits[key]) throw new Error(`Dispatcher exceeded the remaining ${key} budget`)
     }

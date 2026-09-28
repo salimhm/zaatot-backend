@@ -20,10 +20,45 @@ export const schema_agent_conductor_input = z.object({
   user_id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
 })
 
+const schema_product_nutrition = z.object({
+  variant: z.object({
+    barcode: z.string().regex(/^\d{6,64}$/),
+    name: z.string().nullable(),
+  }),
+  serving: z
+    .object({
+      value: z.number().positive(),
+      unit: z.string().min(1),
+    })
+    .nullable(),
+  nutrients: z.array(
+    z.object({
+      code: z.string().min(1),
+      value: z.number().nonnegative(),
+      unit: z.string().min(1),
+      basis: z.enum(['per_100g', 'per_100ml', 'per_serving']),
+    }),
+  ),
+  sources: z.array(
+    z.object({
+      provider: z.string().min(1),
+      url: z.url().nullable(),
+      retrieved_at: z.string().min(1),
+      fresh_until: z.string().min(1).nullable(),
+    }),
+  ),
+  completeness: z.object({
+    status: z.enum(['complete', 'partial', 'unavailable']),
+    complete: z.boolean(),
+    missing_nutrient_codes: z.array(z.string().min(1)),
+  }),
+})
+
 const schema_product = z.object({
   barcode: z.string().nullable(),
   name: z.string().min(1),
   brand: z.string().nullable(),
+  nutrition: schema_product_nutrition.nullable().default(null),
 })
 
 const schema_subject = z.object({

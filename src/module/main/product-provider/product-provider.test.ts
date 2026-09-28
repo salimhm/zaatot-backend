@@ -174,4 +174,64 @@ describe('Product Provider Service', () => {
     expect(result?.brand_name).toBe('Coca-Cola')
     expect(spy_fetch).toHaveBeenCalledTimes(3)
   })
+  it('returns nutrition only for the exact barcode variant with values, units, serving, sources, and completeness', async () => {
+    process.env.OPEN_FOOD_FACTS_USER_AGENT = 'test-agent'
+    spy_fetch.mockImplementation((() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            status: 1,
+            product: {
+              code: '5449000054227',
+              product_name: 'Coca-Cola Original Taste',
+              serving_quantity: 330,
+              serving_quantity_unit: 'ml',
+              nutriments: {
+                'energy-kcal_100ml': 42,
+                'energy-kcal_unit': 'kcal',
+                fat_100ml: 0,
+                fat_unit: 'g',
+                'saturated-fat_100ml': 0,
+                'saturated-fat_unit': 'g',
+                carbohydrates_100ml: 10.6,
+                carbohydrates_unit: 'g',
+                sugars_100ml: 10.6,
+                sugars_unit: 'g',
+                fiber_100ml: 0,
+                fiber_unit: 'g',
+                proteins_100ml: 0,
+                proteins_unit: 'g',
+                salt_100ml: 0,
+                salt_unit: 'g',
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      )) as any)
+
+    const result = await service_product_provider.fetch_by_barcode('5449000054227', undefined, true)
+
+    expect(result?.nutrition).toMatchObject({
+      variant: { product_barcode: '5449000054227', product_name: 'Coca-Cola Original Taste' },
+      serving: { value: 330, unit: 'ml' },
+      completeness: { status: 'complete', complete: true, missing_nutrient_codes: [] },
+      sources: [{ provider: 'Open Food Facts', url: 'https://world.openfoodfacts.org/product/5449000054227', fresh_until: null }],
+    })
+    expect(result?.nutrition?.nutrients).toEqual(
+      expect.arrayContaining([
+        { code: 'energy-kcal', value: 42, unit: 'kcal', basis: 'per_100ml' },
+        { code: 'sugars', value: 10.6, unit: 'g', basis: 'per_100ml' },
+      ]),
+    )
+  })
+
+  it('does not return nutrition for a provider record with a different barcode', async () => {
+    process.env.OPEN_FOOD_FACTS_USER_AGENT = 'test-agent'
+    spy_fetch.mockResolvedValue(
+      new Response(JSON.stringify({ status: 1, product: { code: '5449000054228', product_name: 'Different variant' } }), { status: 200 }),
+    )
+
+    expect(await service_product_provider.fetch_by_barcode('5449000054227', undefined, true)).toBeNull()
+  })
 })

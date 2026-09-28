@@ -127,6 +127,63 @@ describe('Detective workflow integration', () => {
     }
   })
 
+  it('retrieves and validates nutrition from local facts before using the provider fallback', async () => {
+    const nutrition = {
+      variant: { product_id: 1, product_barcode: '5449000054227', product_name: 'Coca-Cola Original Taste' },
+      serving: { value: 330, unit: 'ml' },
+      nutrients: [{ code: 'sugars', value: 10.6, unit: 'g', basis: 'per_100ml' as const }],
+      sources: [
+        {
+          provider: 'Zaatot Catalog',
+          url: 'https://catalog.example/products/5449000054227',
+          retrieved_at: '2026-09-28T10:00:00.000Z',
+          fresh_until: null,
+        },
+      ],
+      completeness: {
+        status: 'partial' as const,
+        complete: false,
+        missing_nutrient_codes: ['energy-kcal', 'fat', 'saturated-fat', 'carbohydrates', 'fiber', 'proteins', 'salt'],
+      },
+    }
+    const local = spyOn(service_product, 'find_nutrition_by_barcode').mockResolvedValue({ data: nutrition } as Awaited<
+      ReturnType<typeof service_product.find_nutrition_by_barcode>
+    >)
+    const provider = spyOn(service_product_provider, 'fetch_by_barcode')
+    const inspect = mock(async (text: string) => text)
+    const activities: Array<ai_tool_activity | undefined> = []
+    const toolkit = create_product_lookup_toolkit({
+      use_tool: async (call, activity) => {
+        activities.push(activity)
+        return await call()
+      },
+      inspect_content: inspect,
+    })
+
+    try {
+      expect(await lookup_tool(toolkit, 6).execute!({ barcode: '5449000054227' })).toEqual({
+        found: true,
+        available: true,
+        issue: null,
+        source: 'local_database',
+        data: nutrition,
+      })
+      expect(local).toHaveBeenCalledWith({ barcode: '5449000054227' })
+      expect(provider).not.toHaveBeenCalled()
+      expect(inspect).toHaveBeenCalledWith(JSON.stringify(nutrition))
+      expect(activities).toEqual([
+        {
+          name: 'tool_product_lookup_nutrition_by_barcode',
+          title: 'Retrieving product nutrition facts',
+          detail: 'Searching for 5449000054227.',
+        },
+      ])
+    } finally {
+      local.mockRestore()
+      provider.mockRestore()
+    }
+  })
+
   it('inspects external provider content before returning it and propagates inspection failures', async () => {
     const provider = spyOn(service_product_provider, 'fetch_by_barcode').mockResolvedValue({ product_name: 'Untrusted name' } as Awaited<
       ReturnType<typeof service_product_provider.fetch_by_barcode>

@@ -4,7 +4,7 @@ import type { product_lookup_runtime } from '@tool/product-lookup/product-lookup
 import { Agent } from '@voltagent/core'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_google, ai_google_default_model } from '@ai/provider.ai'
+import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
 import { prompt_agent_detective } from '@agent/detective/detective.prompt.agent'
 import { schema_agent_detective, schema_product_lookup_tool_result } from '@agent/detective/detective.schema.agent'
 import { create_product_lookup_toolkit, toolkit_product_lookup } from '@tool/product-lookup/product-lookup.tool'
@@ -14,7 +14,7 @@ export const $agent_detective = new Agent({
   name: 'Ztroop Detective',
   purpose: 'Resolve product and brand identities and retrieve factual catalog information',
   instructions: prompt_agent_detective,
-  model: ai_google(process.env.AI_DETECTIVE_MODEL || ai_google_default_model),
+  model: ai_groq(process.env.GROQ_DETECTIVE_MODEL || ai_groq_default_model),
   tools: [toolkit_product_lookup],
   memory: false,
 })
@@ -63,6 +63,7 @@ function canonical_product_brand(product: type_product_lookup_record, candidates
 function normalize_product(
   product: type_product_lookup_record,
   source: type_schema_agent_detective['sources_checked'][number],
+  nutrition: type_schema_agent_detective['related_products']['items'][number]['nutrition'] = null,
 ): type_schema_agent_detective['related_products']['items'][number] {
   const brand_candidates = product_brand_candidates(product)
   return {
@@ -79,6 +80,7 @@ function normalize_product(
     nutriscore: product.product_nutriscore ?? null,
     ingredients: product.product_metadata?.ingredients ?? null,
     allergens: product.product_metadata?.allergens ?? null,
+    nutrition: nutrition ?? product.nutrition ?? null,
   }
 }
 
@@ -94,6 +96,7 @@ export function normalize_detective_results(tool_results: unknown[] | undefined)
   const product_keys = new Set<string>()
   const product_candidate_keys = new Set<string>()
   const brand_keys = new Set<string>()
+  const nutrition_by_barcode = new Map<string, NonNullable<type_schema_agent_detective['related_products']['items'][number]['nutrition']>>()
   let searched_products = false
   let searched_brands = false
   let unavailable_issue: 'configuration' | 'temporarily_unavailable' | null = null
@@ -107,7 +110,10 @@ export function normalize_detective_results(tool_results: unknown[] | undefined)
     source: type_schema_agent_detective['sources_checked'][number],
     candidate: boolean,
   ) => {
-    const normalized = normalize_product(product, source)
+    const nutrition = product.product_barcode
+      ? (nutrition_by_barcode.get(product.product_barcode) ?? product.nutrition ?? null)
+      : (product.nutrition ?? null)
+    const normalized = normalize_product(product, source, nutrition)
     const key = product_key(normalized)
     if (!product_keys.has(key)) {
       product_keys.add(key)
@@ -147,13 +153,29 @@ export function normalize_detective_results(tool_results: unknown[] | undefined)
       raw_result.toolName !== 'tool_product_lookup_provider_by_barcode' &&
       raw_result.toolName !== 'tool_product_lookup_brand_by_name' &&
       raw_result.toolName !== 'tool_product_lookup_provider_by_product_name' &&
-      raw_result.toolName !== 'tool_product_lookup_provider_by_brand_name'
+      raw_result.toolName !== 'tool_product_lookup_provider_by_brand_name' &&
+      raw_result.toolName !== 'tool_product_lookup_nutrition_by_barcode'
     ) {
       continue
     }
 
     const result = schema_product_lookup_tool_result.parse(raw_result)
     sources_checked.add(result.output.source)
+
+    if (result.toolName === 'tool_product_lookup_nutrition_by_barcode') {
+      if (!result.output.available) {
+        unavailable_issue = result.output.issue
+        continue
+      }
+      if (result.output.found !== (result.output.data !== null)) throw new Error('Inconsistent nutrition lookup tool result')
+      if (result.output.data) {
+        nutrition_by_barcode.set(result.output.data.variant.product_barcode, result.output.data)
+        for (const product of products) {
+          if (product.barcode === result.output.data.variant.product_barcode) product.nutrition = result.output.data
+        }
+      }
+      continue
+    }
 
     if (result.toolName === 'tool_product_lookup_brand_by_name') {
       searched_brands = true

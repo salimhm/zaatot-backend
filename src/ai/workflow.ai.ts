@@ -4,7 +4,14 @@ import type {
   type_schema_agent_conductor_result,
 } from '@agent/conductor/conductor.schema.agent'
 import type { type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
-import type { consumer_event_reporter, consumer_execution_data, consumer_execution_dependency } from '@ai/execution.ai'
+import type {
+  consumer_backend_context,
+  consumer_event_reporter,
+  consumer_execution_data,
+  consumer_execution_dependency,
+  consumer_specialist_input,
+} from '@ai/execution.ai'
+import type { lib_dto_payload } from '@lib/dto.lib'
 
 import { andThen, createWorkflowChain } from '@voltagent/core'
 
@@ -27,6 +34,21 @@ import { agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
 import { normalize_dispatcher_plan, schema_agent_dispatcher, schema_agent_dispatcher_draft } from '@agent/dispatcher/dispatcher.schema.agent'
 import { agent_investigator } from '@agent/investigator/investigator.agent'
 import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
+import { schema_agent_medic, schema_agent_medic_workflow_input } from '@agent/medic/medic.schema.agent'
+import { dto_tool_medic_nutrition_assessor } from '@tool/medic-nutrition-assessor/medic-nutrition-assessor.dto.tool'
+import { tool_medic_nutrition_assessor } from '@tool/medic-nutrition-assessor/medic-nutrition-assessor.tool'
+import { dto_tool_medic_portion_calculator } from '@tool/medic-portion-calculator/medic-portion-calculator.dto.tool'
+import { extract_requested_medic_portion, tool_medic_portion_calculator } from '@tool/medic-portion-calculator/medic-portion-calculator.tool'
+import {
+  create_medic_restriction_checker_tool,
+  medic_missing_product_assessment,
+  medic_missing_profile_assessment,
+  medic_no_restrictions_assessment,
+} from '@tool/medic-restriction-checker/medic-restriction-checker.tool'
+import { dto_tool_vault_keeper_context, schema_tool_vault_keeper_context_profile } from '@tool/vault-keeper/vault-keeper-context.dto.tool'
+import { create_vault_keeper_context_tool } from '@tool/vault-keeper/vault-keeper-context.tool'
+
+import { lib_error } from '@lib/error.lib'
 
 export type consumer_dependency = consumer_execution_dependency & {
   bodyguard: (prompt: string, signal: AbortSignal) => Promise<unknown>
@@ -34,6 +56,237 @@ export type consumer_dependency = consumer_execution_dependency & {
   dispatcher: (input: type_schema_agent_dispatcher_input, signal: AbortSignal) => Promise<unknown>
 }
 
+export const adapter_vault_keeper = async (input: consumer_specialist_input, signal: AbortSignal, backend_context?: consumer_backend_context) => {
+  if (!backend_context) {
+    const missing_information = ['Verified authentication context is required to retrieve private product-fit context.']
+    return {
+      status: 'blocked' as const,
+      output: { profile: null, missing_information },
+      permissions: { personalization: false, history: false },
+      limitations: missing_information,
+    }
+  }
+
+  const tool = create_vault_keeper_context_tool(backend_context, { use_tool: input.use_tool })
+  const context = dto_tool_vault_keeper_context.result.parse(
+    await tool.execute!({ personalization: true, history: true }, { toolContext: { abortSignal: signal } as never }),
+  )
+  const missing_information = [
+    ...(context.permissions.personalization ? [] : ['A consented product-fit profile is unavailable for this request.']),
+    ...(context.permissions.history ? [] : ['Permission to use product-fit history is unavailable for this request.']),
+  ]
+
+  return {
+    status: 'completed' as const,
+    output: { profile: context.profile, missing_information },
+    permissions: context.permissions,
+    limitations: missing_information,
+  }
+}
+
+const unique_strings = (values: readonly string[]) => [...new Set(values)]
+
+export const adapter_medic = async (input: consumer_specialist_input, signal: AbortSignal) => {
+  signal.throwIfAborted()
+  const medic_checks = input.medic_checks ?? []
+  if (medic_checks.length === 0) {
+    const output = schema_agent_medic.parse({
+      status: 'insufficient_data',
+      mode: 'generic',
+      summary: 'Medic did not receive an explicit check scope from Dispatcher.',
+      checked_scope: [],
+      risk_flags: [],
+      required_restrictions: [],
+      missing_information: ['Dispatcher medic_checks scope'],
+      limitations: ['Medic did not run because its selected deterministic checks were not provided by the workflow plan.'],
+    })
+    return { status: 'needs_review' as const, output, limitations: output.limitations }
+  }
+
+  const detective = schema_agent_detective.safeParse(input.dependencies.Detective?.output)
+  if (!detective.success || detective.data.status !== 'identified' || !detective.data.subject) {
+    const output = medic_missing_product_assessment()
+    return { status: 'needs_input' as const, output, limitations: output.limitations }
+  }
+
+  const subject = detective.data.subject
+  if (subject.type !== 'product' || !subject.barcode) {
+    const output = medic_missing_product_assessment()
+    return { status: 'needs_input' as const, output, limitations: output.limitations }
+  }
+
+  const exact_product = detective.data.related_products.items.find((product) => product.barcode === subject.barcode)
+  const product = exact_product ?? {
+    source: subject.source,
+    product_id: null,
+    barcode: subject.barcode,
+    type: null,
+    name: subject.name,
+    brand_name: subject.brand_name,
+    brand_candidates: subject.brand_candidates,
+    images: [],
+    nova_group: null,
+    ecoscore: null,
+    nutriscore: null,
+    ingredients: null,
+    allergens: null,
+    nutrition: null,
+  }
+
+  const vault = input.dependencies['Vault Keeper']
+  const vault_output = vault?.output
+  const released_profile =
+    vault?.permissions?.personalization === true && vault_output && typeof vault_output === 'object' && 'profile' in vault_output
+      ? schema_tool_vault_keeper_context_profile.safeParse(vault_output.profile)
+      : null
+  const profile = released_profile?.success && released_profile.data !== null ? released_profile.data : null
+  const vault_missing_information =
+    profile === null ? unique_strings([...(vault?.limitations ?? []), 'No permitted personal product-fit context was released by Vault Keeper.']) : []
+
+  const context = schema_agent_medic_workflow_input.parse({
+    request: input.prompt,
+    detective: {
+      product,
+      sources_checked: detective.data.sources_checked,
+    },
+    vault_keeper: {
+      personalization_permitted: profile !== null,
+      profile,
+      missing_information: vault_missing_information,
+    },
+  })
+
+  const barcode = context.detective.product.barcode
+  if (!barcode) {
+    const output = medic_missing_product_assessment()
+    return { status: 'needs_input' as const, output, limitations: output.limitations }
+  }
+
+  const has_check = (check: (typeof medic_checks)[number]) => medic_checks.includes(check)
+
+  const nutrition_assessment = has_check('nutrition_assessment')
+    ? dto_tool_medic_nutrition_assessor.assessment.parse(
+        await input.use_tool(
+          async () => await tool_medic_nutrition_assessor.execute!({ barcode }, { toolContext: { abortSignal: signal } } as never),
+          {
+            name: 'tool_medic_nutrition_assessor',
+            title: 'Assessing verified nutrition label',
+            detail: 'Applying the fixed nutrition-label profile to the exact product variant.',
+          },
+        ),
+      )
+    : undefined
+
+  const requested_portion = has_check('portion_calculation') ? extract_requested_medic_portion(context.request) : null
+  const portion_calculation =
+    requested_portion === null
+      ? undefined
+      : dto_tool_medic_portion_calculator.calculation.parse(
+          await input.use_tool(
+            async () =>
+              await tool_medic_portion_calculator.execute!({ barcode, portion: requested_portion }, {
+                toolContext: { abortSignal: signal },
+              } as never),
+            {
+              name: 'tool_medic_portion_calculator',
+              title: 'Calculating verified nutrient quantities',
+              detail: 'Scaling verified nutrition facts for ' + requested_portion.value + ' ' + requested_portion.unit + '.',
+            },
+          ),
+        )
+  const portion_missing_information =
+    has_check('portion_calculation') && requested_portion === null
+      ? ['One explicit amount and unit are required for the requested portion calculation.']
+      : []
+  const portion_limitations =
+    has_check('portion_calculation') && requested_portion === null
+      ? ['Medic does not infer a portion when the request contains zero or multiple amounts.']
+      : []
+
+  const restriction_assessment = !has_check('restriction_check')
+    ? undefined
+    : profile === null
+      ? medic_missing_profile_assessment()
+      : profile.allergens.length === 0 && profile.avoided_ingredients.length === 0
+        ? medic_no_restrictions_assessment()
+        : schema_agent_medic.parse(
+            await input.use_tool(
+              async () =>
+                await create_medic_restriction_checker_tool(profile).execute!({ barcode }, { toolContext: { abortSignal: signal } } as never),
+              {
+                name: 'tool_medic_restriction_checker',
+                title: 'Checking verified allergens and ingredients',
+                detail: 'Comparing the exact product variant with permitted restrictions.',
+              },
+            ),
+          )
+
+  signal.throwIfAborted()
+
+  const nutrition_flags = (nutrition_assessment?.findings ?? [])
+    .filter((finding) => finding.level === 'high')
+    .map((finding) => ({
+      kind: 'clinical_rule' as const,
+      summary: `General nutrition-label concern: verified ${finding.label.toLocaleLowerCase('en-US')} is high under the ${nutrition_assessment!.ruleset.name}.`,
+      product_fact: `The exact product records ${finding.source_measurement.value} ${finding.source_measurement.unit} of ${finding.label.toLocaleLowerCase('en-US')} ${finding.source_measurement.basis.replace('_', ' ')}.`,
+      restriction: null,
+      evidence_refs: [`nutrition_assessment.${finding.evidence_ref}`, 'nutrition_assessment.ruleset.reference_url'],
+      rule_id: finding.rule_id,
+    }))
+  const restriction_flags = restriction_assessment?.risk_flags ?? []
+  const risk_flags = [...nutrition_flags, ...restriction_flags]
+  const checked_scope = unique_strings([
+    ...(nutrition_assessment?.status === 'assessed'
+      ? ['General nutrition-label screen completed for verified total fat, saturated fat, total sugars, and salt.']
+      : nutrition_assessment?.status === 'partial'
+        ? ['Partial general nutrition-label screen completed with the available verified nutrient facts.']
+        : []),
+    ...(portion_calculation?.status === 'calculated' ? ['Verified nutrient measurements scaled for the requested exact-product portion.'] : []),
+    ...(restriction_assessment?.checked_scope ?? []),
+  ])
+  const missing_information = unique_strings([
+    ...(nutrition_assessment?.status === 'assessed' ? [] : (nutrition_assessment?.missing_information ?? [])),
+    ...(portion_calculation?.missing_information ?? []),
+    ...portion_missing_information,
+    ...(restriction_assessment?.missing_information ?? []),
+  ])
+  const limitations = unique_strings([
+    ...(nutrition_assessment?.limitations ?? []),
+    ...(portion_calculation?.limitations ?? []),
+    ...portion_limitations,
+    ...(restriction_assessment?.limitations ?? []),
+  ])
+  const required_restrictions = unique_strings([
+    ...(restriction_assessment?.required_restrictions ?? []),
+    ...nutrition_flags.map((flag) => `Preserve the general nutrition concern supported by ${flag.rule_id}.`),
+  ])
+  const status = risk_flags.length > 0 ? 'flags_found' : missing_information.length > 0 ? 'insufficient_data' : 'no_flags_detected'
+  const summary =
+    risk_flags.length > 0
+      ? `The requested Medic checks found ${risk_flags.length} supported concern${risk_flags.length === 1 ? '' : 's'} for the exact product variant.`
+      : missing_information.length > 0
+        ? 'The requested Medic checks are incomplete because required product facts, permitted context, or a precise portion are unavailable.'
+        : 'No supported concern was found within the completed requested Medic checks for the exact product variant.'
+
+  const output = schema_agent_medic.parse({
+    status,
+    mode: profile === null ? 'generic' : 'personalized',
+    summary,
+    checked_scope,
+    risk_flags,
+    required_restrictions,
+    missing_information,
+    limitations,
+    ...(nutrition_assessment ? { nutrition_assessment } : {}),
+    ...(portion_calculation ? { portion_calculation } : {}),
+  })
+
+  return {
+    status: output.status === 'insufficient_data' ? ('needs_input' as const) : ('completed' as const),
+    output,
+    limitations: output.limitations,
+  }
+}
 const default_dependency: consumer_dependency = {
   bodyguard: async (prompt, signal) => {
     const result = await agent_bodyguard(prompt, signal)
@@ -76,8 +329,8 @@ const default_dependency: consumer_dependency = {
             ],
       }
     },
-    'Vault Keeper': null, // TODO: agent_vault_keeper — consent and permitted context.
-    Medic: null, // TODO: agent_medic — ingredient / clinical checks.
+    'Vault Keeper': adapter_vault_keeper,
+    Medic: adapter_medic,
     Investigator: async (input, signal) => {
       const detective_step = input.dependencies.Detective
       if (detective_step?.status !== 'completed') {
@@ -146,11 +399,25 @@ const describe_workflow_failure = (error: unknown, signal: AbortSignal) => {
   let provider_status: number | undefined
   let invalid_api_key = false
   let timed_out = false
-  let cause = error
+  const pending_errors: unknown[] = [error]
+  const inspected_errors = new Set<unknown>()
 
-  for (let depth = 0; depth < 8 && cause && typeof cause === 'object'; depth++) {
+  // The AI SDK wraps an exhausted retry budget in RetryError. Inspecting its
+  // lastError/errors keeps provider status classification accurate after retries.
+  while (pending_errors.length > 0 && inspected_errors.size < 32) {
+    const cause = pending_errors.pop()
+    if (!cause || typeof cause !== 'object' || inspected_errors.has(cause)) continue
+    inspected_errors.add(cause)
+
     if (cause instanceof WorkflowStepError) step = cause.workflow_step
-    const detail = cause as { name?: unknown; message?: unknown; statusCode?: unknown; cause?: unknown }
+    const detail = cause as {
+      name?: unknown
+      message?: unknown
+      statusCode?: unknown
+      cause?: unknown
+      lastError?: unknown
+      errors?: unknown
+    }
     const message = typeof detail.message === 'string' ? detail.message : ''
     if (message === 'Bodyguard assessment failed') step = 'bodyguard'
     if (message === 'Conductor planning failed') step = 'conductor-plan'
@@ -158,7 +425,9 @@ const describe_workflow_failure = (error: unknown, signal: AbortSignal) => {
     if (detail.name === 'TimeoutError') timed_out = true
     if (typeof detail.statusCode === 'number') provider_status = detail.statusCode
     if (/API key not valid|API_KEY_INVALID/i.test(message)) invalid_api_key = true
-    cause = detail.cause
+
+    pending_errors.push(detail.cause, detail.lastError)
+    if (Array.isArray(detail.errors)) pending_errors.push(...detail.errors)
   }
 
   let code = 'workflow_startup_failed'
@@ -178,6 +447,9 @@ const describe_workflow_failure = (error: unknown, signal: AbortSignal) => {
   } else if (provider_status === 429) {
     code = 'provider_quota_exceeded'
     limitation = 'The AI provider quota or rate limit was exceeded. Check the provider quota before retrying.'
+  } else if (provider_status === 503) {
+    code = 'provider_temporarily_unavailable'
+    limitation = 'The AI provider is temporarily unavailable after retrying the request. Try again shortly.'
   } else if (provider_status === 404) {
     code = 'provider_model_unavailable'
     limitation = 'The configured AI model was not found. Check AI_BODYGUARD_MODEL, AI_CONDUCTOR_MODEL and AI_DISPATCHER_MODEL.'
@@ -240,8 +512,9 @@ export const create_consumer_workflow = (
   signal: AbortSignal,
   deadline_ms: number,
   report_event: consumer_event_reporter = () => undefined,
+  authenticated_payload?: lib_dto_payload,
 ) => {
-  const execution = create_consumer_execution(dependency, signal, deadline_ms, report_event)
+  const execution = create_consumer_execution(dependency, signal, deadline_ms, report_event, authenticated_payload)
   return (
     createWorkflowChain({
       id: 'consumer_product_analysis',
@@ -412,9 +685,12 @@ export const run_consumer_workflow = async (
     dependency?: consumer_dependency
     timeout_ms?: number
     on_step?: (event: type_ai_workflow_step) => void
+    /** Verified server context, never part of workflow data or model inputs. */
+    authenticated_payload?: lib_dto_payload
   } = {},
 ): Promise<type_schema_agent_conductor_result> => {
   const data = schema_agent_conductor_input.parse(input)
+  if (options.authenticated_payload && options.authenticated_payload.user_id !== data.user_id) throw lib_error.unauthorized
   const execution_id = crypto.randomUUID()
   const workflow_step_id = crypto.randomUUID()
   const workflow_started_at = performance.now()
@@ -447,7 +723,13 @@ export const run_consumer_workflow = async (
   const deadline_ms = performance.now() + timeout_ms
   const timeout = AbortSignal.timeout(timeout_ms)
   const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout
-  const workflow = create_consumer_workflow(options.dependency ?? default_dependency, signal, deadline_ms, report_event)
+  const workflow = create_consumer_workflow(
+    options.dependency ?? default_dependency,
+    signal,
+    deadline_ms,
+    report_event,
+    options.authenticated_payload,
+  )
   const execution = await workflow.run(data, { executionId: execution_id, userId: String(data.user_id) })
 
   if (execution.status === 'completed' && execution.result) {

@@ -4,6 +4,41 @@ import { enum_ecoscore, enum_nova_group, enum_nutriscore } from '@lib/enum.lib'
 
 import { dto_schema_product_metadata } from '@module/main/product/product.dto'
 
+export const dto_schema_product_provider_nutrition = t.Object({
+  variant: t.Object({
+    product_barcode: t.String(),
+    product_name: t.Union([t.String(), t.Null()]),
+  }),
+  serving: t.Union([
+    t.Object({
+      value: t.Number(),
+      unit: t.String(),
+    }),
+    t.Null(),
+  ]),
+  nutrients: t.Array(
+    t.Object({
+      code: t.String(),
+      value: t.Number(),
+      unit: t.String(),
+      basis: t.String(),
+    }),
+  ),
+  sources: t.Array(
+    t.Object({
+      provider: t.String(),
+      url: t.Union([t.String(), t.Null()]),
+      retrieved_at: t.String(),
+      fresh_until: t.Union([t.String(), t.Null()]),
+    }),
+  ),
+  completeness: t.Object({
+    status: t.UnionEnum(['complete', 'partial', 'unavailable']),
+    complete: t.Boolean(),
+    missing_nutrient_codes: t.Array(t.String()),
+  }),
+})
+
 export const dto_schema_product_provider = t.Object({
   product_barcode: t.String(),
   product_type: t.String(),
@@ -15,6 +50,7 @@ export const dto_schema_product_provider = t.Object({
   product_ecoscore: t.Union([t.UnionEnum(enum_ecoscore), t.Null()]),
   product_nutriscore: t.Union([t.UnionEnum(enum_nutriscore), t.Null()]),
   product_metadata: t.Union([dto_schema_product_metadata, t.Null()]),
+  nutrition: t.Optional(t.Union([dto_schema_product_provider_nutrition, t.Null()])),
 })
 
 export const dto_product_provider = {

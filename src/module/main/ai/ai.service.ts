@@ -16,6 +16,6 @@ export const service_ai = {
     on_step?: (event: type_ai_workflow_step) => void,
   ): Promise<Static<typeof dto_ai.analyze.response>> {
     if (!Number.isSafeInteger(payload.user_id) || payload.user_id <= 0 || body.user_id !== payload.user_id) throw lib_error.unauthorized
-    return { data: await run_consumer_workflow({ ...body, user_id: payload.user_id }, { signal, on_step }) }
+    return { data: await run_consumer_workflow({ ...body, user_id: payload.user_id }, { signal, on_step, authenticated_payload: payload }) }
   },
 }

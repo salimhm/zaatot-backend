@@ -2,6 +2,49 @@ import { z } from 'zod'
 
 export const schema_tool_product_lookup_score = z.enum(['a', 'b', 'c', 'd', 'e'])
 
+export const schema_tool_product_lookup_nutrient = z.object({
+  code: z.string().min(1),
+  value: z.number().finite().nonnegative(),
+  unit: z.string().min(1),
+  basis: z.enum(['per_100g', 'per_100ml', 'per_serving']),
+})
+
+export const schema_tool_product_lookup_nutrition = z.object({
+  variant: z.object({
+    product_id: z.number().nullish(),
+    product_barcode: z.string().regex(/^\d{6,64}$/),
+    product_name: z.string().nullish(),
+  }),
+  serving: z
+    .object({
+      value: z.number().finite().positive(),
+      unit: z.string().min(1),
+    })
+    .nullable(),
+  nutrients: z.array(schema_tool_product_lookup_nutrient),
+  sources: z.array(
+    z.object({
+      provider: z.string().min(1),
+      url: z.string().url().nullable(),
+      retrieved_at: z.string().min(1),
+      fresh_until: z.string().min(1).nullable(),
+    }),
+  ),
+  completeness: z.object({
+    status: z.enum(['complete', 'partial', 'unavailable']),
+    complete: z.boolean(),
+    missing_nutrient_codes: z.array(z.string().min(1)),
+  }),
+})
+
+export const schema_tool_product_lookup_nutrition_result = z.object({
+  found: z.boolean(),
+  available: z.boolean(),
+  issue: z.enum(['configuration', 'temporarily_unavailable']).nullable(),
+  source: z.enum(['local_database', 'open_food_facts']),
+  data: schema_tool_product_lookup_nutrition.nullable(),
+})
+
 export const schema_tool_product_lookup_record = z.object({
   product_id: z.number().nullish(),
   product_barcode: z.string().nullish(),
@@ -20,6 +63,7 @@ export const schema_tool_product_lookup_record = z.object({
       allergens: z.array(z.string()).nullish(),
     })
     .nullish(),
+  nutrition: schema_tool_product_lookup_nutrition.nullish(),
 })
 
 export const schema_tool_product_lookup_provider_product_result = z.object({
@@ -39,6 +83,13 @@ export const schema_tool_product_lookup_provider_availability = z.object({
 })
 
 export const dto_tool_product_lookup = {
+  nutrition_by_barcode: z.object({
+    barcode: z
+      .string()
+      .regex(/^\d{6,64}$/)
+      .describe('Exact numeric barcode for the product variant whose nutrition facts are needed'),
+  }),
+
   local_by_barcode: z.object({
     barcode: z
       .string()

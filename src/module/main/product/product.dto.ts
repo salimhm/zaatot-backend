@@ -48,7 +48,79 @@ export const dto_schema_product = t.Object({
   brand_boycott_alternatives: t.Union([t.Array(t.String()), t.Null()]),
 })
 
+export const dto_schema_product_nutrition = t.Object({
+  variant: t.Object({
+    product_id: t.Number(),
+    product_barcode: t.String(),
+    product_name: t.Union([t.String(), t.Null()]),
+  }),
+  serving: t.Union([
+    t.Object({
+      value: t.Number(),
+      unit: t.String(),
+    }),
+    t.Null(),
+  ]),
+  nutrients: t.Array(
+    t.Object({
+      code: t.String(),
+      value: t.Number(),
+      unit: t.String(),
+      basis: t.String(),
+    }),
+  ),
+  sources: t.Array(
+    t.Object({
+      provider: t.String(),
+      url: t.Union([t.String(), t.Null()]),
+      retrieved_at: t.String(),
+      fresh_until: t.Union([t.String(), t.Null()]),
+    }),
+  ),
+  completeness: t.Object({
+    status: t.UnionEnum(['complete', 'partial', 'unavailable']),
+    complete: t.Boolean(),
+    missing_nutrient_codes: t.Array(t.String()),
+  }),
+})
+
+export const dto_schema_product_composition = t.Object({
+  variant: t.Object({
+    product_id: t.Number(),
+    product_barcode: t.String(),
+    product_name: t.Union([t.String(), t.Null()]),
+  }),
+  ingredients: t.Array(t.String()),
+  allergens: t.Array(t.String()),
+  completeness: t.Object({
+    ingredients: t.Boolean(),
+    allergens: t.Boolean(),
+  }),
+  source: t.Object({
+    provider: t.String(),
+    url: t.Union([t.String(), t.Null()]),
+    retrieved_at: t.String(),
+    fresh_until: t.Union([t.String(), t.Null()]),
+  }),
+})
+
 export const dto_product = {
+  find_composition_by_barcode: {
+    query: t.Object({
+      barcode: t.String({ minLength: 6, maxLength: 64, pattern: '^\\d+$' }),
+    }),
+    response: t.Object({
+      data: t.Union([dto_schema_product_composition, t.Null()]),
+    }),
+  },
+  find_nutrition_by_barcode: {
+    query: t.Object({
+      barcode: t.String({ minLength: 6, maxLength: 64, pattern: '^\\d+$' }),
+    }),
+    response: t.Object({
+      data: t.Union([dto_schema_product_nutrition, t.Null()]),
+    }),
+  },
   find: {
     query: t.Object({
       ...lib_dto_find_query,

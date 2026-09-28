@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { SecurityDecision } from '@agent/bodyguard/bodyguard.schema.agent'
 import { schema_agent_conductor_plan } from '@agent/conductor/conductor.schema.agent'
-import { dispatcher_budget_limit, enum_dispatcher_agent, enum_dispatcher_check } from '@agent/dispatcher/constants'
+import { dispatcher_budget_limit, enum_dispatcher_agent, enum_dispatcher_check, enum_dispatcher_medic_check } from '@agent/dispatcher/constants'
 
 export const schema_agent_dispatcher_budget = z.object({
   timeout_ms: z
@@ -36,15 +36,20 @@ export const schema_agent_dispatcher_input = z.object({
 })
 
 // Model output is a draft; adapters must apply the full plan validator before execution.
+export const schema_agent_dispatcher_medic_checks = z.array(z.enum(enum_dispatcher_medic_check)).min(1).max(enum_dispatcher_medic_check.length)
+
+const schema_agent_dispatcher_step = z.object({
+  agent: z.enum(enum_dispatcher_agent),
+  depends_on: z.array(z.enum(enum_dispatcher_agent)).max(enum_dispatcher_agent.length),
+  run_when: z.enum(['always', 'personalization_permitted', 'history_permitted']),
+  medic_checks: schema_agent_dispatcher_medic_checks
+    .optional()
+    .describe('Required only for Medic. Explicit deterministic checks that the Medic adapter must execute.'),
+})
+
 export const schema_agent_dispatcher_draft = z.object({
   selected_agents: z
-    .array(
-      z.object({
-        agent: z.enum(enum_dispatcher_agent),
-        depends_on: z.array(z.enum(enum_dispatcher_agent)).max(enum_dispatcher_agent.length),
-        run_when: z.enum(['always', 'personalization_permitted', 'history_permitted']),
-      }),
-    )
+    .array(schema_agent_dispatcher_step)
     .min(5)
     .max(enum_dispatcher_agent.length)
     .describe('Unique selected steps. Independent ready steps may run in parallel; dependencies must finish first'),
@@ -58,7 +63,35 @@ export const schema_agent_dispatcher_draft = z.object({
     .describe('Alternatives require identity resolution, applicable specialists, Skeptic, Referee and Coach when selected'),
 })
 
+// Groq structured output requires every object key in a response schema to be
+// required. The provider receives null for non-Medic steps; runtime conversion
+// removes that transport value before the internal plan is validated.
+const schema_agent_dispatcher_provider_step = schema_agent_dispatcher_step.extend({
+  medic_checks: schema_agent_dispatcher_medic_checks
+    .nullable()
+    .describe('For Medic, one or more requested deterministic checks. For every other agent, exactly null.'),
+})
+
+export const schema_agent_dispatcher_provider_draft = schema_agent_dispatcher_draft.extend({
+  selected_agents: z.array(schema_agent_dispatcher_provider_step).min(5).max(enum_dispatcher_agent.length),
+})
+
 export type type_schema_agent_dispatcher_draft = z.infer<typeof schema_agent_dispatcher_draft>
+
+export const normalize_dispatcher_provider_draft = (draft: unknown): type_schema_agent_dispatcher_draft => {
+  if (!draft || typeof draft !== 'object' || !('selected_agents' in draft) || !Array.isArray(draft.selected_agents)) {
+    return schema_agent_dispatcher_draft.parse(draft)
+  }
+
+  return schema_agent_dispatcher_draft.parse({
+    ...draft,
+    selected_agents: draft.selected_agents.map((step) => {
+      if (!step || typeof step !== 'object' || !('medic_checks' in step) || step.medic_checks !== null) return step
+      const { medic_checks: _medic_checks, ...internal_step } = step
+      return internal_step
+    }),
+  })
+}
 
 export const normalize_dispatcher_plan = (draft: type_schema_agent_dispatcher_draft): type_schema_agent_dispatcher_draft => {
   const has_detective = draft.selected_agents.some((step) => step.agent === 'Detective')
@@ -89,6 +122,10 @@ export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine
 
   if (new Set(names).size !== names.length) reject('Each agent must be selected only once')
   if (new Set(plan.required_checks).size !== plan.required_checks.length) reject('Required checks must be unique')
+  for (const step of plan.selected_agents) {
+    if (step.agent === 'Medic' && !step.medic_checks) reject('Medic requires at least one explicit medic_checks scope')
+    if (step.agent !== 'Medic' && step.medic_checks !== undefined) reject('medic_checks is valid only for Medic')
+  }
   for (const agent of ['Detective', 'Investigator', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'] as const) {
     if (!has(agent)) reject(`${agent} is required for an analysis plan`)
   }
@@ -156,3 +193,5 @@ export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine
 
 export type type_schema_agent_dispatcher = z.infer<typeof schema_agent_dispatcher>
 export type type_schema_agent_dispatcher_input = z.infer<typeof schema_agent_dispatcher_input>
+
+export type type_dispatcher_medic_check = (typeof enum_dispatcher_medic_check)[number]

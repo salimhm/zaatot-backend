@@ -15,6 +15,8 @@ const enum_dispatcher_agent = [
   'Gatekeeper',
 ] as const
 
+const enum_dispatcher_medic_check = ['nutrition_assessment', 'restriction_check', 'portion_calculation'] as const
+
 const enum_dispatcher_check = [
   'identity',
   'personal_context',
@@ -38,4 +40,4 @@ const dispatcher_budget_limit = {
   max_response_repairs: 1,
 } as const
 
-export { enum_dispatcher_agent, enum_dispatcher_check, dispatcher_budget_limit }
+export { enum_dispatcher_agent, enum_dispatcher_check, enum_dispatcher_medic_check, dispatcher_budget_limit }

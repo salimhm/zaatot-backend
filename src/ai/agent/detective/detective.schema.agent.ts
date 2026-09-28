@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 import {
+  schema_tool_product_lookup_nutrition,
+  schema_tool_product_lookup_nutrition_result,
   schema_tool_product_lookup_provider_availability,
   schema_tool_product_lookup_provider_brand_result,
   schema_tool_product_lookup_provider_product_result,
@@ -24,6 +26,7 @@ export const schema_product_detective = z.object({
   nutriscore: schema_tool_product_lookup_score.nullable(),
   ingredients: z.array(z.string()).nullable(),
   allergens: z.array(z.string()).nullable(),
+  nutrition: schema_tool_product_lookup_nutrition.nullable(),
 })
 
 export const schema_brand_detective = z.object({
@@ -136,6 +139,10 @@ export const schema_product_lookup_tool_result = z.discriminatedUnion('toolName'
       source: z.literal('open_food_facts'),
       data: schema_tool_product_lookup_provider_brand_result.nullable(),
     }),
+  }),
+  z.object({
+    toolName: z.literal('tool_product_lookup_nutrition_by_barcode'),
+    output: schema_tool_product_lookup_nutrition_result,
   }),
 ])
 

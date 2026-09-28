@@ -58,9 +58,45 @@ describe('Detective response normalization', () => {
           nutriscore: null,
           ingredients: null,
           allergens: null,
+          nutrition: null,
         },
       ],
     })
+  })
+
+  it('attaches nutrition only to the matching exact product variant', () => {
+    const nutrition = {
+      variant: { product_barcode: '5449000054227', product_name: 'Coca-Cola Original Taste' },
+      serving: { value: 330, unit: 'ml' },
+      nutrients: [{ code: 'sugars', value: 10.6, unit: 'g', basis: 'per_100ml' as const }],
+      sources: [
+        {
+          provider: 'Open Food Facts',
+          url: 'https://world.openfoodfacts.org/product/5449000054227',
+          retrieved_at: '2026-09-28T10:00:00.000Z',
+          fresh_until: null,
+        },
+      ],
+      completeness: { status: 'partial' as const, complete: false, missing_nutrient_codes: ['energy-kcal'] },
+    }
+    const result = normalize_detective_results([
+      {
+        toolName: 'tool_product_lookup_local_by_barcode',
+        output: {
+          found: true,
+          source: 'local_database',
+          data: [{ product_barcode: '5449000054227', product_name: 'Coca-Cola Original Taste', product_brand_name: 'Coca-Cola' }],
+        },
+      },
+      {
+        toolName: 'tool_product_lookup_nutrition_by_barcode',
+        output: { found: true, available: true, issue: null, source: 'open_food_facts', data: nutrition },
+      },
+    ])
+
+    expect(result.status).toBe('identified')
+    expect(result.related_products.items[0]?.nutrition).toEqual(nutrition)
+    expect(result.sources_checked).toEqual(['local_database', 'open_food_facts'])
   })
 
   it('records both sources when Open Food Facts supplies a barcode fallback', () => {

@@ -5,16 +5,18 @@ import type {
   type_schema_agent_conductor_plan,
   type_schema_agent_conductor_result,
 } from '@agent/conductor/conductor.schema.agent'
-import type { type_schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.schema.agent'
+import type { type_dispatcher_medic_check, type_schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.schema.agent'
 import type { type_schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
 import type { ai_tool_activity } from '@ai/runtime.ai'
+import type { lib_dto_payload } from '@lib/dto.lib'
 
 import { z } from 'zod'
 
 import { run_workflow_step } from '@ai/runtime.ai'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
-import { schema_agent_detective } from '@agent/detective/detective.schema.agent'
+import { schema_agent_detective, schema_product_detective } from '@agent/detective/detective.schema.agent'
 import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
+import { schema_agent_medic } from '@agent/medic/medic.schema.agent'
 
 export type consumer_specialist_name = type_schema_agent_dispatcher['selected_agents'][number]['agent']
 export type consumer_event_reporter = (event: Omit<type_ai_workflow_step, 'sequence' | 'execution_id' | 'timestamp'>) => void
@@ -37,6 +39,8 @@ export type consumer_specialist_input = {
   dependencies: Partial<Record<consumer_specialist_name, consumer_step_result>>
   candidate_review: consumer_step_result | null
   feedback?: consumer_step_result
+  /** Explicit Medic work selected by Dispatcher. Omitted for every other specialist. */
+  medic_checks?: type_dispatcher_medic_check[]
   budgets: type_schema_agent_dispatcher['budgets']
   /** Adapters must wrap each real tool call to charge the shared budget. */
   use_tool: <T>(call: () => Promise<T>, activity?: ai_tool_activity) => Promise<T>
@@ -44,7 +48,16 @@ export type consumer_specialist_input = {
   inspect_content: (text: string) => Promise<string>
 }
 
-export type consumer_specialist = (input: consumer_specialist_input, signal: AbortSignal) => Promise<consumer_step_result>
+/** Server-only context for Vault Keeper's adapter and its future tools. Never serialize into agent input/output. */
+export type consumer_backend_context = {
+  payload: lib_dto_payload
+}
+
+export type consumer_specialist = (
+  input: consumer_specialist_input,
+  signal: AbortSignal,
+  backend_context?: consumer_backend_context,
+) => Promise<consumer_step_result>
 
 export type consumer_execution_dependency = {
   specialists?: Partial<Record<consumer_specialist_name, consumer_specialist | null>>
@@ -169,7 +182,25 @@ export const create_consumer_execution = (
   parent_signal: AbortSignal,
   deadline_ms: number,
   report_event: consumer_event_reporter = () => undefined,
+  authenticated_payload?: lib_dto_payload,
 ) => {
+  // Snapshot only the verified identity/access fields, separately from workflow data.
+  const backend_context: consumer_backend_context | undefined = authenticated_payload
+    ? {
+        payload: {
+          user_id: authenticated_payload.user_id,
+          ...(authenticated_payload.tenants
+            ? {
+                tenants: authenticated_payload.tenants.map(({ tenant_id, tenant_type, tenant_schema_version }) => ({
+                  tenant_id,
+                  tenant_type,
+                  tenant_schema_version,
+                })),
+              }
+            : {}),
+        },
+      }
+    : undefined
   let signal = parent_signal
   let execution_deadline = deadline_ms
   let tool_calls = 0
@@ -295,6 +326,7 @@ export const create_consumer_execution = (
 
   const agent_title = (agent: consumer_specialist_name) => {
     if (agent === 'Detective') return 'Looking up the product or brand'
+    if (agent === 'Medic') return 'Checking allergens and ingredients'
     if (agent === 'Investigator') return 'Investigating the resolved brand'
     return `Running ${agent}`
   }
@@ -306,6 +338,18 @@ export const create_consumer_execution = (
         return { title: `Identified ${output.data.subject.name}`, detail: output.data.message }
       }
       if (output.success) return { title: 'Product lookup finished', detail: output.data.message }
+    }
+    if (agent === 'Medic') {
+      const output = schema_agent_medic.safeParse(result.output)
+      if (output.success) {
+        const title =
+          output.data.status === 'flags_found'
+            ? 'Ingredient or allergen concern found'
+            : output.data.status === 'no_flags_detected'
+              ? 'Ingredient and allergen check finished'
+              : 'Ingredient and allergen check needs evidence'
+        return { title, detail: output.data.summary }
+      }
     }
     if (agent === 'Investigator') {
       const output = schema_agent_investigator.safeParse(result.output)
@@ -352,7 +396,11 @@ export const create_consumer_execution = (
           result = { status: 'needs_review', output: null, limitations: ['The shared tool-call budget is exhausted.'] }
         } else {
           try {
-            result = await run_workflow_step(input.execution_id, step, signal, async () => schema_step_result.parse(await handler(input, signal)))
+            result = await run_workflow_step(input.execution_id, step, signal, async () =>
+              schema_step_result.parse(
+                await (agent === 'Vault Keeper' && backend_context ? handler(input, signal, backend_context) : handler(input, signal)),
+              ),
+            )
             check_deadline()
             if (budget_exhausted) {
               result = { status: 'needs_review', output: null, limitations: ['The shared tool-call budget is exhausted.'] }
@@ -457,6 +505,7 @@ export const create_consumer_execution = (
     }
 
     const input = input_for(data, step.depends_on, agent)
+    if (agent === 'Medic') input.medic_checks = step.medic_checks ?? []
     if (agent === 'Vault Keeper') input.user_id = data.user_id
     if (feedback) input.feedback = feedback
     const result = await invoke(agent.toLowerCase().replaceAll(' ', '-'), handler, input, agent)
@@ -530,12 +579,22 @@ export const create_consumer_execution = (
       return result ? [{ agent: step.agent, result }] : []
     })
     const incomplete = selected_implemented.filter((step) => data.agent_results[step.agent]?.status !== 'completed')
+    const medic_requested = data.dispatcher_plan?.selected_agents.some((step) => step.agent === 'Medic') ?? false
+    const medic_result = data.agent_results.Medic
+    const medic_incomplete = medic_requested && medic_result?.status !== 'completed'
+    const missing_medic_check = !medic_incomplete
+      ? null
+      : medic_result
+        ? 'Requested health assessment is incomplete: Medic returned ' +
+          readable_label(medic_result.status) +
+          ', so the required clinical-risk check did not complete.'
+        : 'Requested health assessment is incomplete: Medic was unavailable, so the required clinical-risk check did not run.'
     const candidate_pending =
       Boolean(dependency.specialists?.['Bargain Hunter']) &&
       data.dispatcher_plan?.candidate_validation === 'repeat_required_checks' &&
       data.candidate_review?.status !== 'completed'
     const gatekeeper = data.agent_results.Gatekeeper
-    if (allowed && incomplete.length === 0 && !candidate_pending && gatekeeper?.status === 'completed') {
+    if (allowed && incomplete.length === 0 && !medic_incomplete && !candidate_pending && gatekeeper?.status === 'completed') {
       // The Gatekeeper adapter must return the complete validated API response as output.
       const approved = schema_agent_conductor_result.parse(gatekeeper.output)
       return { ...approved, execution_id: data.execution_id }
@@ -553,12 +612,30 @@ export const create_consumer_execution = (
           brand: detective_subject.type === 'brand' ? detective_subject.name : detective_subject.brand_name,
         }
       : null
+    const detective_product =
+      detective.success && subject?.type === 'product'
+        ? (detective.data.related_products.items.find((item) => item.barcode === subject.barcode) ?? null)
+        : null
+    // Re-parse the matched item to keep this boundary tied to the Detective item schema.
+    const nutrition = detective_product ? schema_product_detective.parse(detective_product).nutrition : null
     const product =
       subject?.type === 'product'
         ? {
             barcode: subject.barcode,
             name: subject.name,
             brand: subject.brand,
+            nutrition: nutrition
+              ? {
+                  variant: {
+                    barcode: nutrition.variant.product_barcode,
+                    name: nutrition.variant.product_name ?? null,
+                  },
+                  serving: nutrition.serving,
+                  nutrients: nutrition.nutrients,
+                  sources: nutrition.sources,
+                  completeness: nutrition.completeness,
+                }
+              : null,
           }
         : null
 
@@ -582,9 +659,11 @@ export const create_consumer_execution = (
       const summary =
         agent === 'Detective' && detective.success
           ? detective.data.message
-          : agent === 'Investigator' && investigator.success
-            ? summarize_investigator(investigator.data)
-            : (result.limitations[0] ?? `${agent} ${result.status}.`)
+          : agent === 'Medic' && schema_agent_medic.safeParse(result.output).success
+            ? schema_agent_medic.parse(result.output).summary
+            : agent === 'Investigator' && investigator.success
+              ? summarize_investigator(investigator.data)
+              : (result.limitations[0] ?? `${agent} ${result.status}.`)
       return {
         agent,
         status: assessment_status(result.status),
@@ -600,6 +679,7 @@ export const create_consumer_execution = (
     else if (steps.some(({ result }) => result.status === 'error')) status = 'error'
     else if (steps.some(({ result }) => result.status === 'needs_input')) status = 'needs_input'
     else if (steps.some(({ result }) => result.status === 'needs_review' || result.status === 'repair_required')) status = 'needs_review'
+    else if (medic_incomplete) status = medic_result?.status === 'needs_input' ? 'needs_input' : 'needs_review'
     else if (selected_implemented.length === 0) status = 'partial'
     else if (incomplete.length > 0 || candidate_pending) status = 'needs_review'
     else status = 'completed'
@@ -618,6 +698,7 @@ export const create_consumer_execution = (
         ? ['The request did not pass the entry policy. No further agents were executed.']
         : [
             ...(selected_implemented.length === 0 ? ['No implemented specialist was selected for this request.'] : []),
+            ...(missing_medic_check ? [missing_medic_check] : []),
             ...new Set(steps.flatMap(({ result }) => result.limitations)),
             ...(data.candidate_review?.limitations ?? []),
             ...(incomplete.length ? [`Unresolved implemented agents: ${incomplete.map((step) => step.agent).join(', ')}.`] : []),

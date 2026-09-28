@@ -1,11 +1,12 @@
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 import type { type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
+import type { lib_dto_payload } from '@lib/dto.lib'
 
 import { Elysia } from 'elysia'
 
-import { describe, expect, it, mock, spyOn } from 'bun:test'
-
 import { ai_request_timeout_seconds, ai_workflow_timeout_ms } from '@ai/runtime.ai'
 import { run_consumer_workflow } from '@ai/workflow.ai'
+import * as workflow_ai from '@ai/workflow.ai'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
 
 import { handle_error } from '@lib/error.lib'
@@ -203,6 +204,37 @@ describe('AI HTTP boundary', () => {
     } finally {
       timeout.mockRestore()
       await app.stop(true)
+    }
+  })
+
+  it('forwards verified tenant claims through backend workflow options', async () => {
+    const payload: lib_dto_payload = {
+      user_id: 21,
+      tenants: [{ tenant_id: 21, tenant_type: 'user', tenant_schema_version: 'verified-user-schema' }],
+    }
+    const body = { prompt: 'Check cereal', user_id: 21 }
+    const signal = new AbortController().signal
+    const on_step = mock(() => {})
+    const result = schema_agent_conductor_result.parse({
+      execution_id: crypto.randomUUID(),
+      status: 'partial',
+      subject: null,
+      outcome: null,
+      product: null,
+      assessments: [],
+      alternatives: [],
+      explanation: null,
+      sources: [],
+      limitations: [],
+    })
+    const run = spyOn(workflow_ai, 'run_consumer_workflow').mockResolvedValue(result)
+    try {
+      expect(await service_ai.analyze(body, payload, signal, on_step)).toEqual({ data: result })
+      expect(run).toHaveBeenCalledWith(body, { signal, on_step, authenticated_payload: payload })
+      expect(run.mock.calls[0]![0]).not.toHaveProperty('authenticated_payload')
+      expect(run.mock.calls[0]![0]).not.toHaveProperty('tenants')
+    } finally {
+      run.mockRestore()
     }
   })
 

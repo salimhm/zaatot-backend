@@ -6,6 +6,7 @@ import { createTool, createToolkit } from '@voltagent/core'
 
 import {
   dto_tool_product_lookup,
+  schema_tool_product_lookup_nutrition,
   schema_tool_product_lookup_provider_brand_result,
   schema_tool_product_lookup_provider_product_result,
   schema_tool_product_lookup_record,
@@ -144,6 +145,43 @@ export const tool_product_lookup_provider_by_barcode = createTool({
   },
 })
 
+export const tool_product_lookup_nutrition_by_barcode = createTool({
+  name: 'tool_product_lookup_nutrition_by_barcode',
+  description:
+    'Retrieve nutrition facts only for the exact barcode variant. It returns nutrient values and units, serving size, source provenance, and a completeness indicator.',
+
+  parameters: dto_tool_product_lookup.nutrition_by_barcode,
+
+  execute: async ({ barcode }, options) => {
+    const local = await service_product.find_nutrition_by_barcode({ barcode })
+    if (local.data) {
+      return {
+        found: true,
+        available: true,
+        issue: null,
+        source: 'local_database',
+        data: local.data,
+      }
+    }
+
+    try {
+      const product = await service_product_provider.fetch_by_barcode(barcode, tool_signal(options), true)
+      const data = product?.nutrition ?? null
+      return {
+        found: data !== null,
+        available: true,
+        issue: null,
+        source: 'open_food_facts',
+        data,
+      }
+    } catch (error) {
+      const issue = provider_issue(error)
+      if (!issue) throw error
+      return { found: false, available: false, issue, source: 'open_food_facts', data: null }
+    }
+  },
+})
+
 export const tool_product_lookup_brand_by_name = createTool({
   name: 'tool_product_lookup_brand_by_name',
   description: 'Search the Zaatot local brand database using a full or partial brand name.',
@@ -239,6 +277,7 @@ export const toolkit_product_lookup = createToolkit({
     tool_product_lookup_brand_by_name,
     tool_product_lookup_provider_by_product_name,
     tool_product_lookup_provider_by_brand_name,
+    tool_product_lookup_nutrition_by_barcode,
   ],
 })
 
@@ -250,6 +289,9 @@ export type product_lookup_runtime = {
 function product_lookup_activity(tool_name: string, args: Record<string, unknown>): ai_tool_activity {
   const query = String(args.barcode ?? args.product_name ?? args.brand_name ?? '').trim()
   const detail = query ? `Searching for ${query}.` : undefined
+  if (tool_name === 'tool_product_lookup_nutrition_by_barcode') {
+    return { name: tool_name, title: 'Retrieving product nutrition facts', detail }
+  }
   if (tool_name === 'tool_product_lookup_local_by_barcode' || tool_name === 'tool_product_lookup_local_by_name') {
     return { name: tool_name, title: 'Searching the local product catalog', detail }
   }
@@ -295,6 +337,7 @@ export const create_product_lookup_toolkit = (runtime: product_lookup_runtime) =
       wrap(tool_product_lookup_brand_by_name),
       wrap(tool_product_lookup_provider_by_product_name, schema_tool_product_lookup_provider_product_result),
       wrap(tool_product_lookup_provider_by_brand_name, schema_tool_product_lookup_provider_brand_result),
+      wrap(tool_product_lookup_nutrition_by_barcode, schema_tool_product_lookup_nutrition),
     ],
   })
 }

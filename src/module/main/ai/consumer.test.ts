@@ -340,6 +340,29 @@ describe('Consumer workflow startup', () => {
               ],
             },
           },
+          {
+            toolName: 'tool_product_lookup_nutrition_by_barcode',
+            output: {
+              found: true,
+              available: true,
+              issue: null,
+              source: 'open_food_facts',
+              data: {
+                variant: { product_barcode: '5449000054227', product_name: 'Coca-Cola Original Taste' },
+                serving: { value: 330, unit: 'ml' },
+                nutrients: [{ code: 'sugars', value: 10.6, unit: 'g', basis: 'per_100ml' }],
+                sources: [
+                  {
+                    provider: 'Open Food Facts',
+                    url: 'https://world.openfoodfacts.org/product/5449000054227',
+                    retrieved_at: '2026-09-28T10:00:00.000Z',
+                    fresh_until: null,
+                  },
+                ],
+                completeness: { status: 'partial', complete: false, missing_nutrient_codes: ['energy-kcal'] },
+              },
+            },
+          },
         ],
       } as unknown as Awaited<ReturnType<typeof $agent_detective.generateText>>)
       const product_result = await run_consumer_workflow({ ...request, prompt: 'Investigate barcode 5449000054227' })
@@ -348,6 +371,20 @@ describe('Consumer workflow startup', () => {
         barcode: '5449000054227',
         name: 'Coca-Cola Original Taste',
         brand: 'Coca-Cola',
+        nutrition: {
+          variant: { barcode: '5449000054227', name: 'Coca-Cola Original Taste' },
+          serving: { value: 330, unit: 'ml' },
+          nutrients: [{ code: 'sugars', value: 10.6, unit: 'g', basis: 'per_100ml' }],
+          sources: [
+            {
+              provider: 'Open Food Facts',
+              url: 'https://world.openfoodfacts.org/product/5449000054227',
+              retrieved_at: '2026-09-28T10:00:00.000Z',
+              fresh_until: null,
+            },
+          ],
+          completeness: { status: 'partial', complete: false, missing_nutrient_codes: ['energy-kcal'] },
+        },
       })
       expect(local).toHaveBeenNthCalledWith(2, {
         product_brand_name: 'Coca-Cola',
@@ -480,6 +517,7 @@ describe('Consumer workflow startup', () => {
     { status: 401, message: 'Unauthorized', code: 'provider_authentication_failed', text: 'server API key' },
     { status: 403, message: 'Forbidden', code: 'provider_access_denied', text: 'permissions' },
     { status: 429, message: 'Quota exceeded', code: 'provider_quota_exceeded', text: 'quota' },
+    { status: 503, message: 'Model is under temporary demand', code: 'provider_temporarily_unavailable', text: 'temporarily unavailable' },
     { status: 404, message: 'Model not found', code: 'provider_model_unavailable', text: 'AI_BODYGUARD_MODEL' },
   ]) {
     it(`reports provider failure ${failure.status} without exposing request or credential details`, async () => {
@@ -488,9 +526,13 @@ describe('Consumer workflow startup', () => {
         requestBodyValues: { key: 'private-api-key', prompt: 'private-prompt' },
         responseBody: 'private-provider-response',
       })
+      const retried_provider_error =
+        failure.status === 503
+          ? Object.assign(new Error('Failed after retrying the provider request.'), { lastError: provider_error })
+          : provider_error
       const dependency = dependencies({
         bodyguard: mock(async () => {
-          throw new Error('Bodyguard assessment failed', { cause: provider_error })
+          throw new Error('Bodyguard assessment failed', { cause: retried_provider_error })
         }),
       })
       const log = spyOn(console, 'error').mockImplementation(() => {})

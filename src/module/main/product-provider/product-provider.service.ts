@@ -3,6 +3,7 @@ import type { Static } from 'elysia'
 import { lib_error } from '@lib/error.lib'
 
 import { dto_product_provider } from '@module/main/product-provider/product-provider.dto'
+import { product_nutrition_completeness } from '@module/main/product/product-nutrition.util'
 
 type provider_product = Static<typeof dto_product_provider.fetch_by_barcode.response>['data']
 type raw_open_food_facts_product = {
@@ -19,6 +20,10 @@ type raw_open_food_facts_product = {
   nova_group?: number | string
   ingredients_tags?: string[]
   allergens_tags?: string[]
+  serving_size?: string
+  serving_quantity?: string | number
+  serving_quantity_unit?: string
+  nutriments?: Record<string, unknown>
 }
 
 const search_fields = [
@@ -119,10 +124,97 @@ function normalize_brand_names(value: unknown): string[] {
   return names
 }
 
-function normalize_product(product: raw_open_food_facts_product, fallback_barcode?: string): Exclude<provider_product, null> | null {
+function numeric_value(value: unknown): number | null {
+  const parsed = typeof value === 'number' || typeof value === 'string' ? Number(value) : Number.NaN
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+}
+
+function normalized_unit(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const unit = value.trim()
+  return /^[a-zA-Z\u00b5\u03bc%]{1,16}$/.test(unit) ? unit : null
+}
+
+function provider_product_url(barcode: string): string {
+  const base_url = process.env.OPEN_FOOD_FACTS_BASE_URL || 'https://world.openfoodfacts.org'
+  return new URL('/product/' + encodeURIComponent(barcode), base_url).toString()
+}
+
+function normalize_serving(product: raw_open_food_facts_product): { value: number; unit: string } | null {
+  const value = numeric_value(product.serving_quantity)
+  const unit = normalized_unit(product.serving_quantity_unit)
+  if (value !== null && value > 0 && unit !== null) return { value, unit }
+
+  if (typeof product.serving_size !== 'string') return null
+  const match = product.serving_size.trim().match(/^(\d+(?:[.,]\d+)?)\s*(g|mg|kg|ml|cl|l|oz|lb|item|piece)$/iu)
+  if (!match) return null
+
+  const quantity = match[1]
+  const serving_unit = match[2]
+  if (!quantity || !serving_unit) return null
+
+  const parsed = Number(quantity.replace(',', '.'))
+  return Number.isFinite(parsed) && parsed > 0 ? { value: parsed, unit: serving_unit.toLowerCase() } : null
+}
+
+function normalize_nutrients(product: raw_open_food_facts_product) {
+  if (!product.nutriments || typeof product.nutriments !== 'object') return []
+
+  const nutrients: { code: string; value: number; unit: string; basis: string }[] = []
+  const basis_by_suffix = [
+    ['_100g', 'per_100g'],
+    ['_100ml', 'per_100ml'],
+    ['_serving', 'per_serving'],
+  ] as const
+
+  for (const [key, raw_value] of Object.entries(product.nutriments)) {
+    const match = basis_by_suffix.find(([suffix]) => key.endsWith(suffix))
+    if (!match) continue
+
+    const code = key.slice(0, -match[0].length).trim().toLowerCase()
+    const value = numeric_value(raw_value)
+    const unit = normalized_unit(product.nutriments[code + '_unit'])
+    if (!/^[a-z0-9-]{1,64}$/.test(code) || value === null || unit === null) continue
+
+    nutrients.push({ code, value, unit, basis: match[1] })
+  }
+
+  return nutrients.sort((left, right) => {
+    const code = left.code.localeCompare(right.code)
+    if (code !== 0) return code
+    const basis = left.basis.localeCompare(right.basis)
+    return basis !== 0 ? basis : left.unit.localeCompare(right.unit)
+  })
+}
+
+function normalize_nutrition(product: raw_open_food_facts_product, product_barcode: string, product_name: string | null) {
+  const nutrients = normalize_nutrients(product)
+
+  return {
+    variant: { product_barcode, product_name },
+    serving: normalize_serving(product),
+    nutrients,
+    sources: [
+      {
+        provider: 'Open Food Facts',
+        url: provider_product_url(product_barcode),
+        retrieved_at: new Date().toISOString(),
+        fresh_until: null,
+      },
+    ],
+    completeness: product_nutrition_completeness(nutrients),
+  }
+}
+
+function normalize_product(
+  product: raw_open_food_facts_product,
+  fallback_barcode?: string,
+  include_nutrition = false,
+): Exclude<provider_product, null> | null {
   const raw_barcode = product.code ?? fallback_barcode
   const product_barcode = raw_barcode === undefined || raw_barcode === null ? '' : String(raw_barcode).trim()
   if (!/^\d{6,64}$/.test(product_barcode)) return null
+  if (fallback_barcode && product.code !== undefined && product_barcode !== fallback_barcode) return null
 
   const product_name = typeof product.product_name === 'string' && product.product_name.trim() !== '' ? product.product_name.trim() : null
   const product_brand_name = typeof product.brands === 'string' && product.brands.trim() !== '' ? product.brands.trim() : null
@@ -152,6 +244,7 @@ function normalize_product(product: raw_open_food_facts_product, fallback_barcod
     product_ecoscore: normalize_score(product.ecoscore_grade),
     product_nutriscore: normalize_score(product.nutriscore_grade ?? product.nutrition_grades),
     product_metadata: { ingredients, allergens },
+    nutrition: include_nutrition ? normalize_nutrition(product, product_barcode, product_name) : null,
   }
 }
 
@@ -231,11 +324,16 @@ function normalize_search_page(body: unknown, take: number) {
 }
 
 export const service_product_provider = {
-  async fetch_by_barcode(barcode: string, signal?: AbortSignal): Promise<Static<typeof dto_product_provider.fetch_by_barcode.response>['data']> {
-    const body = await request_open_food_facts(`/api/v2/product/${encodeURIComponent(barcode)}.json`, undefined, true, signal)
+  async fetch_by_barcode(
+    barcode: string,
+    signal?: AbortSignal,
+    include_nutrition = false,
+  ): Promise<Static<typeof dto_product_provider.fetch_by_barcode.response>['data']> {
+    const path = '/api/v2/product/' + encodeURIComponent(barcode) + '.json'
+    const body = await request_open_food_facts(path, undefined, true, signal)
     if (!body || typeof body !== 'object' || !('status' in body) || body.status === 0 || !('product' in body) || !body.product) return null
     if (typeof body.product !== 'object') return null
-    return normalize_product(body.product as raw_open_food_facts_product, barcode)
+    return normalize_product(body.product as raw_open_food_facts_product, barcode, include_nutrition)
   },
 
   async search_by_product_name(

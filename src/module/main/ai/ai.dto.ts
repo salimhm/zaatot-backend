@@ -2,10 +2,46 @@ import { t } from 'elysia'
 
 import { consumer_agent_names } from '@ai/src/workflow.definition'
 
+const product_nutrition = t.Object({
+  variant: t.Object({
+    barcode: t.String({ minLength: 6, maxLength: 64, pattern: '^\\d+$' }),
+    name: t.Union([t.String(), t.Null()]),
+  }),
+  serving: t.Union([
+    t.Object({
+      value: t.Number({ exclusiveMinimum: 0 }),
+      unit: t.String({ minLength: 1 }),
+    }),
+    t.Null(),
+  ]),
+  nutrients: t.Array(
+    t.Object({
+      code: t.String({ minLength: 1 }),
+      value: t.Number({ minimum: 0 }),
+      unit: t.String({ minLength: 1 }),
+      basis: t.UnionEnum(['per_100g', 'per_100ml', 'per_serving']),
+    }),
+  ),
+  sources: t.Array(
+    t.Object({
+      provider: t.String({ minLength: 1 }),
+      url: t.Union([t.String({ format: 'uri' }), t.Null()]),
+      retrieved_at: t.String({ minLength: 1 }),
+      fresh_until: t.Union([t.String({ minLength: 1 }), t.Null()]),
+    }),
+  ),
+  completeness: t.Object({
+    status: t.UnionEnum(['complete', 'partial', 'unavailable']),
+    complete: t.Boolean(),
+    missing_nutrient_codes: t.Array(t.String({ minLength: 1 })),
+  }),
+})
+
 const product = t.Object({
   barcode: t.Union([t.String(), t.Null()]),
   name: t.String({ minLength: 1 }),
   brand: t.Union([t.String(), t.Null()]),
+  nutrition: t.Union([product_nutrition, t.Null()]),
 })
 
 const subject = t.Object({

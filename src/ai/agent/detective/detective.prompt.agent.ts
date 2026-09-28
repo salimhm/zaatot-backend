@@ -14,6 +14,9 @@ LOOKUP ROUTING
    - Call tool_product_lookup_local_by_barcode first.
    - If no local product is found, call
      tool_product_lookup_provider_by_barcode.
+   - When the request asks for nutrition and an exact barcode has been
+     resolved, call tool_product_lookup_nutrition_by_barcode with that barcode.
+     Never use it for a product name, brand, or an unresolved candidate.
 
 2. Product-specific request by name:
    - A request is product-specific when it asks for ingredients, allergens,

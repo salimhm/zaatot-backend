@@ -1,8 +1,9 @@
 import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 import type { consumer_specialist, consumer_specialist_name, consumer_step_result } from '@ai/execution.ai'
 import type { consumer_dependency } from '@ai/workflow.ai'
+import type { lib_dto_payload } from '@lib/dto.lib'
 
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 
 import { run_consumer_workflow } from '@ai/workflow.ai'
 import { schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.schema.agent'
@@ -75,6 +76,7 @@ function fixture(selected = all) {
         agent,
         depends_on: dependencies[agent].filter((name) => selected.includes(name)),
         run_when: agent === 'Coach' ? 'personalization_permitted' : agent === 'Historian' ? 'history_permitted' : 'always',
+        ...(agent === 'Medic' ? { medic_checks: ['nutrition_assessment', 'restriction_check', 'portion_calculation'] } : {}),
       })),
       required_checks: selected.flatMap((agent) => (checks[agent] ? [checks[agent]] : [])),
       budgets: {
@@ -97,17 +99,160 @@ function fixture(selected = all) {
 }
 
 describe('Consumer specialist workflow slots', () => {
-  it('ignores unavailable agent slots without reporting each future agent as a failure', async () => {
+  it('provides verified claims only to Vault Keeper through backend context', async () => {
+    const { dependency, handlers, candidate_review } = fixture()
+    const authenticated_payload = {
+      user_id: request.user_id,
+      tenants: [
+        { tenant_id: request.user_id, tenant_type: 'user' as const, tenant_schema_version: 'private-tenant-version', extra: 'private-extra' },
+      ],
+      token: 'private-token',
+    }
+    const inspect = mock(async (text: string, _signal: AbortSignal) => ({ usable: true, text }))
+    dependency.bait_tester = inspect
+    handlers.Detective.mockImplementation(async (input) => complete(await input.inspect_content('catalog facts')))
+    const planners = [spyOn(dependency, 'bodyguard'), spyOn(dependency, 'conductor'), spyOn(dependency, 'dispatcher')]
+    const log = spyOn(console, 'info').mockImplementation(() => {})
+    const events: unknown[] = []
+    try {
+      const result = await run_consumer_workflow(request, { dependency, authenticated_payload, on_step: (event) => events.push(event) })
+      expect(result.status).toBe('completed')
+      const context = handlers['Vault Keeper'].mock.calls[0]![2]
+      expect(context).toEqual({
+        payload: {
+          user_id: request.user_id,
+          tenants: [{ tenant_id: request.user_id, tenant_type: 'user', tenant_schema_version: 'private-tenant-version' }],
+        },
+      })
+      expect(context!.payload).not.toBe(authenticated_payload)
+      expect(context!.payload.tenants).not.toBe(authenticated_payload.tenants)
+      expect(context!.payload.tenants![0]).not.toBe(authenticated_payload.tenants[0])
+      for (const agent of all.filter((name) => name !== 'Vault Keeper')) {
+        expect(handlers[agent]).toHaveBeenCalled()
+        for (const call of handlers[agent].mock.calls) expect(call).toHaveLength(2)
+      }
+      for (const call of candidate_review.mock.calls) expect(call).toHaveLength(2)
+      const exposed = JSON.stringify({
+        result,
+        events,
+        planner_calls: planners.map((planner) => planner.mock.calls),
+        specialist_inputs: all.flatMap((agent) => handlers[agent].mock.calls.map(([input]) => input)),
+        inspection_calls: inspect.mock.calls,
+        review_calls: candidate_review.mock.calls,
+        logs: log.mock.calls,
+      })
+      for (const secret of ['private-tenant-version', 'private-extra', 'private-token']) expect(exposed).not.toContain(secret)
+    } finally {
+      planners.forEach((planner) => planner.mockRestore())
+      log.mockRestore()
+    }
+  })
+
+  it('does not infer authenticated context from workflow input', async () => {
+    const { dependency, handlers } = fixture()
+    const forged = { user_id: request.user_id, tenants: [{ tenant_id: 99, tenant_type: 'user', tenant_schema_version: 'forged' }] }
+    const result = await run_consumer_workflow({ ...request, authenticated_payload: forged } as typeof request, { dependency })
+    expect(result.status).toBe('completed')
+    expect(handlers['Vault Keeper'].mock.calls[0]).toHaveLength(2)
+    expect(JSON.stringify(result)).not.toContain('forged')
+  })
+
+  it('snapshots caller claims before asynchronous work begins', async () => {
+    const { dependency, handlers } = fixture()
+    const released = Promise.withResolvers<void>()
+    dependency.bodyguard = mock(async () => {
+      await released.promise
+      return { safe: true, action: 'allow', riskLevel: 'none', risks: [], reason: 'Allowed', confidence: 1 }
+    })
+    const payload: lib_dto_payload = {
+      user_id: request.user_id,
+      tenants: [{ tenant_id: request.user_id, tenant_type: 'user', tenant_schema_version: 'original-version' }],
+    }
+    const running = run_consumer_workflow(request, { dependency, authenticated_payload: payload })
+    payload.user_id = 99
+    payload.tenants![0]!.tenant_schema_version = 'mutated-version'
+    payload.tenants!.push({ tenant_id: 99, tenant_type: 'user', tenant_schema_version: 'injected-version' })
+    released.resolve()
+    expect((await running).status).toBe('completed')
+    expect(handlers['Vault Keeper'].mock.calls[0]![2]?.payload).toEqual({
+      user_id: request.user_id,
+      tenants: [{ tenant_id: request.user_id, tenant_type: 'user', tenant_schema_version: 'original-version' }],
+    })
+  })
+
+  it('isolates backend context for concurrent requests using shared adapters', async () => {
+    const { dependency, handlers } = fixture()
+    const both_started = Promise.withResolvers<void>()
+    handlers['Vault Keeper'].mockImplementation(async () => {
+      if (handlers['Vault Keeper'].mock.calls.length === 2) both_started.resolve()
+      await both_started.promise
+      return { ...complete(), permissions: { personalization: true, history: true } }
+    })
+    const results = await Promise.all(
+      [7, 8].map((user_id) =>
+        run_consumer_workflow(
+          { ...request, user_id },
+          {
+            dependency,
+            timeout_ms: 2000,
+            authenticated_payload: {
+              user_id,
+              tenants: [{ tenant_id: user_id, tenant_type: 'user', tenant_schema_version: `private-user-${user_id}` }],
+            },
+          },
+        ),
+      ),
+    )
+    for (const result of results) expect(result.status).toBe('completed')
+    for (const [input, , context] of handlers['Vault Keeper'].mock.calls) {
+      expect(context?.payload.user_id).toBe(input.user_id!)
+      expect(context?.payload.tenants).toEqual([
+        { tenant_id: input.user_id!, tenant_type: 'user', tenant_schema_version: `private-user-${input.user_id}` },
+      ])
+    }
+    expect(handlers['Vault Keeper'].mock.calls[0]![2]).not.toBe(handlers['Vault Keeper'].mock.calls[1]![2])
+    expect(JSON.stringify(results)).not.toContain('private-user-')
+  })
+
+  it('rejects a mismatched authenticated identity before running any agent', async () => {
+    const { dependency, handlers } = fixture()
+    await expect(run_consumer_workflow(request, { dependency, authenticated_payload: { user_id: 99 } })).rejects.toMatchObject({ status: 401 })
+    expect(dependency.bodyguard).not.toHaveBeenCalled()
+    for (const handler of Object.values(handlers)) expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('reports the missing clinical-risk check when requested Medic work has no adapter', async () => {
     const { dependency } = fixture()
     dependency.specialists = {}
     const result = await run_consumer_workflow(request, { dependency })
-    expect(result.status).toBe('partial')
+
+    expect(result.status).toBe('needs_review')
     expect(result.product).toBeNull()
     expect(result.assessments).toEqual([])
     expect(result.explanation).toBeNull()
-    expect(result.limitations).toEqual(['No implemented specialist was selected for this request.'])
+    expect(result.limitations).toEqual([
+      'No implemented specialist was selected for this request.',
+      'Requested health assessment is incomplete: Medic was unavailable, so the required clinical-risk check did not run.',
+    ])
     expect(result.limitations.join(' ')).not.toContain('is not implemented')
     expect(result).not.toHaveProperty('agent_results')
+  })
+
+  it('keeps the result incomplete when Medic returns without completing the requested health assessment', async () => {
+    const { dependency, handlers } = fixture()
+    handlers.Medic.mockResolvedValue({
+      status: 'needs_input',
+      output: null,
+      limitations: ['A verified product label is required for the health assessment.'],
+    })
+
+    const result = await run_consumer_workflow(request, { dependency })
+
+    expect(result.status).toBe('needs_input')
+    expect(result.limitations).toContain(
+      'Requested health assessment is incomplete: Medic returned needs input, so the required clinical-risk check did not complete.',
+    )
+    expect(result.limitations).toContain('A verified product label is required for the health assessment.')
   })
 
   it('returns validated Detective and Investigator results without waiting for future agents', async () => {
@@ -190,6 +335,7 @@ describe('Consumer specialist workflow slots', () => {
       barcode: '5449000054227',
       name: 'Coca-Cola Original Taste',
       brand: 'Coca-Cola',
+      nutrition: null,
     })
     expect(result.assessments.map((assessment) => assessment.agent)).toEqual(['Detective', 'Investigator'])
     expect(result.assessments[1]?.summary).toContain('boycott for Coca-Cola, 100% confidence')

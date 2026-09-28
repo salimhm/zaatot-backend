@@ -4,7 +4,11 @@ import { describe, expect, it, spyOn } from 'bun:test'
 
 import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
 import { $agent_dispatcher, agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
-import { schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.schema.agent'
+import {
+  normalize_dispatcher_provider_draft,
+  schema_agent_dispatcher,
+  schema_agent_dispatcher_provider_draft,
+} from '@agent/dispatcher/dispatcher.schema.agent'
 
 function plan_fixture(): type_schema_agent_dispatcher {
   return {
@@ -32,6 +36,16 @@ function input_fixture(): type_schema_agent_dispatcher_input {
 }
 
 describe('Dispatcher planning contract', () => {
+  it('accepts Groq transport nulls and removes them before internal plan validation', () => {
+    const internal_plan = plan_fixture()
+    const provider_plan = {
+      ...internal_plan,
+      selected_agents: internal_plan.selected_agents.map((step) => ({ ...step, medic_checks: null })),
+    }
+    expect(schema_agent_dispatcher_provider_draft.safeParse(provider_plan).success).toBe(true)
+    expect(normalize_dispatcher_provider_draft(provider_plan)).toEqual(internal_plan)
+  })
+
   it('requires brand investigation for a general information plan without selecting unrelated specialists', () => {
     const plan = schema_agent_dispatcher.parse(plan_fixture())
     expect(plan.selected_agents.map((step) => step.agent)).toEqual(['Detective', 'Investigator', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'])
@@ -40,12 +54,16 @@ describe('Dispatcher planning contract', () => {
   it('permits independent selected specialists after identity resolution and waits for both before evidence review', () => {
     const plan = plan_fixture()
     plan.selected_agents.push(
-      { agent: 'Medic', depends_on: ['Detective'], run_when: 'always' },
+      { agent: 'Medic', depends_on: ['Detective'], run_when: 'always', medic_checks: ['nutrition_assessment'] },
       { agent: 'Eco Scout', depends_on: ['Detective'], run_when: 'always' },
     )
     plan.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on.push('Medic', 'Eco Scout')
     plan.required_checks.push('clinical_risk', 'environment')
     expect(schema_agent_dispatcher.safeParse(plan).success).toBe(true)
+    const medic = plan.selected_agents.find((step) => step.agent === 'Medic')!
+    medic.medic_checks = undefined
+    expect(schema_agent_dispatcher.safeParse(plan).success).toBe(false)
+    medic.medic_checks = ['nutrition_assessment']
     plan.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on.pop()
     expect(schema_agent_dispatcher.safeParse(plan).success).toBe(false)
   })
