@@ -12,6 +12,7 @@ import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema
 import { $agent_detective } from '@agent/detective/detective.agent'
 import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
 import { $agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
+import { $agent_skeptic } from '@agent/skeptic/skeptic.agent'
 
 import { service_boycott_decision } from '@module/main/boycott-decision/boycott-decision.service'
 import { service_boycott_provider } from '@module/main/boycott-provider/boycott-provider.service'
@@ -41,6 +42,28 @@ function dispatcher_plan_fixture(input: type_schema_agent_dispatcher_input): typ
     untrusted_content_policy: 'bait_tester_before_consumption',
     candidate_validation: 'not_requested',
   }
+}
+
+// Accepts every ledger claim with its attached evidence, as a reviewing model would for clean evidence.
+function mock_skeptic_accepts_ledger() {
+  return spyOn($agent_skeptic, 'generateText').mockImplementation(async (message) => {
+    const ledger = JSON.parse(message as string) as { claims: Array<{ id: string; claim: string; evidence_refs: string[] }> }
+    return {
+      output: {
+        status: 'reviewed',
+        accepted_claims: ledger.claims.map((claim) => ({
+          claim_ref: claim.id,
+          claim: claim.claim,
+          evidence_refs: claim.evidence_refs,
+          qualification: null,
+        })),
+        unsupported_claims: [],
+        stale_sources: [],
+        uncertainties: [],
+        targeted_rechecks: [],
+      },
+    } as unknown as Awaited<ReturnType<typeof $agent_skeptic.generateText>>
+  })
 }
 
 function dependencies(overrides: Partial<consumer_dependency> = {}) {
@@ -138,6 +161,45 @@ describe('Consumer workflow startup', () => {
     expect(dependency.dispatcher).not.toHaveBeenCalled()
   })
 
+  it('does not run Investigator or report an investigation outcome when Dispatcher does not select it, but still explains the result', async () => {
+    const investigator = mock(async () => ({ status: 'completed' as const, output: null, limitations: [] }))
+    const dependency = dependencies({
+      dispatcher: mock(async (input: type_schema_agent_dispatcher_input) => {
+        const plan = dispatcher_plan_fixture(input)
+        return {
+          ...plan,
+          selected_agents: plan.selected_agents
+            .filter((step) => step.agent !== 'Investigator')
+            .map((step) => (step.agent === 'Skeptic' ? { ...step, depends_on: ['Detective' as const] } : step)),
+          required_checks: plan.required_checks.filter((check) => check !== 'ethics'),
+        }
+      }),
+      specialists: {
+        Detective: mock(async () => ({
+          status: 'completed' as const,
+          output: {
+            status: 'identified',
+            query_type: 'brand',
+            found: true,
+            subject: { type: 'brand', source: 'local_database', name: 'Example', brand_id: 1 },
+            selection: { required: false, options: [], total_options: 0 },
+            related_products: { relation: 'none', items: [], total: 0, page: 1, page_size: 0, has_more: false },
+            sources_checked: ['local_database'],
+            message: 'Identified Example.',
+          },
+          limitations: [],
+        })),
+        Investigator: investigator,
+      },
+    })
+    const result = await run_consumer_workflow(request, { dependency })
+    expect(investigator).not.toHaveBeenCalled()
+    expect(result.subject?.name).toBe('Example')
+    expect(result.outcome).toBeNull()
+    expect(result.explanation).toEqual({ summary: 'Ztroop identified Example as a brand.', reasons: [], tradeoffs: [], citation_ids: [] })
+    expect(result.assessments.map((assessment) => assessment.agent)).toEqual(['Detective'])
+  })
+
   it('rejects an invalid Conductor plan', async () => {
     const dependency = dependencies({ conductor: mock(async () => ({ intent: 'Check', steps: [{ agent: 'Unknown', purpose: 'Invalid role' }] })) })
     const result = await run_consumer_workflow(request, { dependency })
@@ -184,6 +246,7 @@ describe('Consumer workflow startup', () => {
     const bait_tester = spyOn($agent_bait_tester, 'generateText').mockResolvedValue({
       output: { safe: true, action: 'allow', risks: [], reason: 'Provider data is safe to consume.', confidence: 1 },
     } as Awaited<ReturnType<typeof $agent_bait_tester.generateText>>)
+    const skeptic = mock_skeptic_accepts_ledger()
     try {
       const cases = [
         {
@@ -227,7 +290,7 @@ describe('Consumer workflow startup', () => {
         const result = await run_consumer_workflow(request)
         expect(result.status).toBe(status)
         expect(result.product?.name ?? null).toBe(product_name)
-        expect(result.assessments.map((assessment) => assessment.agent)).toEqual(['Detective', 'Investigator'])
+        expect(result.assessments.map((assessment) => assessment.agent)).toEqual(['Detective', 'Investigator', 'Skeptic'])
         expect(result.limitations.join(' ')).not.toContain('Detective is not implemented')
         expect(result.limitations.join(' ')).not.toContain('Gatekeeper is not implemented')
         expect(JSON.stringify(result)).not.toContain('Unreviewed lookup details')
@@ -253,6 +316,7 @@ describe('Consumer workflow startup', () => {
       local.mockRestore()
       provider.mockRestore()
       bait_tester.mockRestore()
+      skeptic.mockRestore()
     }
   })
 
@@ -309,6 +373,7 @@ describe('Consumer workflow startup', () => {
     const bait_tester = spyOn($agent_bait_tester, 'generateText').mockResolvedValue({
       output: { safe: true, action: 'allow', risks: [], reason: 'Provider data is safe to consume.', confidence: 1 },
     } as Awaited<ReturnType<typeof $agent_bait_tester.generateText>>)
+    const skeptic = mock_skeptic_accepts_ledger()
 
     try {
       lookup.mockResolvedValue({
@@ -318,7 +383,7 @@ describe('Consumer workflow startup', () => {
       } as unknown as Awaited<ReturnType<typeof $agent_detective.generateText>>)
       const brand_result = await run_consumer_workflow({ ...request, prompt: 'Investigate Coca-Cola' })
       expect(brand_result.status).toBe('completed')
-      expect(brand_result.assessments.map((assessment) => assessment.agent)).toEqual(['Detective', 'Investigator'])
+      expect(brand_result.assessments.map((assessment) => assessment.agent)).toEqual(['Detective', 'Investigator', 'Skeptic'])
       expect(brand_result.limitations.join(' ')).not.toContain('Investigator is not implemented')
       expect(local).toHaveBeenNthCalledWith(1, { product_brand_name: 'Coca-Cola', candidate_names: [] })
       expect(provider).toHaveBeenNthCalledWith(1, { provider: 'boycat', brand_name: 'Coca-Cola' }, expect.any(AbortSignal))
@@ -415,6 +480,7 @@ describe('Consumer workflow startup', () => {
       local.mockRestore()
       provider.mockRestore()
       bait_tester.mockRestore()
+      skeptic.mockRestore()
     }
   })
 

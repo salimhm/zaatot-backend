@@ -9,7 +9,7 @@ import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_google, ai_google_default_model } from '@ai/provider.ai'
+import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
 import { prompt_agent_investigator } from '@agent/investigator/investigator.prompt.agent'
 import {
   schema_agent_investigator,
@@ -35,7 +35,7 @@ export const $agent_investigator = new Agent({
   name: 'Ztroop Investigator',
   purpose: 'Gather and summarize sourced boycott and related-entity evidence without making a final verdict',
   instructions: prompt_agent_investigator,
-  model: ai_google(process.env.AI_INVESTIGATOR_MODEL || ai_google_default_model),
+  model: ai_groq(process.env.GROQ_INVESTIGATOR_MODEL || ai_groq_default_model),
   tools: [],
   memory: false,
 })
@@ -93,6 +93,7 @@ async function resolve_investigator_input(
     ...trusted_agent_generation_options,
     temperature: 0,
     output: Output.object({ schema: schema_extracted_subject_agent_investigator }),
+    maxRetries: 0,
     abortSignal: signal,
   })
   const extracted = schema_extracted_subject_agent_investigator.parse(result.output)
@@ -136,12 +137,14 @@ function normalize_boycat_decision(result: boycat_decision): investigator_check 
     reason: result.reason,
     matched_entity: result.matched_entity,
     matched_path: [],
-    citations: result.sources.map((source) => ({
+    // Boycat builds one source per campaign, in campaign order.
+    citations: result.sources.map((source, index) => ({
       source_name: source.source_name,
       source_url: source.source_url,
       title: source.title ?? null,
       url: source.url,
       quote: source.quote ?? null,
+      published_at: result.campaigns[index]?.created_at ?? null,
     })),
   }
 }
@@ -163,6 +166,11 @@ function has_specific_citation(check: investigator_check): boolean {
   return check.citations.some((citation) => check.source !== 'boycat' || !/^https?:\/\/(?:www\.)?boycat\.io\/?$/i.test(citation.url))
 }
 
+// A fuzzy name match can attribute evidence to a different brand; it is never treated as found evidence.
+function has_unverified_match(check: investigator_check): boolean {
+  return check.status === 'matched' && (check.decision_status === 'needs_review' || check.matched_entity?.match_type === 'fuzzy')
+}
+
 function get_report_status(checks: investigator_check[]): type_schema_agent_investigator['status'] {
   const boycott = checks.some((check) => check.status === 'matched' && check.decision_status === 'boycott')
   const not_boycotted = checks.some((check) => check.status === 'matched' && check.decision_status === 'not_boycotted')
@@ -173,6 +181,7 @@ function get_report_status(checks: investigator_check[]): type_schema_agent_inve
   if (boycott && not_boycotted) return 'needs_review'
   if (matched_identities.size > 1) return 'needs_review'
   if (checks.some((check) => check.status === 'ambiguous')) return 'needs_review'
+  if (checks.some(has_unverified_match)) return 'needs_review'
   if (checks.some((check) => check.status === 'matched' && has_specific_citation(check))) return 'evidence_found'
   if (checks.some((check) => check.status === 'matched')) return 'needs_review'
   if (checks.some((check) => check.status === 'unavailable' || check.status === 'invalid_response')) return 'unavailable'
@@ -204,6 +213,9 @@ function get_report_limitations(checks: investigator_check[], status: type_schem
   )
   if (matched_identities.size > 1) {
     limitations.push('Evidence sources matched more than one distinct brand identity; the identity requires review.')
+  }
+  if (checks.some((check) => check.status === 'matched' && check.decision_status === 'needs_review')) {
+    limitations.push('At least one source reported low-confidence evidence that requires review.')
   }
   if (checks.some((check) => check.matched_entity?.match_type === 'fuzzy' || check.matched_entity?.match_type === 'related_entity')) {
     limitations.push('At least one match is fuzzy or follows a related-entity path; verify the identity before drawing conclusions.')

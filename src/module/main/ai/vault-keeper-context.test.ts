@@ -1,9 +1,9 @@
-import type { consumer_specialist_input } from '@ai/execution.ai'
+import type { consumer_specialist_input } from '@ai/execution/execution-contract.ai'
 import type { vault_keeper_context_runtime } from '@tool/vault-keeper/vault-keeper-context.tool'
 
 import { describe, expect, it, mock, spyOn } from 'bun:test'
 
-import { adapter_vault_keeper } from '@ai/workflow.ai'
+import { adapter_vault_keeper } from '@ai/adapter/vault-keeper.adapter.ai'
 import { create_vault_keeper_context_tool } from '@tool/vault-keeper/vault-keeper-context.tool'
 
 import { lib_error } from '@lib/error.lib'

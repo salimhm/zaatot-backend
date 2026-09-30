@@ -1,8 +1,8 @@
-import type { consumer_specialist_input } from '@ai/execution.ai'
+import type { consumer_specialist_input } from '@ai/execution/execution-contract.ai'
 
 import { describe, expect, it, spyOn } from 'bun:test'
 
-import { adapter_medic } from '@ai/workflow.ai'
+import { adapter_medic } from '@ai/adapter/medic.adapter.ai'
 import { dto_tool_medic_portion_calculator } from '@tool/medic-portion-calculator/medic-portion-calculator.dto.tool'
 import { calculate_medic_portion, extract_requested_medic_portion } from '@tool/medic-portion-calculator/medic-portion-calculator.tool'
 

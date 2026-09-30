@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { consumer_agent_names } from '@ai/src/workflow.definition'
 
 export const schema_agent_conductor_plan = z.object({
-  intent: z.string().min(1).max(1000).describe('The user intent extracted from user private database'),
+  intent: z.string().min(1).max(1000).describe('Neutral restatement of what the request text asks about; no inferred personal data'),
   steps: z
     .array(
       z.object({

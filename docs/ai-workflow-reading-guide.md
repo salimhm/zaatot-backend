@@ -30,7 +30,7 @@ Start with the request path before reading the helper functions in detail.
 | 3     | [ai.service.ts](../src/module/main/ai/ai.service.ts)                                | `service_ai.analyze`                                     | How does the authenticated request start a workflow?              |
 | 4     | [workflow.ai.ts](../src/ai/workflow.ai.ts)                                          | `run_consumer_workflow` near the bottom                  | How are the execution ID, deadline, and workflow run created?     |
 | 5     | [workflow.ai.ts](../src/ai/workflow.ai.ts)                                          | `create_consumer_workflow`                               | In what order do the stages run?                                  |
-| 6     | [workflow.ai.ts](../src/ai/workflow.ai.ts)                                          | `consumer_dependency`, `default_dependency` near the top | Which actual functions and placeholder slots are connected?       |
+| 6     | [workflow-dependency.ai.ts](../src/ai/workflow/workflow-dependency.ai.ts)                    | `consumer_dependency`, `default_dependency`              | Which actual functions and placeholder slots are connected?       |
 | 7     | [dispatcher.agent.ts](../src/ai/agent/dispatcher/dispatcher.agent.ts)               | `agent_dispatcher`, `$agent_dispatcher`                  | How does the model produce an execution plan?                     |
 | 8     | [dispatcher.schema.agent.ts](../src/ai/agent/dispatcher/dispatcher.schema.agent.ts) | `schema_agent_dispatcher`, `.superRefine()`              | Which plan, dependency, and budget rules are enforced?            |
 | 9     | [execution.ai.ts](../src/ai/execution.ai.ts)                                        | `create_consumer_execution` and its returned functions   | How does the code decide whether and how to call each specialist? |
@@ -683,7 +683,7 @@ The connected specialists in `execution.test.ts` are mocks used to exercise the 
 | ------------------------------------------------ | ---------------------------------------------------------------------- |
 | Did the request reach the API?                   | `ai.controller.ts` → `/analyze` handler                                |
 | Which user ID and signal reach the workflow?     | `ai.service.ts` → `analyze()`                                          |
-| Which adapters are being used?                   | `workflow.ai.ts` → `run_consumer_workflow()` and `default_dependency`  |
+| Which adapters are being used?                   | `workflow-dependency.ai.ts` → `default_dependency`, `src/ai/adapter/`  |
 | What did Dispatcher select?                      | `workflow.ai.ts` → return from `dispatcher-plan`                       |
 | Why did an agent not run?                        | `execution.ai.ts` → private `execute()` helper                         |
 | What does a specialist receive?                  | `execution.ai.ts` → `input_for()` and the adapter called by `invoke()` |

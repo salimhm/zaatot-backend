@@ -1,8 +1,8 @@
-import type { consumer_specialist_input } from '@ai/execution.ai'
+import type { consumer_specialist_input } from '@ai/execution/execution-contract.ai'
 
 import { describe, expect, it, mock, spyOn } from 'bun:test'
 
-import { adapter_medic } from '@ai/workflow.ai'
+import { adapter_medic } from '@ai/adapter/medic.adapter.ai'
 import { dto_tool_medic_nutrition_assessor } from '@tool/medic-nutrition-assessor/medic-nutrition-assessor.dto.tool'
 import {
   assess_medic_restrictions,

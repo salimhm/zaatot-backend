@@ -1,5 +1,5 @@
 import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
-import type { consumer_specialist, consumer_specialist_name, consumer_step_result } from '@ai/execution.ai'
+import type { consumer_specialist, consumer_specialist_name, consumer_step_result } from '@ai/execution/execution-contract.ai'
 import type { consumer_dependency } from '@ai/workflow.ai'
 import type { lib_dto_payload } from '@lib/dto.lib'
 
@@ -40,7 +40,7 @@ const checks: Partial<Record<consumer_specialist_name, type_schema_agent_dispatc
 const all = Object.keys(dependencies) as consumer_specialist_name[]
 const complete = (output: unknown = {}): consumer_step_result => ({ status: 'completed', output, limitations: [] })
 
-function fixture(selected = all) {
+function fixture(selected = all, medic_checks = ['nutrition_assessment', 'restriction_check', 'portion_calculation']) {
   const calls: string[] = []
   const handlers = Object.fromEntries(
     all.map((agent) => [
@@ -76,7 +76,7 @@ function fixture(selected = all) {
         agent,
         depends_on: dependencies[agent].filter((name) => selected.includes(name)),
         run_when: agent === 'Coach' ? 'personalization_permitted' : agent === 'Historian' ? 'history_permitted' : 'always',
-        ...(agent === 'Medic' ? { medic_checks: ['nutrition_assessment', 'restriction_check', 'portion_calculation'] } : {}),
+        ...(agent === 'Medic' ? { medic_checks } : {}),
       })),
       required_checks: selected.flatMap((agent) => (checks[agent] ? [checks[agent]] : [])),
       budgets: {
@@ -232,10 +232,22 @@ describe('Consumer specialist workflow slots', () => {
     expect(result.explanation).toBeNull()
     expect(result.limitations).toEqual([
       'No implemented specialist was selected for this request.',
-      'Requested health assessment is incomplete: Medic was unavailable, so the required clinical-risk check did not run.',
+      'Requested health assessment is incomplete: Medic was unavailable, so nutrition assessment, restriction check, and portion calculation did not run.',
     ])
     expect(result.limitations.join(' ')).not.toContain('is not implemented')
     expect(result).not.toHaveProperty('agent_results')
+  })
+
+  it('names only the Dispatcher-selected Medic scope when no Medic adapter is available', async () => {
+    const { dependency } = fixture([...core, 'Medic'], ['restriction_check'])
+    dependency.specialists = {}
+
+    const result = await run_consumer_workflow(request, { dependency })
+
+    expect(result.status).toBe('needs_review')
+    expect(result.limitations).toContain('Requested health assessment is incomplete: Medic was unavailable, so restriction check did not run.')
+    expect(result.limitations.join(' ')).not.toContain('nutrition assessment')
+    expect(result.limitations.join(' ')).not.toContain('portion calculation')
   })
 
   it('keeps the result incomplete when Medic returns without completing the requested health assessment', async () => {
@@ -250,7 +262,7 @@ describe('Consumer specialist workflow slots', () => {
 
     expect(result.status).toBe('needs_input')
     expect(result.limitations).toContain(
-      'Requested health assessment is incomplete: Medic returned needs input, so the required clinical-risk check did not complete.',
+      'Requested health assessment is incomplete: Medic returned needs input, so nutrition assessment, restriction check, and portion calculation did not complete.',
     )
     expect(result.limitations).toContain('A verified product label is required for the health assessment.')
   })

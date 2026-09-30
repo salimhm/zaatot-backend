@@ -5,6 +5,7 @@ import { describe, expect, it, spyOn } from 'bun:test'
 import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
 import { $agent_dispatcher, agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
 import {
+  normalize_dispatcher_plan,
   normalize_dispatcher_provider_draft,
   schema_agent_dispatcher,
   schema_agent_dispatcher_provider_draft,
@@ -27,6 +28,21 @@ function plan_fixture(): type_schema_agent_dispatcher {
   }
 }
 
+function nutrition_plan_fixture(): type_schema_agent_dispatcher {
+  return {
+    ...plan_fixture(),
+    selected_agents: [
+      { agent: 'Detective', depends_on: [], run_when: 'always' },
+      { agent: 'Medic', depends_on: ['Detective'], run_when: 'always', medic_checks: ['portion_calculation'] },
+      { agent: 'Skeptic', depends_on: ['Detective', 'Medic'], run_when: 'always' },
+      { agent: 'Referee', depends_on: ['Skeptic'], run_when: 'always' },
+      { agent: 'Storyteller', depends_on: ['Skeptic', 'Referee'], run_when: 'always' },
+      { agent: 'Gatekeeper', depends_on: ['Storyteller'], run_when: 'always' },
+    ],
+    required_checks: ['identity', 'clinical_risk', 'evidence', 'hard_constraints', 'final_response'],
+  }
+}
+
 function input_fixture(): type_schema_agent_dispatcher_input {
   return {
     prompt: 'give me info about coca cola',
@@ -38,17 +54,90 @@ function input_fixture(): type_schema_agent_dispatcher_input {
 describe('Dispatcher planning contract', () => {
   it('accepts Groq transport nulls and removes them before internal plan validation', () => {
     const internal_plan = plan_fixture()
+    const investigation = { needed: true, reason: 'The user asks who owns the brand.' }
     const provider_plan = {
       ...internal_plan,
+      investigation,
       selected_agents: internal_plan.selected_agents.map((step) => ({ ...step, medic_checks: null })),
     }
     expect(schema_agent_dispatcher_provider_draft.safeParse(provider_plan).success).toBe(true)
-    expect(normalize_dispatcher_provider_draft(provider_plan)).toEqual(internal_plan)
+    expect(schema_agent_dispatcher_provider_draft.safeParse({ ...provider_plan, investigation: undefined }).success).toBe(false)
+    expect(normalize_dispatcher_provider_draft(provider_plan)).toEqual({ ...internal_plan, investigation })
   })
 
-  it('requires brand investigation for a general information plan without selecting unrelated specialists', () => {
+  it('accepts brand investigation for a general information plan without selecting unrelated specialists', () => {
     const plan = schema_agent_dispatcher.parse(plan_fixture())
     expect(plan.selected_agents.map((step) => step.agent)).toEqual(['Detective', 'Investigator', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'])
+  })
+
+  it('leaves Investigator to the Dispatcher decision instead of requiring it', () => {
+    const plan = nutrition_plan_fixture()
+    expect(schema_agent_dispatcher.parse(plan)).toEqual(plan)
+    expect(normalize_dispatcher_plan(plan)).toEqual(plan)
+    for (const agent of ['Detective', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper']) {
+      expect(
+        schema_agent_dispatcher.safeParse({ ...plan, selected_agents: plan.selected_agents.filter((step) => step.agent !== agent) }).success,
+      ).toBe(false)
+    }
+  })
+
+  it('reconciles the ethics check and Skeptic dependency with the selection in both directions', () => {
+    const without = plan_fixture()
+    without.selected_agents = without.selected_agents.filter((step) => step.agent !== 'Investigator')
+    expect(schema_agent_dispatcher.safeParse(without).success).toBe(false)
+    const normalized_without = schema_agent_dispatcher.parse(normalize_dispatcher_plan(without))
+    expect(normalized_without.selected_agents.map((step) => step.agent)).not.toContain('Investigator')
+    expect(normalized_without.required_checks).not.toContain('ethics')
+    expect(normalized_without.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).toEqual(['Detective'])
+
+    const selected = plan_fixture()
+    selected.required_checks = selected.required_checks.filter((check) => check !== 'ethics')
+    selected.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on = ['Detective']
+    const normalized_selected = schema_agent_dispatcher.parse(normalize_dispatcher_plan(selected))
+    expect(normalized_selected.required_checks).toContain('ethics')
+    expect(normalized_selected.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).toEqual(['Detective', 'Investigator'])
+  })
+
+  it('builds the Investigator step from the investigation decision rather than the listed agents', () => {
+    const listed_without = nutrition_plan_fixture()
+    const added = schema_agent_dispatcher.parse(
+      normalize_dispatcher_plan({ ...listed_without, investigation: { needed: true, reason: 'The user asks whether the brand is boycotted.' } }),
+    )
+    expect(added.selected_agents.map((step) => step.agent)).toContain('Investigator')
+    expect(added.required_checks).toContain('ethics')
+    expect(added.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).toEqual(['Detective', 'Medic', 'Investigator'])
+
+    const removed = schema_agent_dispatcher.parse(
+      normalize_dispatcher_plan({ ...plan_fixture(), investigation: { needed: false, reason: 'Only nutrition is requested.' } }),
+    )
+    expect(removed.selected_agents.map((step) => step.agent)).not.toContain('Investigator')
+    expect(removed.required_checks).not.toContain('ethics')
+  })
+
+  it('applies the model investigation decision end to end', async () => {
+    const generate = spyOn($agent_dispatcher, 'generateText').mockResolvedValue({
+      output: { ...nutrition_plan_fixture(), investigation: { needed: true, reason: 'The user asks whether Coca-Cola is boycotted.' } },
+    } as Awaited<ReturnType<typeof $agent_dispatcher.generateText>>)
+    try {
+      const result = await agent_dispatcher({ ...input_fixture(), prompt: 'is coca cola boycotted ?' })
+      expect(result.success).toBe(true)
+      if (result.success) expect(result.data.selected_agents.map((step) => step.agent)).toContain('Investigator')
+    } finally {
+      generate.mockRestore()
+    }
+  })
+
+  it('returns a model plan without Investigator unchanged', async () => {
+    const generate = spyOn($agent_dispatcher, 'generateText').mockResolvedValue({ output: nutrition_plan_fixture() } as Awaited<
+      ReturnType<typeof $agent_dispatcher.generateText>
+    >)
+    try {
+      const result = await agent_dispatcher({ ...input_fixture(), prompt: 'How much sugar is in 330 ml of this?' })
+      expect(result.success).toBe(true)
+      if (result.success) expect(result.data.selected_agents.map((step) => step.agent)).not.toContain('Investigator')
+    } finally {
+      generate.mockRestore()
+    }
   })
 
   it('permits independent selected specialists after identity resolution and waits for both before evidence review', () => {

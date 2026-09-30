@@ -97,7 +97,7 @@ Files:
 
 - `src/ai/tool/vault-keeper/vault-keeper-context.dto.tool.ts`
 - `src/ai/tool/vault-keeper/vault-keeper-context.tool.ts`
-- `src/ai/workflow.ai.ts` — `adapter_vault_keeper()`
+- `src/ai/adapter/vault-keeper.adapter.ai.ts` — `adapter_vault_keeper()`
 
 It returns:
 
@@ -109,7 +109,7 @@ Private user context stays in backend context. It is not placed in the public wo
 
 ## Medic implementation
 
-Medic is connected to the workflow through `adapter_medic()` in `src/ai/workflow.ai.ts`. The adapter performs deterministic, evidence-based checks. It does not ask an LLM to invent nutrition thresholds or decide whether data is sufficient.
+Medic is connected to the workflow through `adapter_medic()` in `src/ai/adapter/medic.adapter.ai.ts`. The adapter performs deterministic, evidence-based checks. It does not ask an LLM to invent nutrition thresholds or decide whether data is sufficient.
 
 `src/ai/agent/medic/medic.agent.ts` and its prompt remain available for Medic agent behavior, but the active workflow adapter uses the verified tools below for assessment decisions.
 

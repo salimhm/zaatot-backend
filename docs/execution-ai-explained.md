@@ -1,5 +1,13 @@
 # execution.ai.ts: every type and function explained
 
+> **File layout (updated 2026-09-29).** `src/ai/execution.ai.ts` now contains only the routing
+> (`create_consumer_execution`, `invoke`, `execute`, `parallel`, `run`, `review_candidates`,
+> `repair_response`, `merge_consumer_parallel`). The rest moved to `src/ai/execution/`:
+> `execution-contract.ai.ts` (types and `schema_step_result`), `execution-runtime.ai.ts`
+> (`check_deadline`, `use_tool`, `inspect_content`, budgets), `execution-event.ai.ts` (step titles),
+> `execution-result.ai.ts` (`result()` is now `build_consumer_result`) and
+> `execution-explanation.ai.ts` (temporary explanation helpers). Behavior is unchanged.
+
 This reference explains the implementation in [src/ai/execution.ai.ts](../src/ai/execution.ai.ts), as read on September 18, 2026. It covers all seven exported types, the runtime result schema, the imported types they use, and all sixteen named functions.
 
 Read sections 1–4 to understand the data, then section 5 alongside the source. Section 6 traces actual calls. Examples with product findings or connected specialist handlers are illustrations; the default specialist slots in `workflow.ai.ts` are currently `null`.
@@ -1403,7 +1411,7 @@ Use this table to jump from a question to the relevant code:
 
 | Question | Where to look |
 | --- | --- |
-| Where do I connect a real specialist? | `default_dependency.specialists` in [workflow.ai.ts](../src/ai/workflow.ai.ts). |
+| Where do I connect a real specialist? | `default_dependency.specialists` in [workflow-dependency.ai.ts](../src/ai/workflow/workflow-dependency.ai.ts); adapters live in `src/ai/adapter/`. |
 | Where is the execution helper created? | `create_consumer_workflow()` in that same file. |
 | Why did this agent not run? | `execute()`: selection, connected handler, permissions, prerequisites, candidate review. |
 | Where is the actual handler called? | `invoke()`, at `handler(input, signal)`. |

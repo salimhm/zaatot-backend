@@ -47,7 +47,17 @@ const schema_agent_dispatcher_step = z.object({
     .describe('Required only for Medic. Explicit deterministic checks that the Medic adapter must execute.'),
 })
 
+// Decided before the plan is written: whether the answer depends on ownership, company
+// conduct, boycott or ethics evidence. The backend derives Investigator selection from it.
+export const schema_agent_dispatcher_investigation = z.object({
+  needed: z.boolean().describe('True when the answer the user needs depends on ownership, company conduct, boycott or ethics evidence'),
+  reason: z.string().min(1).max(300).describe('One sentence explaining the decision from the meaning of the request'),
+})
+
 export const schema_agent_dispatcher_draft = z.object({
+  investigation: schema_agent_dispatcher_investigation
+    .optional()
+    .describe('Contextual Investigator decision; when present it determines whether Investigator is selected'),
   selected_agents: z
     .array(schema_agent_dispatcher_step)
     .min(5)
@@ -73,6 +83,7 @@ const schema_agent_dispatcher_provider_step = schema_agent_dispatcher_step.exten
 })
 
 export const schema_agent_dispatcher_provider_draft = schema_agent_dispatcher_draft.extend({
+  investigation: schema_agent_dispatcher_investigation,
   selected_agents: z.array(schema_agent_dispatcher_provider_step).min(5).max(enum_dispatcher_agent.length),
 })
 
@@ -93,26 +104,28 @@ export const normalize_dispatcher_provider_draft = (draft: unknown): type_schema
   })
 }
 
+// Dispatcher decides whether Investigator runs through its investigation decision.
+// The backend turns that decision into the plan's graph, so the model never has to
+// remember the matching step, ethics check and Skeptic dependency by itself.
 export const normalize_dispatcher_plan = (draft: type_schema_agent_dispatcher_draft): type_schema_agent_dispatcher_draft => {
+  const listed = draft.selected_agents.some((step) => step.agent === 'Investigator')
   const has_detective = draft.selected_agents.some((step) => step.agent === 'Detective')
-  const has_investigator = draft.selected_agents.some((step) => step.agent === 'Investigator')
-  if (!has_detective || has_investigator) return draft
-
+  const investigate = (draft.investigation?.needed ?? listed) && has_detective
   const selected_agents = draft.selected_agents.flatMap((step) => {
+    if (step.agent === 'Investigator') return investigate ? [step] : []
     const normalized =
-      step.agent === 'Skeptic' && !step.depends_on.includes('Investigator')
-        ? { ...step, depends_on: [...step.depends_on, 'Investigator' as const] }
+      step.agent === 'Skeptic' && step.depends_on.includes('Investigator') !== investigate
+        ? {
+            ...step,
+            depends_on: investigate ? [...step.depends_on, 'Investigator' as const] : step.depends_on.filter((agent) => agent !== 'Investigator'),
+          }
         : step
-    return step.agent === 'Detective'
+    return step.agent === 'Detective' && investigate && !listed
       ? [normalized, { agent: 'Investigator' as const, depends_on: ['Detective' as const], run_when: 'always' as const }]
       : [normalized]
   })
-
-  return {
-    ...draft,
-    selected_agents,
-    required_checks: draft.required_checks.includes('ethics') ? [...draft.required_checks] : [...draft.required_checks, 'ethics'],
-  }
+  const required_checks = draft.required_checks.filter((check) => check !== 'ethics')
+  return { ...draft, selected_agents, required_checks: investigate ? [...required_checks, 'ethics'] : required_checks }
 }
 
 export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine((plan, context) => {
@@ -126,7 +139,7 @@ export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine
     if (step.agent === 'Medic' && !step.medic_checks) reject('Medic requires at least one explicit medic_checks scope')
     if (step.agent !== 'Medic' && step.medic_checks !== undefined) reject('medic_checks is valid only for Medic')
   }
-  for (const agent of ['Detective', 'Investigator', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'] as const) {
+  for (const agent of ['Detective', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'] as const) {
     if (!has(agent)) reject(`${agent} is required for an analysis plan`)
   }
 

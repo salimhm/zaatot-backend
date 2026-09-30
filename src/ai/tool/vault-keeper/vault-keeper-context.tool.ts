@@ -1,4 +1,4 @@
-import type { consumer_backend_context } from '@ai/execution.ai'
+import type { consumer_backend_context } from '@ai/execution/execution-contract.ai'
 import type { ai_tool_activity } from '@ai/runtime.ai'
 
 import { createTool } from '@voltagent/core'
