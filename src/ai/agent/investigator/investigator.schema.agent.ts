@@ -50,6 +50,7 @@ export const schema_agent_investigator = z.object({
           title: z.string().nullable(),
           url: z.string(),
           quote: z.string().nullable(),
+          published_at: z.string().nullable().optional().describe('Provider publication time when supplied; not a freshness guarantee'),
         }),
       ),
     }),

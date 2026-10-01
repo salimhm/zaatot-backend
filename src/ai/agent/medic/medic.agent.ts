@@ -12,9 +12,6 @@ export const $agent_medic = new Agent({
   purpose: 'Review product facts against permitted health-related restrictions and report supported risks or missing evidence',
   instructions: prompt_agent_medic,
   model: ai_groq(process.env.GROQ_MEDIC_MODEL || ai_groq_default_model),
-  tools: [
-    // TODO
-  ],
   memory: false,
 })
 
