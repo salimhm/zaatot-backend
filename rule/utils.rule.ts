@@ -10,8 +10,12 @@ export const SNAKE_CASE_REGEX = /^[$]?[a-z][a-z0-9_]*$/
 
 export const get_source_files = async () => {
   const glob = new Glob('**/*.ts')
-  return Array.fromAsync(glob.scan(SRC_DIR))
+  return scan_paths(glob, SRC_DIR)
 }
+
+// Bun returns backslash paths on Windows; rules match against forward slashes.
+export const scan_paths = async (glob: Glob, options: Parameters<Glob['scan']>[0]) =>
+  (await Array.fromAsync(glob.scan(options))).map((path) => path.replaceAll('\\', '/'))
 
 export const parse_file = async (relativePath: string) => {
   const fullPath = join(process.cwd(), SRC_DIR, relativePath)

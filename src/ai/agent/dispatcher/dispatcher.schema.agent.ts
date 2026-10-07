@@ -1,8 +1,48 @@
 import { z } from 'zod'
 
-import { SecurityDecision } from '@agent/bodyguard/bodyguard.schema.agent'
+import { ai_workflow_timeout_ms } from '@ai/runtime.ai'
+import { schema_agent_bodyguard } from '@agent/bodyguard/bodyguard.schema.agent'
 import { schema_agent_conductor_plan } from '@agent/conductor/conductor.schema.agent'
-import { dispatcher_budget_limit, enum_dispatcher_agent, enum_dispatcher_check, enum_dispatcher_medic_check } from '@agent/dispatcher/constants'
+
+export const enum_dispatcher_agent = [
+  'Detective',
+  'Vault Keeper',
+  'Medic',
+  'Investigator',
+  'Eco Scout',
+  'Historian',
+  'Skeptic',
+  'Referee',
+  'Coach',
+  'Bargain Hunter',
+  'Storyteller',
+  'Gatekeeper',
+] as const
+
+export const enum_dispatcher_medic_check = ['nutrition_assessment', 'restriction_check', 'portion_calculation'] as const
+
+export const enum_dispatcher_check = [
+  'identity',
+  'personal_context',
+  'clinical_risk',
+  'ethics',
+  'environment',
+  'history',
+  'evidence',
+  'hard_constraints',
+  'goal_fit',
+  'alternatives',
+  'final_response',
+] as const
+
+export const dispatcher_budget_limit = {
+  timeout_ms: ai_workflow_timeout_ms,
+  max_tool_calls: 20,
+  max_retries: 1,
+  max_alternative_candidates: 3,
+  max_candidate_review_passes: 1,
+  max_response_repairs: 1,
+} as const
 
 export const schema_agent_dispatcher_budget = z.object({
   timeout_ms: z
@@ -30,7 +70,7 @@ export const schema_agent_dispatcher_budget = z.object({
 
 export const schema_agent_dispatcher_input = z.object({
   prompt: z.string().trim().min(1).max(4000),
-  bodyguard: SecurityDecision.refine((decision) => decision.safe && decision.action === 'allow', 'Dispatcher requires Bodyguard approval'),
+  bodyguard: schema_agent_bodyguard.refine((decision) => decision.safe && decision.action === 'allow', 'Dispatcher requires Bodyguard approval'),
   conductor_plan: schema_agent_conductor_plan.optional(),
   budget_limits: schema_agent_dispatcher_budget,
 })
@@ -73,9 +113,8 @@ export const schema_agent_dispatcher_draft = z.object({
     .describe('Alternatives require identity resolution, applicable specialists, Skeptic, Referee and Coach when selected'),
 })
 
-// Groq structured output requires every object key in a response schema to be
-// required. The provider receives null for non-Medic steps; runtime conversion
-// removes that transport value before the internal plan is validated.
+// The provider contract uses an explicit null for non-Medic steps. Runtime
+// conversion removes that transport value before the internal plan is validated.
 const schema_agent_dispatcher_provider_step = schema_agent_dispatcher_step.extend({
   medic_checks: schema_agent_dispatcher_medic_checks
     .nullable()

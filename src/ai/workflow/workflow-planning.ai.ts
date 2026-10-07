@@ -4,10 +4,14 @@ import type { consumer_event_reporter } from '@ai/execution/execution-contract.a
 import type { consumer_dependency } from '@ai/workflow/workflow-dependency.ai'
 
 import { run_reported_agent } from '@ai/workflow/workflow-event.ai'
-import { SecurityDecision } from '@agent/bodyguard/bodyguard.schema.agent'
+import { schema_agent_bodyguard } from '@agent/bodyguard/bodyguard.schema.agent'
 import { schema_agent_conductor_plan } from '@agent/conductor/conductor.schema.agent'
-import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
-import { normalize_dispatcher_plan, schema_agent_dispatcher, schema_agent_dispatcher_draft } from '@agent/dispatcher/dispatcher.schema.agent'
+import {
+  dispatcher_budget_limit,
+  normalize_dispatcher_plan,
+  schema_agent_dispatcher,
+  schema_agent_dispatcher_draft,
+} from '@agent/dispatcher/dispatcher.schema.agent'
 
 type planning_context = {
   dependency: Pick<consumer_dependency, 'bodyguard' | 'conductor' | 'dispatcher'>
@@ -33,7 +37,7 @@ export const create_planning_stages = ({ dependency, signal, deadline_ms, report
       detail: 'Applying the entry policy before product lookup.',
       signal,
       report_event,
-      execute: async () => SecurityDecision.parse(await dependency.bodyguard(data.prompt, signal)),
+      execute: async () => schema_agent_bodyguard.parse(await dependency.bodyguard(data.prompt, signal)),
       completed: (result) => ({
         title: is_allowed(result) ? 'Request approved' : 'Request stopped by policy',
         detail: result.reason,

@@ -39,6 +39,11 @@ export const dto_schema_product_provider_nutrition = t.Object({
   }),
 })
 
+export const dto_schema_product_provider_packaging = t.Object({
+  materials: t.Array(t.String(), { maxItems: 20 }),
+  recycling_instructions: t.Array(t.String(), { maxItems: 20 }),
+})
+
 export const dto_schema_product_provider = t.Object({
   product_barcode: t.String(),
   product_type: t.String(),
@@ -50,6 +55,7 @@ export const dto_schema_product_provider = t.Object({
   product_ecoscore: t.Union([t.UnionEnum(enum_ecoscore), t.Null()]),
   product_nutriscore: t.Union([t.UnionEnum(enum_nutriscore), t.Null()]),
   product_metadata: t.Union([dto_schema_product_metadata, t.Null()]),
+  product_packaging: t.Optional(t.Union([dto_schema_product_provider_packaging, t.Null()])),
   nutrition: t.Optional(t.Union([dto_schema_product_provider_nutrition, t.Null()])),
 })
 

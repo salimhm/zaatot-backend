@@ -45,6 +45,8 @@ describe('Product Provider Service', () => {
               nova_group: 3,
               ingredients_tags: ['en:sugar', 'en:flour'],
               allergens_tags: ['en:gluten'],
+              packaging_materials_tags: ['en:plastic', 'en:aluminium'],
+              packaging_recycling_tags: ['en:recycle', 'en:discard'],
             },
           }),
           { status: 200 },
@@ -60,6 +62,10 @@ describe('Product Provider Service', () => {
     expect(result?.product_nova_group).toBe(3)
     expect(result?.product_ecoscore).toBe('a')
     expect(result?.product_nutriscore).toBe('b')
+    expect(result?.product_packaging).toEqual({
+      materials: ['plastic', 'aluminium'],
+      recycling_instructions: ['recycle', 'discard'],
+    })
   })
 
   it('should return null when response status is 0', async () => {

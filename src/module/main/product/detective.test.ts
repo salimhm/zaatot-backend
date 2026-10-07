@@ -12,7 +12,7 @@ mock.module('@tool/product-lookup/product-lookup.tool', () => ({
 const { normalize_detective_results } = await import('@agent/detective/detective.agent')
 
 describe('Detective response normalization', () => {
-  it('returns structured local product data without inventing missing fields', () => {
+  it('returns structured local product data with Detective retrieval time', () => {
     const result = normalize_detective_results([
       {
         toolName: 'tool_product_lookup_local_by_barcode',
@@ -55,9 +55,11 @@ describe('Detective response normalization', () => {
           images: [],
           nova_group: null,
           ecoscore: null,
+          retrieved_at: expect.any(String),
           nutriscore: null,
           ingredients: null,
           allergens: null,
+          packaging: null,
           nutrition: null,
         },
       ],

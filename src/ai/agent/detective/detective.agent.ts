@@ -4,7 +4,7 @@ import type { product_lookup_runtime } from '@tool/product-lookup/product-lookup
 import { Agent } from '@voltagent/core'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
+import { ai_cloudflare, ai_cloudflare_default_model } from '@ai/provider.ai'
 import { prompt_agent_detective } from '@agent/detective/detective.prompt.agent'
 import { schema_agent_detective, schema_product_lookup_tool_result } from '@agent/detective/detective.schema.agent'
 import { create_product_lookup_toolkit, toolkit_product_lookup } from '@tool/product-lookup/product-lookup.tool'
@@ -14,7 +14,7 @@ export const $agent_detective = new Agent({
   name: 'Ztroop Detective',
   purpose: 'Resolve product and brand identities and retrieve factual catalog information',
   instructions: prompt_agent_detective,
-  model: ai_groq(process.env.GROQ_DETECTIVE_MODEL || ai_groq_default_model),
+  model: ai_cloudflare(process.env.CF_DETECTIVE_MODEL || ai_cloudflare_default_model),
   tools: [toolkit_product_lookup],
   memory: false,
 })
@@ -64,6 +64,7 @@ function normalize_product(
   product: type_product_lookup_record,
   source: type_schema_agent_detective['sources_checked'][number],
   nutrition: type_schema_agent_detective['related_products']['items'][number]['nutrition'] = null,
+  retrieved_at: string,
 ): type_schema_agent_detective['related_products']['items'][number] {
   const brand_candidates = product_brand_candidates(product)
   return {
@@ -77,9 +78,11 @@ function normalize_product(
     images: product.product_images ?? [],
     nova_group: product.product_nova_group ?? null,
     ecoscore: product.product_ecoscore ?? null,
+    retrieved_at,
     nutriscore: product.product_nutriscore ?? null,
     ingredients: product.product_metadata?.ingredients ?? null,
     allergens: product.product_metadata?.allergens ?? null,
+    packaging: product.product_packaging ?? null,
     nutrition: nutrition ?? product.nutrition ?? null,
   }
 }
@@ -113,7 +116,7 @@ export function normalize_detective_results(tool_results: unknown[] | undefined)
     const nutrition = product.product_barcode
       ? (nutrition_by_barcode.get(product.product_barcode) ?? product.nutrition ?? null)
       : (product.nutrition ?? null)
-    const normalized = normalize_product(product, source, nutrition)
+    const normalized = normalize_product(product, source, nutrition, new Date().toISOString())
     const key = product_key(normalized)
     if (!product_keys.has(key)) {
       product_keys.add(key)

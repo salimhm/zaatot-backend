@@ -9,7 +9,7 @@ import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
+import { ai_cloudflare, ai_cloudflare_default_model } from '@ai/provider.ai'
 import { prompt_agent_investigator } from '@agent/investigator/investigator.prompt.agent'
 import {
   schema_agent_investigator,
@@ -35,7 +35,7 @@ export const $agent_investigator = new Agent({
   name: 'Ztroop Investigator',
   purpose: 'Gather and summarize sourced boycott and related-entity evidence without making a final verdict',
   instructions: prompt_agent_investigator,
-  model: ai_groq(process.env.GROQ_INVESTIGATOR_MODEL || ai_groq_default_model),
+  model: ai_cloudflare(process.env.CF_INVESTIGATOR_MODEL || ai_cloudflare_default_model),
   tools: [],
   memory: false,
 })

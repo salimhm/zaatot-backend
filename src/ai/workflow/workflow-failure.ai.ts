@@ -47,7 +47,7 @@ export const describe_workflow_failure = (error: unknown, signal: AbortSignal) =
       : 'Workflow execution was cancelled.'
   } else if (invalid_api_key || provider_status === 401) {
     code = 'provider_authentication_failed'
-    limitation = 'The AI provider rejected the server API key. Check GOOGLE_GENERATIVE_AI_API_KEY in the server environment.'
+    limitation = 'The AI provider rejected the server API key. Check CF_API_KEY in the server environment.'
   } else if (provider_status === 403) {
     code = 'provider_access_denied'
     limitation = 'The AI provider denied access. Check the server API key permissions and model access.'
@@ -59,7 +59,7 @@ export const describe_workflow_failure = (error: unknown, signal: AbortSignal) =
     limitation = 'The AI provider is temporarily unavailable after retrying the request. Try again shortly.'
   } else if (provider_status === 404) {
     code = 'provider_model_unavailable'
-    limitation = 'The configured AI model was not found. Check AI_BODYGUARD_MODEL, AI_CONDUCTOR_MODEL and AI_DISPATCHER_MODEL.'
+    limitation = 'The configured AI model was not found. Check CF_DEFAULT_AI_MODEL_NAME and any CF_<AGENT>_MODEL overrides.'
   }
 
   return { step, provider_status, code, limitation }

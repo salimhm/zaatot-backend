@@ -10,8 +10,8 @@ import { $agent_bodyguard } from '@agent/bodyguard/bodyguard.agent'
 import { $agent_conductor } from '@agent/conductor/conductor.agent'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
 import { $agent_detective } from '@agent/detective/detective.agent'
-import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
 import { $agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
+import { dispatcher_budget_limit } from '@agent/dispatcher/dispatcher.schema.agent'
 import { $agent_skeptic } from '@agent/skeptic/skeptic.agent'
 
 import { service_boycott_decision } from '@module/main/boycott-decision/boycott-decision.service'
@@ -504,7 +504,7 @@ describe('Consumer workflow startup', () => {
     try {
       const result = await run_consumer_workflow(request, { dependency })
       expect(result.status).toBe('error')
-      expect(result.limitations[0]).toContain('AI_DISPATCHER_MODEL')
+      expect(result.limitations[0]).toContain('CF_DEFAULT_AI_MODEL_NAME')
       expect(log).toHaveBeenCalledWith('[ai.workflow.failed]', {
         execution_id: result.execution_id,
         step: 'dispatcher-plan',
@@ -578,13 +578,13 @@ describe('Consumer workflow startup', () => {
       status: 400,
       message: 'API key not valid. Please pass a valid API key.',
       code: 'provider_authentication_failed',
-      text: 'GOOGLE_GENERATIVE_AI_API_KEY',
+      text: 'CF_API_KEY',
     },
     { status: 401, message: 'Unauthorized', code: 'provider_authentication_failed', text: 'server API key' },
     { status: 403, message: 'Forbidden', code: 'provider_access_denied', text: 'permissions' },
     { status: 429, message: 'Quota exceeded', code: 'provider_quota_exceeded', text: 'quota' },
     { status: 503, message: 'Model is under temporary demand', code: 'provider_temporarily_unavailable', text: 'temporarily unavailable' },
-    { status: 404, message: 'Model not found', code: 'provider_model_unavailable', text: 'AI_BODYGUARD_MODEL' },
+    { status: 404, message: 'Model not found', code: 'provider_model_unavailable', text: 'CF_DEFAULT_AI_MODEL_NAME' },
   ]) {
     it(`reports provider failure ${failure.status} without exposing request or credential details`, async () => {
       const provider_error = Object.assign(new Error(failure.message), {

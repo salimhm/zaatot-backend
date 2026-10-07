@@ -1,12 +1,14 @@
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { createGroq } from '@ai-sdk/groq'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 
-export const ai_google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
+const cloudflare_workers_ai_base_url = `https://api.cloudflare.com/client/v4/accounts/${process.env.CF_ACCOUNT_ID}/ai/v1`
 
-export const ai_google_default_model = process.env.GOOGLE_DEFAULT_AI_MODEL_NAME || 'gemini-3.8-flash'
-
-export const ai_groq = createGroq({
-  apiKey: process.env.GROQ_AI_API_KEY,
+// Workers AI exposes OpenAI-compatible chat-completions endpoints. This model supports
+// both JSON-mode output and traditional function calling, which the workflow requires.
+export const ai_cloudflare = createOpenAICompatible({
+  name: 'cloudflare-workers-ai',
+  apiKey: process.env.CF_API_KEY,
+  baseURL: cloudflare_workers_ai_base_url,
+  supportsStructuredOutputs: true,
 })
 
-export const ai_groq_default_model = process.env.GROQ_DEFAULT_AI_MODEL_NAME || 'openai/gpt-oss-20b'
+export const ai_cloudflare_default_model = process.env.CF_DEFAULT_AI_MODEL_NAME || '@cf/meta/llama-3.3-70b-instruct-fp8-fast'

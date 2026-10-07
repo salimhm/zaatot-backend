@@ -3,13 +3,16 @@ import type { consumer_execution_data, consumer_execution_dependency, consumer_s
 
 import {
   build_temporary_explanation,
+  collect_eco_scout_sources,
   collect_investigator_sources,
   readable_label,
   readable_list,
+  summarize_eco_scout,
   summarize_investigator,
 } from '@ai/execution/execution-explanation.ai'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
 import { schema_agent_detective, schema_product_detective } from '@agent/detective/detective.schema.agent'
+import { schema_agent_eco_scout } from '@agent/eco-scout/eco-scout.schema.agent'
 import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
 import { schema_agent_medic } from '@agent/medic/medic.schema.agent'
 
@@ -55,7 +58,9 @@ export const build_consumer_result = (
 
   const detective = schema_agent_detective.safeParse(data.agent_results.Detective?.output)
   const investigator = schema_agent_investigator.safeParse(data.agent_results.Investigator?.output)
+  const eco_scout = schema_agent_eco_scout.safeParse(data.agent_results['Eco Scout']?.output)
   const investigator_sources = investigator.success ? collect_investigator_sources(investigator.data) : { sources: [], source_ids: [] }
+  const eco_scout_sources = eco_scout.success ? collect_eco_scout_sources(eco_scout.data) : { sources: [], source_ids: [] }
   const detective_subject = detective.success && detective.data.status === 'identified' ? detective.data.subject : null
   const subject: type_schema_agent_conductor_result['subject'] = detective_subject?.name
     ? {
@@ -112,12 +117,14 @@ export const build_consumer_result = (
           ? schema_agent_medic.parse(result.output).summary
           : agent === 'Investigator' && investigator.success
             ? summarize_investigator(investigator.data)
-            : (result.limitations[0] ?? `${agent} ${result.status}.`)
+            : agent === 'Eco Scout' && eco_scout.success
+              ? summarize_eco_scout(eco_scout.data)
+              : (result.limitations[0] ?? `${agent} ${result.status}.`)
     return {
       agent,
       status: assessment_status(result.status),
       summary,
-      source_ids: agent === 'Investigator' ? investigator_sources.source_ids : [],
+      source_ids: agent === 'Investigator' ? investigator_sources.source_ids : agent === 'Eco Scout' ? eco_scout_sources.source_ids : [],
       limitations: result.limitations,
     }
   })
@@ -158,7 +165,7 @@ export const build_consumer_result = (
     assessments,
     alternatives: [],
     explanation,
-    sources: investigator_sources.sources,
+    sources: [...investigator_sources.sources, ...eco_scout_sources.sources],
     limitations: !allowed
       ? ['The request did not pass the entry policy. No further agents were executed.']
       : [
