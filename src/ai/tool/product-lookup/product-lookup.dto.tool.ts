@@ -45,6 +45,11 @@ export const schema_tool_product_lookup_nutrition_result = z.object({
   data: schema_tool_product_lookup_nutrition.nullable(),
 })
 
+export const schema_tool_product_lookup_packaging = z.object({
+  materials: z.array(z.string().trim().min(1).max(120)).max(20),
+  recycling_instructions: z.array(z.string().trim().min(1).max(120)).max(20),
+})
+
 export const schema_tool_product_lookup_record = z.object({
   product_id: z.number().nullish(),
   product_barcode: z.string().nullish(),
@@ -63,6 +68,7 @@ export const schema_tool_product_lookup_record = z.object({
       allergens: z.array(z.string()).nullish(),
     })
     .nullish(),
+  product_packaging: schema_tool_product_lookup_packaging.nullish(),
   nutrition: schema_tool_product_lookup_nutrition.nullish(),
 })
 

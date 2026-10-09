@@ -2,6 +2,7 @@ import type { type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispa
 import type { consumer_execution_dependency } from '@ai/execution/execution-contract.ai'
 
 import { adapter_detective } from '@ai/adapter/detective.adapter.ai'
+import { adapter_eco_scout } from '@ai/adapter/eco-scout.adapter.ai'
 import { adapter_investigator } from '@ai/adapter/investigator.adapter.ai'
 import { adapter_medic } from '@ai/adapter/medic.adapter.ai'
 import { adapter_bodyguard, adapter_conductor, adapter_dispatcher } from '@ai/adapter/planning.adapter.ai'
@@ -27,7 +28,7 @@ export const default_dependency: consumer_dependency = {
     'Vault Keeper': adapter_vault_keeper,
     Medic: adapter_medic,
     Investigator: adapter_investigator,
-    'Eco Scout': null, // TODO: agent_eco_scout — environmental evidence.
+    'Eco Scout': adapter_eco_scout,
     Historian: null, // TODO: agent_historian — permitted history only.
     Skeptic: adapter_skeptic,
     Referee: null, // TODO: agent_referee — hard constraints.

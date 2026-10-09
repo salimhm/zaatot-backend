@@ -1,5 +1,8 @@
 import type { type_schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
+import type { type_schema_agent_eco_scout } from '@agent/eco-scout/eco-scout.schema.agent'
 import type { type_schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
+
+import { eco_scout_source_provider_label } from '@agent/eco-scout/eco-scout.schema.agent'
 
 // TEMPORARY presentation helpers used by the unresolved-result path until
 // Storyteller and Gatekeeper produce the approved explanation.
@@ -63,6 +66,28 @@ export const collect_investigator_sources = (output: type_schema_agent_investiga
 
   return { sources, source_ids }
 }
+
+export const collect_eco_scout_sources = (output: type_schema_agent_eco_scout) => {
+  const sources: type_schema_agent_conductor_result['sources'] = []
+  const source_ids: string[] = []
+  const ids_by_key = new Map<string, string>()
+
+  for (const source of output.sources) {
+    const provider = eco_scout_source_provider_label[source.provider]
+    const key = `${provider}\u0000${source.url ?? ''}`
+    let id = ids_by_key.get(key)
+    if (!id) {
+      id = `eco-scout-source-${sources.length + 1}`
+      ids_by_key.set(key, id)
+      sources.push({ id, provider, url: valid_source_url(source.url), retrieved_at: source.retrieved_at })
+    }
+    if (!source_ids.includes(id)) source_ids.push(id)
+  }
+
+  return { sources, source_ids }
+}
+
+export const summarize_eco_scout = (output: type_schema_agent_eco_scout) => output.summary
 
 // TEMPORARY: replace this deterministic presenter when Storyteller/Gatekeeper are implemented.
 export const build_temporary_explanation = (

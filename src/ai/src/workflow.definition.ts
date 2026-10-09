@@ -78,7 +78,7 @@ export interface ConsumerWorkflowDefinition {
 export const consumer_workflow_definition = {
   workflow_name: 'consumer_product_analysis',
   implementation_status:
-    'Workflow scaffold: Bodyguard, Conductor, Dispatcher, Detective, on-demand Bait Tester and Investigator are implemented and connected. Remaining specialist stages, sequential gates, candidate review and response repair use replaceable placeholders. Missing agents never produce findings or successful checks.',
+    'Workflow scaffold: Bodyguard, Conductor, Dispatcher, Detective, on-demand Bait Tester, Vault Keeper, Medic, Investigator, Eco Scout and Skeptic are implemented and connected. Eco Scout publishes exact-product Eco-Score and provider-reported packaging tags; broader environmental measurements remain unavailable. Remaining specialist stages, sequential gates, candidate review and response repair use replaceable placeholders. Missing agents never produce findings or successful checks.',
   design: {
     supervisor: 'Conductor',
     principle: 'Integrate all 16 roles, but execute only the specialists required for each request.',
@@ -181,7 +181,7 @@ export const consumer_workflow_definition = {
       department: 'Protection',
       role: 'Classify request risks and apply entry policy before any privileged action.',
       implementation: 'Classifier and policy rules',
-      existing_integration: 'Current SecurityClassifier and SecurityDecision schema',
+      existing_integration: 'Current SecurityClassifier and schema_agent_bodyguard schema',
       result: {
         safe: 'boolean',
         riskLevel: 'none | low | medium | high | critical',
@@ -350,11 +350,12 @@ export const consumer_workflow_definition = {
       role: 'Retrieve environmental evidence and distinguish product-specific measurements from broader estimates.',
       implementation: 'Environmental-evidence retriever',
       depends_on: ['Detective'],
-      existing_integration: 'Product ecoscore is available; broader evidence retrieval needs implementation.',
+      existing_integration:
+        'Product Eco-Score and provider-reported packaging material/recycling tags are available; carbon, water and lifecycle evidence retrieval needs implementation.',
       result: {
-        status: 'available | partial | unavailable',
+        status: 'available | partial',
         indicators: 'Supported environmental attributes',
-        evidence_scope: 'Product, brand or category level',
+        evidence_scope: 'Product or none',
         sources: 'Evidence and dates',
         limitations: 'Coverage and comparability gaps',
       },

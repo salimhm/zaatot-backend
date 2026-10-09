@@ -2,9 +2,9 @@ import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input }
 
 import { describe, expect, it, spyOn } from 'bun:test'
 
-import { dispatcher_budget_limit } from '@agent/dispatcher/constants'
 import { $agent_dispatcher, agent_dispatcher } from '@agent/dispatcher/dispatcher.agent'
 import {
+  dispatcher_budget_limit,
   normalize_dispatcher_plan,
   normalize_dispatcher_provider_draft,
   schema_agent_dispatcher,
@@ -52,7 +52,7 @@ function input_fixture(): type_schema_agent_dispatcher_input {
 }
 
 describe('Dispatcher planning contract', () => {
-  it('accepts Groq transport nulls and removes them before internal plan validation', () => {
+  it('accepts provider transport nulls and removes them before internal plan validation', () => {
     const internal_plan = plan_fixture()
     const investigation = { needed: true, reason: 'The user asks who owns the brand.' }
     const provider_plan = {
@@ -252,7 +252,7 @@ describe('Dispatcher planning contract', () => {
 
   it('zeros copied alternative ceilings for a plan that does not select Bargain Hunter', async () => {
     const draft = { ...plan_fixture(), budgets: { ...dispatcher_budget_limit } }
-    // This is the exact cross-field violation reproduced with Groq.
+    // This is the exact cross-field violation the runtime normalizes before validation.
     expect(schema_agent_dispatcher.safeParse(draft).success).toBe(false)
     const generate = spyOn($agent_dispatcher, 'generateText').mockResolvedValue({ output: draft } as Awaited<
       ReturnType<typeof $agent_dispatcher.generateText>

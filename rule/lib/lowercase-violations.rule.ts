@@ -1,12 +1,12 @@
 import { Glob } from 'bun'
 
-import { SRC_DIR } from '../utils.rule.ts'
+import { scan_paths, SRC_DIR } from '../utils.rule.ts'
 
 export const rule_label = 'Lowercase violations'
 
 export async function check() {
   const glob = new Glob('**/*')
-  const paths = await Array.fromAsync(glob.scan({ cwd: SRC_DIR, onlyFiles: false }))
+  const paths = await scan_paths(glob, { cwd: SRC_DIR, onlyFiles: false })
   const violations: string[] = []
   for (const path of paths) {
     const parts = path.split('/')

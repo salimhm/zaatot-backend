@@ -20,6 +20,8 @@ type raw_open_food_facts_product = {
   nova_group?: number | string
   ingredients_tags?: string[]
   allergens_tags?: string[]
+  packaging_materials_tags?: string[]
+  packaging_recycling_tags?: string[]
   serving_size?: string
   serving_quantity?: string | number
   serving_quantity_unit?: string
@@ -40,6 +42,8 @@ const search_fields = [
   'nova_group',
   'ingredients_tags',
   'allergens_tags',
+  'packaging_materials_tags',
+  'packaging_recycling_tags',
 ].join(',')
 
 const retryable_statuses = new Set([429, 500, 502, 503, 504])
@@ -106,6 +110,20 @@ function normalize_tags(value: unknown): string[] | null {
     .map((tag) => tag.replace(/^[^:]+:/, '').trim())
     .filter((tag) => tag !== '')
   return tags.length > 0 ? tags : null
+}
+
+// Matches the product lookup packaging schema limits so one oversized tag list cannot fail the whole lookup.
+const packaging_tag_limits = { max_tags: 20, max_length: 120 }
+
+function normalize_packaging_tags(value: unknown): string[] {
+  return (normalize_tags(value) ?? []).filter((tag) => tag.length <= packaging_tag_limits.max_length).slice(0, packaging_tag_limits.max_tags)
+}
+
+function normalize_packaging(product: raw_open_food_facts_product): { materials: string[]; recycling_instructions: string[] } | null {
+  const materials = normalize_packaging_tags(product.packaging_materials_tags)
+  const recycling_instructions = normalize_packaging_tags(product.packaging_recycling_tags)
+
+  return materials.length > 0 || recycling_instructions.length > 0 ? { materials, recycling_instructions } : null
 }
 
 function normalize_brand_names(value: unknown): string[] {
@@ -232,6 +250,7 @@ function normalize_product(
   const product_nova_group = [1, 2, 3, 4].includes(parsed_nova) ? (parsed_nova as 1 | 2 | 3 | 4) : null
   const ingredients = normalize_tags(product.ingredients_tags)
   const allergens = normalize_tags(product.allergens_tags) ?? []
+  const product_packaging = normalize_packaging(product)
 
   return {
     product_barcode,
@@ -244,6 +263,7 @@ function normalize_product(
     product_ecoscore: normalize_score(product.ecoscore_grade),
     product_nutriscore: normalize_score(product.nutriscore_grade ?? product.nutrition_grades),
     product_metadata: { ingredients, allergens },
+    product_packaging,
     nutrition: include_nutrition ? normalize_nutrition(product, product_barcode, product_name) : null,
   }
 }

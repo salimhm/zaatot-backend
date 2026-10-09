@@ -39,7 +39,7 @@ ethics and environmental review. Identity and user IDs cannot be overridden in t
 10. Gatekeeper rechecks consent, validates citations and privacy, and validates the final schema.
     The controller sends `{ "data": execution.result }`.
 
-Bodyguard, Detective query extraction, Bait Tester and Storyteller are Gemini-backed
+Bodyguard, Detective query extraction, Bait Tester and Storyteller use Cloudflare Workers AI
 VoltAgent agents with role-specific prompts, structured outputs, no tools, no conversational
 memory and no model retries. The other roles use deterministic code and scoped service calls,
 matching the implementation classes in the supplied role table.
@@ -80,8 +80,9 @@ rate/concurrency limits return 429. Business outcomes return a validated JSON re
 
 ## Budgets and configuration
 
-- `GOOGLE_GENERATIVE_AI_API_KEY`: existing Gemini credential.
-- `DEFAULT_AI_MODEL_NAME`: configured model; fallback is the project's existing `gemini-3.5-flash-lite`.
+- `CF_API_KEY`: Cloudflare API token with Workers AI permission.
+- `CF_ACCOUNT_ID`: Cloudflare account that owns the Workers AI usage.
+- `CF_DEFAULT_AI_MODEL_NAME`: configured model; fallback is `@cf/meta/llama-3.3-70b-instruct-fp8-fast`.
 - `AI_WORKFLOW_TIMEOUT_MS`: defaults to 45000, capped at 50000.
 - `AI_SOURCE_MAX_AGE_DAYS`: defaults to 30.
 - `AI_RATE_LIMIT_PER_MINUTE`: defaults to 6 per authenticated user.
@@ -96,8 +97,9 @@ Set the HTTP idle timeout above the workflow deadline.
 
 ## Evidence coverage
 
-Product cache/Open Food Facts, Boycat/local boycott evidence and consented scan history
-are connected. Full ownership graphs, verified clinical rule sets, live prices, independent
-environmental measurements and category equivalence are not supplied by the current services.
+Product cache/Open Food Facts, the resolved product record's Eco-Score and reported packaging
+material/recycling tags, Boycat/local boycott evidence and consented scan history are connected.
+Full ownership graphs, verified clinical rule sets, live prices, independent carbon, water or
+lifecycle environmental measurements and category equivalence are not supplied by the current services.
 Missing evidence is never manufactured. Alternative suggestions are bounded catalog comparisons,
 not guarantees of medical safety, ethical clearance, equivalent composition or lower price.

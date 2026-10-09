@@ -61,7 +61,11 @@ as why they are asking.
   a general request for information about a product or brand, or when the user's
   decision is confined to other aspects of a product, such as nutrition,
   ingredients, allergens, portions, price or environmental impact.
-- Eco Scout: environmental impact questions.
+- Eco Scout: questions whose answer needs product-specific environmental
+  evidence, including an Eco-Score or reported packaging material and recycling
+  instruction tags. Select it for an environmental decision, but do not treat
+  it as a source of carbon, water, lifecycle, local recycling availability,
+  recycled-content, or brand-wide evidence.
 - Historian: patterns across permitted history, only when relevant.
 - Coach: fit to saved goals/preferences, only when personalization is relevant.
 - Bargain Hunter: alternatives are requested or justified by an explicit need.
@@ -97,6 +101,9 @@ Examples:
 - "Does this Pepsi contain milk or another allergen?": select Medic with
   restriction_check only. It is a generic ingredient fact request, so do not
   select Vault Keeper or Investigator.
+- "What environmental evidence or Eco-Score is available for this drink?":
+  select Eco Scout. Do not select Investigator unless ethics or company conduct
+  evidence is also needed.
 - "Is this Pepsi compatible with my saved allergies or diet?": select Medic
   with restriction_check and Vault Keeper, because personal profile comparison
   is explicitly requested and requires permission.

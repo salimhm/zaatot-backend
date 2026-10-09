@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SecurityDecision = z.object({
+export const schema_agent_bodyguard = z.object({
   safe: z.boolean(),
   riskLevel: z.enum(['none', 'low', 'medium', 'high', 'critical']),
   risks: z.array(
@@ -28,4 +28,4 @@ export const SecurityDecision = z.object({
   confidence: z.number().min(0).max(1),
 })
 
-export type type_schema_agent_bodyguard = z.infer<typeof SecurityDecision>
+export type type_schema_agent_bodyguard = z.infer<typeof schema_agent_bodyguard>

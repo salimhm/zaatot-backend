@@ -3,13 +3,13 @@ import { basename, join } from 'path'
 
 import { Glob } from 'bun'
 
-import { SRC_DIR } from '../utils.rule.ts'
+import { scan_paths, SRC_DIR } from '../utils.rule.ts'
 
 export const rule_label = '.ts extension violations'
 
 export async function check() {
   const glob = new Glob('**/*')
-  const paths = await Array.fromAsync(glob.scan(SRC_DIR))
+  const paths = await scan_paths(glob, SRC_DIR)
   const violations: string[] = []
   for (const path of paths) {
     const name = basename(path)

@@ -41,7 +41,7 @@ Keep these supporting files nearby:
 | File                                                                                | Responsibility                                                                                                    |
 | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | [app.ts](../src/app.ts)                                                             | Mounts `controller_ai` into the application. The AI controller performs its own JWT checks.                       |
-| [provider.ai.ts](../src/ai/provider.ai.ts)                                          | Creates the shared `ai_google` provider instance. Agent configurations select their models through this instance. |
+| [provider.ai.ts](../src/ai/provider.ai.ts)                                          | Creates the shared `ai_cloudflare` Workers AI provider instance. Agent configurations select their models through this instance. |
 | [bodyguard.agent.ts](../src/ai/agent/bodyguard/bodyguard.agent.ts)                  | Defines `$agent_bodyguard` and the `agent_bodyguard()` wrapper.                                                   |
 | [bodyguard.schema.agent.ts](../src/ai/agent/bodyguard/bodyguard.schema.agent.ts)    | Defines `SecurityDecision`.                                                                                       |
 | [conductor.agent.ts](../src/ai/agent/conductor/conductor.agent.ts)                  | Defines the Conductor model and planning wrapper.                                                                 |
@@ -207,7 +207,7 @@ workflow's bodyguard step
 
 `$agent_bodyguard` is the configured VoltAgent object. `agent_bodyguard()` is the wrapper that invokes it. The same naming pattern is used by Conductor and Dispatcher.
 
-All three configured agents import `ai_google` from [provider.ai.ts](../src/ai/provider.ai.ts), select a model through `ai_google(...)`, and currently disable agent memory.
+All configured agents import `ai_cloudflare` from [provider.ai.ts](../src/ai/provider.ai.ts), select a model through `ai_cloudflare(...)`, and currently disable agent memory.
 
 ## 4. Follow the workflow stages
 

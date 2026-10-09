@@ -50,7 +50,7 @@ Bodyguard receives the original prompt before any planning or specialist executi
 
 Bodyguard checks security risk. It does not select agents based on product keywords.
 
-The active workflow agents use the configured shared Groq model (`openai/gpt-oss-20b` by default) because the available Google models returned persistent high-demand `503` responses for this server key. Every active agent can use a specific `GROQ_<AGENT>_MODEL` override. Bodyguard uses two SDK retries for retryable temporary provider failures. If retries are exhausted, the workflow remains fail-closed and returns a safe `provider_temporarily_unavailable` limitation without exposing provider details.
+The active workflow agents use the configured shared Cloudflare Workers AI model (`@cf/meta/llama-3.3-70b-instruct-fp8-fast` by default). Every active agent can use a specific `CF_<AGENT>_MODEL` override. Bodyguard uses two SDK retries for retryable temporary provider failures. If retries are exhausted, the workflow remains fail-closed and returns a safe `provider_temporarily_unavailable` limitation without exposing provider details.
 
 ### 2. Conductor and workflow have separate responsibilities
 

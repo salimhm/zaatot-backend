@@ -11,7 +11,7 @@ export const $agent_medic = new Agent({
   name: 'Medic',
   purpose: 'Review product facts against permitted health-related restrictions and report supported risks or missing evidence',
   instructions: prompt_agent_medic,
-  model: ai_cloudflare(process.env.CF_WORKER_AI_MEDIC_MODEL || ai_cloudflare_default_model),
+  model: ai_cloudflare(process.env.CF_MEDIC_MODEL || ai_cloudflare_default_model),
   memory: false,
 })
 

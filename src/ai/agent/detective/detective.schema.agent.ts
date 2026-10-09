@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   schema_tool_product_lookup_nutrition,
   schema_tool_product_lookup_nutrition_result,
+  schema_tool_product_lookup_packaging,
   schema_tool_product_lookup_provider_availability,
   schema_tool_product_lookup_provider_brand_result,
   schema_tool_product_lookup_provider_product_result,
@@ -23,9 +24,11 @@ export const schema_product_detective = z.object({
   images: z.array(z.string()),
   nova_group: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).nullable(),
   ecoscore: schema_tool_product_lookup_score.nullable(),
+  retrieved_at: z.iso.datetime().optional().describe('Time Detective retrieved this product record during the current workflow'),
   nutriscore: schema_tool_product_lookup_score.nullable(),
   ingredients: z.array(z.string()).nullable(),
   allergens: z.array(z.string()).nullable(),
+  packaging: schema_tool_product_lookup_packaging.nullable().optional(),
   nutrition: schema_tool_product_lookup_nutrition.nullable(),
 })
 

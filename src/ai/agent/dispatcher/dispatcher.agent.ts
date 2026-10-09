@@ -18,7 +18,7 @@ export const $agent_dispatcher = new Agent({
   name: 'Dispatcher',
   purpose: 'Select required agents, dependencies and bounded execution budgets',
   instructions: prompt_agent_dispatcher,
-  model: ai_cloudflare(process.env.CF_WORKER_AI_DISPATCHER_MODEL || ai_cloudflare_default_model),
+  model: ai_cloudflare(process.env.CF_DISPATCHER_MODEL || ai_cloudflare_default_model),
   memory: false,
 })
 

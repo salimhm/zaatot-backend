@@ -12,7 +12,7 @@ export const $agent_conductor = new Agent({
   name: 'Conductor',
   purpose: 'Interpret the request and plan the consumer workflow',
   instructions: prompt_agent_conductor,
-  model: ai_cloudflare(process.env.CF_WORKER_AI_CONDUCTOR_MODEL || ai_cloudflare_default_model),
+  model: ai_cloudflare(process.env.CF_CONDUCTOR_MODEL || ai_cloudflare_default_model),
   memory: false,
 })
 

@@ -2,13 +2,13 @@ import { basename, join } from 'path'
 
 import { Glob } from 'bun'
 
-import { SRC_DIR } from '../utils.rule.ts'
+import { scan_paths, SRC_DIR } from '../utils.rule.ts'
 
 export const rule_label = 'DTO violations'
 
 export async function check() {
   const glob = new Glob('module/**/*.dto.ts')
-  const scanResult = await Array.fromAsync(glob.scan(SRC_DIR))
+  const scanResult = await scan_paths(glob, SRC_DIR)
   const violations: string[] = []
   for (const relativePath of scanResult) {
     const fullPath = join(process.cwd(), SRC_DIR, relativePath)

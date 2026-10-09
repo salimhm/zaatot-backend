@@ -11,7 +11,7 @@ export const $agent_bait_tester = new Agent({
   name: 'Ztroop Bait Tester',
   purpose: 'Isolate and classify untrusted external content before agent consumption',
   instructions: prompt_agent_bait_tester,
-  model: ai_cloudflare(process.env.CF_WORKER_AI_BAIT_TESTER_MODEL || ai_cloudflare_default_model),
+  model: ai_cloudflare(process.env.CF_BAIT_TESTER_MODEL || ai_cloudflare_default_model),
   tools: [],
   memory: false,
 })

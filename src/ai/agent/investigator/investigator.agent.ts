@@ -35,7 +35,7 @@ export const $agent_investigator = new Agent({
   name: 'Ztroop Investigator',
   purpose: 'Gather and summarize sourced boycott and related-entity evidence without making a final verdict',
   instructions: prompt_agent_investigator,
-  model: ai_cloudflare(process.env.CF_WORKER_AI_INVESTIGATOR_MODEL || ai_cloudflare_default_model),
+  model: ai_cloudflare(process.env.CF_INVESTIGATOR_MODEL || ai_cloudflare_default_model),
   tools: [],
   memory: false,
 })

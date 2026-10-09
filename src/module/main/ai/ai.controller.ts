@@ -114,13 +114,14 @@ export const create_controller_ai = (service: Pick<typeof service_ai, 'analyze'>
     })
     .post(
       '/analyze',
-      async ({ body, payload, request, server }) => {
+      // Not async: Elysia accepts Response | Promise<result>, but not Promise<Response | result>.
+      ({ body, payload, request, server }) => {
         if (body.user_id !== payload.user_id) throw lib_error.unauthorized
         server?.timeout(request, ai_request_timeout_seconds)
         if (request.headers.get('Accept')?.includes('text/event-stream')) {
           return stream_ai_analysis(service.analyze, body, payload, request.signal)
         }
-        return await service.analyze(body, payload, request.signal)
+        return service.analyze(body, payload, request.signal)
       },
       dto_ai.analyze,
     )

@@ -2,6 +2,7 @@ import type { type_ai_workflow_step } from '@agent/conductor/conductor.schema.ag
 import type { consumer_specialist_name, consumer_step_result } from '@ai/execution/execution-contract.ai'
 
 import { schema_agent_detective } from '@agent/detective/detective.schema.agent'
+import { schema_agent_eco_scout } from '@agent/eco-scout/eco-scout.schema.agent'
 import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
 import { schema_agent_medic } from '@agent/medic/medic.schema.agent'
 
@@ -11,6 +12,7 @@ export const agent_title = (agent: consumer_specialist_name) => {
   if (agent === 'Detective') return 'Looking up the product or brand'
   if (agent === 'Medic') return 'Checking allergens and ingredients'
   if (agent === 'Investigator') return 'Investigating the resolved brand'
+  if (agent === 'Eco Scout') return 'Checking product environmental evidence'
   return `Running ${agent}`
 }
 
@@ -40,6 +42,13 @@ export const agent_completion = (agent: consumer_specialist_name, result: consum
       const brand = output.data.subject.brand_name ?? 'the resolved brand'
       const title = output.data.status === 'evidence_found' ? `Evidence found for ${brand}` : `Investigation finished for ${brand}`
       return { title, detail: output.data.message }
+    }
+  }
+  if (agent === 'Eco Scout') {
+    const output = schema_agent_eco_scout.safeParse(result.output)
+    if (output.success) {
+      const title = output.data.status === 'available' ? 'Product environmental evidence found' : 'Product environmental evidence is incomplete'
+      return { title, detail: output.data.summary }
     }
   }
   return { title: `${agent} finished`, detail: result.limitations[0] ?? null }

@@ -14,7 +14,7 @@ export const $agent_skeptic = new Agent({
   name: 'Skeptic',
   purpose: 'Review supplied claims and evidence for support, relevance, freshness, and uncertainty',
   instructions: prompt_agent_skeptic,
-  model: ai_cloudflare(process.env.CF_WORKER_AI_SKEPTIC_MODEL || ai_cloudflare_default_model),
+  model: ai_cloudflare(process.env.CF_SKEPTIC_MODEL || ai_cloudflare_default_model),
   memory: false,
 })
 

@@ -37,6 +37,6 @@ The VoltAgent workflow initializes an execution, runs Bodyguard, asks Conductor 
 
 The response is `{ data: { execution_id, status, subject, outcome, product, assessments, alternatives, explanation, sources, limitations, steps } }`. Planning data and the Bodyguard decision remain internal; `steps` contains safe operational progress events, not agent prompts or hidden reasoning. Rejected requests return `blocked` or `needs_review`. Provider failures, invalid model output and cancellation return `error`. The shared deadline is configured by `AI_WORKFLOW_TIMEOUT_MS` and currently defaults to 240 seconds.
 
-Set `GOOGLE_GENERATIVE_AI_API_KEY` once. Both agents use the shared provider in `src/ai/provider.ai.ts`; `AI_BODYGUARD_MODEL` and `AI_CONDUCTOR_MODEL` independently select their models. Both default to the existing `gemini-3.5-flash-lite` model. Importing the AI entrypoint does not request terminal input or call Google.
+Set `CF_API_KEY` and `CF_ACCOUNT_ID` once. All workflow agents use the shared Cloudflare Workers AI provider in `src/ai/provider.ai.ts`; `CF_DEFAULT_AI_MODEL_NAME` selects the shared model and `CF_<AGENT>_MODEL` optionally overrides one agent. The default is `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, which supports the workflow's structured output and tool use. Importing the AI entrypoint does not request terminal input or call Cloudflare.
 
-Run the focused tests with `bun test src/module/main/ai`. These tests use stubbed agent responses and make no Google requests.
+Run the focused tests with `bun test src/module/main/ai`. These tests use stubbed agent responses and make no Cloudflare requests.
