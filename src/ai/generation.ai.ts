@@ -1,3 +1,4 @@
+import type { OpenAICompatibleProviderOptions } from '@ai-sdk/openai-compatible'
 import type { generateText } from 'ai'
 
 // VoltAgent 2.7 adds server-owned instructions to messages internally.
@@ -5,4 +6,10 @@ import type { generateText } from 'ai'
 // message roles. This opts in to that representation without muting other warnings.
 export const trusted_agent_generation_options = {
   allowSystemInMessages: true,
-} satisfies Pick<Parameters<typeof generateText>[0], 'allowSystemInMessages'>
+  maxOutputTokens: 4096,
+  providerOptions: {
+    cloudflare: {
+      strictJsonSchema: true,
+    } satisfies OpenAICompatibleProviderOptions,
+  },
+} satisfies Pick<Parameters<typeof generateText>[0], 'allowSystemInMessages' | 'maxOutputTokens' | 'providerOptions'>

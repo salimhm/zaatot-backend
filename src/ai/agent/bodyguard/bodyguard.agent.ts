@@ -2,7 +2,7 @@ import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
+import { ai_cloudflare, ai_cloudflare_default_model } from '@ai/provider.ai'
 import { prompt_agent_bodyguard } from '@agent/bodyguard/bodyguard.prompt.agent'
 import { SecurityDecision } from '@agent/bodyguard/bodyguard.schema.agent'
 
@@ -12,7 +12,7 @@ export const $agent_bodyguard = new Agent({
   name: 'Bodyguard',
   purpose: 'Analyze requests for security risks',
   instructions: prompt_agent_bodyguard,
-  model: ai_groq(process.env.GROQ_BODYGUARD_MODEL || ai_groq_default_model),
+  model: ai_cloudflare(process.env.CF_WORKER_AI_BODYGUARD_MODEL || ai_cloudflare_default_model),
   memory: false,
 })
 

@@ -4,7 +4,7 @@ import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
+import { ai_cloudflare, ai_cloudflare_default_model } from '@ai/provider.ai'
 import { prompt_agent_conductor } from '@agent/conductor/conductor.prompt.agent'
 import { schema_agent_conductor_plan } from '@agent/conductor/conductor.schema.agent'
 
@@ -12,7 +12,7 @@ export const $agent_conductor = new Agent({
   name: 'Conductor',
   purpose: 'Interpret the request and plan the consumer workflow',
   instructions: prompt_agent_conductor,
-  model: ai_groq(process.env.GROQ_CONDUCTOR_MODEL || ai_groq_default_model),
+  model: ai_cloudflare(process.env.CF_WORKER_AI_CONDUCTOR_MODEL || ai_cloudflare_default_model),
   memory: false,
 })
 

@@ -4,7 +4,7 @@ import type { product_lookup_runtime } from '@tool/product-lookup/product-lookup
 import { Agent } from '@voltagent/core'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
+import { ai_cloudflare, ai_cloudflare_default_model } from '@ai/provider.ai'
 import { prompt_agent_detective } from '@agent/detective/detective.prompt.agent'
 import { schema_agent_detective, schema_product_lookup_tool_result } from '@agent/detective/detective.schema.agent'
 import { create_product_lookup_toolkit, toolkit_product_lookup } from '@tool/product-lookup/product-lookup.tool'
@@ -14,7 +14,7 @@ export const $agent_detective = new Agent({
   name: 'Ztroop Detective',
   purpose: 'Resolve product and brand identities and retrieve factual catalog information',
   instructions: prompt_agent_detective,
-  model: ai_groq(process.env.GROQ_DETECTIVE_MODEL || ai_groq_default_model),
+  model: ai_cloudflare(process.env.CF_WORKER_AI_DETECTIVE_MODEL || ai_cloudflare_default_model),
   tools: [toolkit_product_lookup],
   memory: false,
 })

@@ -4,7 +4,7 @@ import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
+import { ai_cloudflare, ai_cloudflare_default_model } from '@ai/provider.ai'
 import { prompt_agent_referee } from '@agent/referee/referee.prompt.agent'
 import { schema_agent_referee, schema_input_agent_referee } from '@agent/referee/referee.schema.agent'
 
@@ -64,7 +64,7 @@ export const $agent_referee = new Agent({
   name: 'Referee',
   purpose: 'Apply hard constraints and preserve unresolved disagreements after evidence review',
   instructions: prompt_agent_referee,
-  model: ai_groq(process.env.GROQ_REFEREE_MODEL || ai_groq_default_model),
+  model: ai_cloudflare(process.env.CF_WORKER_AI_REFEREE_MODEL || ai_cloudflare_default_model),
   tools: [],
   memory: false,
 })

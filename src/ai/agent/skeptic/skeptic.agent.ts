@@ -4,7 +4,7 @@ import { Agent } from '@voltagent/core'
 import { Output } from 'ai'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
-import { ai_groq, ai_groq_default_model } from '@ai/provider.ai'
+import { ai_cloudflare, ai_cloudflare_default_model } from '@ai/provider.ai'
 import { finalize_skeptic_review } from '@agent/skeptic/skeptic.ledger.agent'
 import { prompt_agent_skeptic } from '@agent/skeptic/skeptic.prompt.agent'
 import { schema_agent_skeptic } from '@agent/skeptic/skeptic.schema.agent'
@@ -14,7 +14,7 @@ export const $agent_skeptic = new Agent({
   name: 'Skeptic',
   purpose: 'Review supplied claims and evidence for support, relevance, freshness, and uncertainty',
   instructions: prompt_agent_skeptic,
-  model: ai_groq(process.env.GROQ_SKEPTIC_MODEL || ai_groq_default_model),
+  model: ai_cloudflare(process.env.CF_WORKER_AI_SKEPTIC_MODEL || ai_cloudflare_default_model),
   memory: false,
 })
 
