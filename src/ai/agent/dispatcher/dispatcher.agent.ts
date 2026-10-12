@@ -58,6 +58,7 @@ export const agent_dispatcher = async (input: type_schema_agent_dispatcher_input
     plan.budgets.timeout_ms = Math.min(plan.budgets.timeout_ms, remaining_ms)
     return { success: true as const, data: plan }
   } catch (error) {
+    console.error(`Dispatcher agent failed: ${error instanceof Error ? error.stack : String(error)}`)
     return { success: false as const, data: error }
   }
 }

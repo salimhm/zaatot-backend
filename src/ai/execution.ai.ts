@@ -32,6 +32,20 @@ const placeholder = (name: string): consumer_step_result => ({
   limitations: [`${name} is not implemented. Its required work has not been executed.`],
 })
 
+// Storyteller may read completed, non-private specialist outputs as presentation
+// context. These are not execution prerequisites and never include Vault Keeper.
+const storyteller_context_agents: consumer_specialist_name[] = [
+  'Detective',
+  'Medic',
+  'Investigator',
+  'Eco Scout',
+  'Historian',
+  'Skeptic',
+  'Referee',
+  'Coach',
+  'Bargain Hunter',
+]
+
 // Snapshot only the verified identity/access fields, separately from workflow data.
 const snapshot_backend_context = (payload?: lib_dto_payload): consumer_backend_context | undefined =>
   payload
@@ -213,6 +227,12 @@ export const create_consumer_execution = (
     }
 
     const input = input_for(data, step.depends_on, agent)
+    if (agent === 'Storyteller') {
+      for (const context_agent of storyteller_context_agents) {
+        const context = data.agent_results[context_agent]
+        if (context) input.dependencies[context_agent] = context
+      }
+    }
     if (agent === 'Medic') input.medic_checks = step.medic_checks ?? []
     if (agent === 'Vault Keeper') input.user_id = data.user_id
     if (feedback) input.feedback = feedback

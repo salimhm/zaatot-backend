@@ -47,9 +47,10 @@ export const summarize_investigator = (output: type_schema_agent_investigator): 
 export const collect_investigator_sources = (output: type_schema_agent_investigator) => {
   const sources: type_schema_agent_conductor_result['sources'] = []
   const source_ids: string[] = []
+  const source_ids_by_check: string[][] = output.checks.map(() => [])
   const ids_by_key = new Map<string, string>()
 
-  for (const check of output.checks) {
+  for (const [check_index, check] of output.checks.entries()) {
     for (const citation of check.citations) {
       const url = valid_source_url(citation.url, citation.source_url)
       const provider = citation.source_name.trim() || readable_label(check.source)
@@ -61,10 +62,11 @@ export const collect_investigator_sources = (output: type_schema_agent_investiga
         sources.push({ id, provider, url, retrieved_at: output.checked_at })
       }
       if (!source_ids.includes(id)) source_ids.push(id)
+      if (!source_ids_by_check[check_index]!.includes(id)) source_ids_by_check[check_index]!.push(id)
     }
   }
 
-  return { sources, source_ids }
+  return { sources, source_ids, source_ids_by_check }
 }
 
 export const collect_eco_scout_sources = (output: type_schema_agent_eco_scout) => {

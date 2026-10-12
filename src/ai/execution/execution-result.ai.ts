@@ -15,6 +15,7 @@ import { schema_agent_detective, schema_product_detective } from '@agent/detecti
 import { schema_agent_eco_scout } from '@agent/eco-scout/eco-scout.schema.agent'
 import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
 import { schema_agent_medic } from '@agent/medic/medic.schema.agent'
+import { schema_agent_storyteller } from '@agent/storyteller/storyteller.schema.agent'
 
 // Builds the public result: the Gatekeeper-approved response when every selected check
 // completed, otherwise a restrictive result that keeps unresolved work visible.
@@ -59,6 +60,7 @@ export const build_consumer_result = (
   const detective = schema_agent_detective.safeParse(data.agent_results.Detective?.output)
   const investigator = schema_agent_investigator.safeParse(data.agent_results.Investigator?.output)
   const eco_scout = schema_agent_eco_scout.safeParse(data.agent_results['Eco Scout']?.output)
+  const storyteller = schema_agent_storyteller.safeParse(data.agent_results.Storyteller?.output)
   const investigator_sources = investigator.success ? collect_investigator_sources(investigator.data) : { sources: [], source_ids: [] }
   const eco_scout_sources = eco_scout.success ? collect_eco_scout_sources(eco_scout.data) : { sources: [], source_ids: [] }
   const detective_subject = detective.success && detective.data.status === 'identified' ? detective.data.subject : null
@@ -119,19 +121,40 @@ export const build_consumer_result = (
             ? summarize_investigator(investigator.data)
             : agent === 'Eco Scout' && eco_scout.success
               ? summarize_eco_scout(eco_scout.data)
-              : (result.limitations[0] ?? `${agent} ${result.status}.`)
+              : agent === 'Storyteller' && storyteller.success
+                ? storyteller.data.summary
+                : (result.limitations[0] ?? `${agent} ${result.status}.`)
     return {
       agent,
       status: assessment_status(result.status),
       summary,
-      source_ids: agent === 'Investigator' ? investigator_sources.source_ids : agent === 'Eco Scout' ? eco_scout_sources.source_ids : [],
+      source_ids:
+        agent === 'Investigator'
+          ? investigator_sources.source_ids
+          : agent === 'Eco Scout'
+            ? eco_scout_sources.source_ids
+            : agent === 'Storyteller' && storyteller.success
+              ? storyteller.data.citation_ids
+              : [],
       limitations: result.limitations,
     }
   })
 
-  // Without an investigation, summarize the identity and the reviewed specialist findings instead.
+  const available_source_ids = new Set([...investigator_sources.source_ids, ...eco_scout_sources.source_ids])
+  const storyteller_explanation =
+    data.agent_results.Storyteller?.status === 'completed' && storyteller.success
+      ? {
+          summary: storyteller.data.summary,
+          reasons: storyteller.data.reasons,
+          tradeoffs: storyteller.data.tradeoffs,
+          citation_ids: storyteller.data.citation_ids.filter((id) => available_source_ids.has(id)),
+        }
+      : null
+
+  // Keep the deterministic presenter as a fallback until Gatekeeper owns the final payload.
   const explanation =
-    subject && outcome
+    storyteller_explanation ??
+    (subject && outcome
       ? build_temporary_explanation(subject, outcome, investigator.success ? investigator.data : null, investigator_sources.source_ids)
       : allowed && subject
         ? {
@@ -143,7 +166,7 @@ export const build_consumer_result = (
             tradeoffs: [],
             citation_ids: [],
           }
-        : null
+        : null)
 
   let status: type_schema_agent_conductor_result['status'] = 'needs_review'
   if (!allowed) status = data.bodyguard.action === 'human_review' ? 'needs_review' : 'blocked'

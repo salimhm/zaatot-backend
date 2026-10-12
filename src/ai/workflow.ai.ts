@@ -10,6 +10,7 @@ import type { lib_dto_payload } from '@lib/dto.lib'
 import { andThen, createWorkflowChain } from '@voltagent/core'
 
 import { adapter_referee } from '@ai/adapter/referee.adapter.ai'
+import { adapter_storyteller } from '@ai/adapter/storyteller.adapter.ai'
 import { create_consumer_execution, merge_consumer_parallel } from '@ai/execution.ai'
 import { ai_workflow_timeout_ms } from '@ai/runtime.ai'
 import { default_dependency } from '@ai/workflow/workflow-dependency.ai'
@@ -23,12 +24,13 @@ import { lib_error } from '@lib/error.lib'
 export type { consumer_dependency } from '@ai/workflow/workflow-dependency.ai'
 
 // Agent wiring owned by this workflow entry point. Injected test dependencies
-// remain untouched, while the production default gains the implemented Referee.
+// remain untouched, while the production default gains implemented late-stage agents.
 const wired_default_dependency: consumer_dependency = {
   ...default_dependency,
   specialists: {
     ...default_dependency.specialists,
     Referee: adapter_referee,
+    Storyteller: adapter_storyteller,
   },
 }
 

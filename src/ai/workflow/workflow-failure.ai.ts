@@ -1,4 +1,5 @@
 import { WorkflowStepError } from '@ai/runtime.ai'
+import { log } from 'node:console'
 
 // Classifies an escaped workflow error into a safe, user-facing limitation without provider details.
 export const describe_workflow_failure = (error: unknown, signal: AbortSignal) => {
@@ -62,5 +63,7 @@ export const describe_workflow_failure = (error: unknown, signal: AbortSignal) =
     limitation = 'The configured AI model was not found. Check CF_DEFAULT_AI_MODEL_NAME and any CF_<AGENT>_MODEL overrides.'
   }
 
+  console.error(`Workflow failure during ${step} step: ${limitation} (code=${code}, provider_status=${provider_status})`)
+  // if (error instanceof Error) log(error.stack)
   return { step, provider_status, code, limitation }
 }
