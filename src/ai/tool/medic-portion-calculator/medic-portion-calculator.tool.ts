@@ -3,15 +3,30 @@ import type { z } from 'zod'
 import { createTool } from '@voltagent/core'
 
 import { dto_tool_medic_portion_calculator, schema_tool_medic_portion_input } from '@tool/medic-portion-calculator/medic-portion-calculator.dto.tool'
-
-import { service_product } from '@module/main/product/product.service'
+import { schema_tool_product_lookup_nutrition_result } from '@tool/product-lookup/product-lookup.dto.tool'
+import { tool_product_lookup_nutrition_by_barcode } from '@tool/product-lookup/product-lookup.tool'
 
 type medic_portion_input = z.infer<typeof dto_tool_medic_portion_calculator.calculate>['portion']
 type medic_portion = z.infer<typeof dto_tool_medic_portion_calculator.calculation>['requested_portion']
 type medic_nutrition = z.infer<typeof dto_tool_medic_portion_calculator.nutrition>
 type medic_portion_calculation = z.infer<typeof dto_tool_medic_portion_calculator.calculation>
 
-export type medic_portion_calculator_dependency = Pick<typeof service_product, 'find_nutrition_by_barcode'>
+type nutrition_lookup_result = z.infer<typeof schema_tool_product_lookup_nutrition_result>
+
+// Same source as the nutrition assessor: the local catalog's verified facts first, then Open Food Facts.
+export type medic_portion_calculator_dependency = {
+  lookup_nutrition_by_barcode: (barcode: string, signal?: AbortSignal) => Promise<nutrition_lookup_result>
+}
+
+const default_dependency: medic_portion_calculator_dependency = {
+  lookup_nutrition_by_barcode: async (barcode, signal) =>
+    schema_tool_product_lookup_nutrition_result.parse(
+      await tool_product_lookup_nutrition_by_barcode.execute!({ barcode }, { toolContext: { abortSignal: signal } } as never),
+    ),
+}
+
+const signal_from = (options: { toolContext?: { abortSignal?: AbortSignal }; abortController?: AbortController } | undefined) =>
+  options?.toolContext?.abortSignal ?? options?.abortController?.signal
 
 const round_quantity = (value: number) => Number(value.toFixed(6))
 
@@ -162,18 +177,39 @@ export const medic_missing_nutrition_assessment = (requested_portion: medic_port
   limitations: ['Provider estimates or nutrition facts from a different product variant were not used.'],
 })
 
-export const tool_medic_portion_calculator = createTool({
-  name: 'tool_medic_portion_calculator',
-  description:
-    'Calculate nutrient quantities for one explicit requested portion using only active verified nutrition measurements for the exact product barcode.',
-  parameters: dto_tool_medic_portion_calculator.calculate,
-  outputSchema: dto_tool_medic_portion_calculator.calculation,
-  execute: async ({ barcode, portion }) => {
-    const nutrition_result = await service_product.find_nutrition_by_barcode({ barcode })
-    const requested_portion = normalize_medic_portion(portion)
-    if (!nutrition_result.data) return medic_missing_nutrition_assessment(requested_portion)
+export const create_medic_portion_calculator_tool = (dependency: medic_portion_calculator_dependency = default_dependency) =>
+  createTool({
+    name: 'tool_medic_portion_calculator',
+    description:
+      'Calculate nutrient quantities for one explicit requested portion from verified nutrition measurements for the exact product barcode: the local catalog first, then Open Food Facts.',
+    parameters: dto_tool_medic_portion_calculator.calculate,
+    outputSchema: dto_tool_medic_portion_calculator.calculation,
+    execute: async ({ barcode, portion }, options) => {
+      const signal = signal_from(options)
+      signal?.throwIfAborted()
+      const requested_portion = normalize_medic_portion(portion)
+      const lookup = await dependency.lookup_nutrition_by_barcode(barcode, signal)
+      signal?.throwIfAborted()
 
-    const nutrition = dto_tool_medic_portion_calculator.nutrition.parse(nutrition_result.data)
-    return calculate_medic_portion(nutrition, requested_portion)
-  },
-})
+      if (!lookup.available) {
+        return {
+          ...medic_missing_nutrition_assessment(requested_portion),
+          missing_information: [
+            lookup.issue === 'configuration'
+              ? 'The verified nutrition provider is not configured for this environment.'
+              : 'The verified nutrition provider is temporarily unavailable. Try again later.',
+          ],
+        }
+      }
+      if (lookup.data === null) return medic_missing_nutrition_assessment(requested_portion)
+
+      const { variant, ...facts } = lookup.data
+      const nutrition = dto_tool_medic_portion_calculator.nutrition.parse({
+        ...facts,
+        variant: { product_id: variant.product_id ?? null, product_barcode: variant.product_barcode, product_name: variant.product_name ?? null },
+      })
+      return calculate_medic_portion(nutrition, requested_portion)
+    },
+  })
+
+export const tool_medic_portion_calculator = create_medic_portion_calculator_tool()

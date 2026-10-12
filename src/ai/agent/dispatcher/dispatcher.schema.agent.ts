@@ -164,8 +164,39 @@ export const normalize_dispatcher_plan = (draft: type_schema_agent_dispatcher_dr
       : [normalized]
   })
   const required_checks = draft.required_checks.filter((check) => check !== 'ethics')
-  return { ...draft, selected_agents, required_checks: investigate ? [...required_checks, 'ethics'] : required_checks }
+  return normalize_dispatcher_run_when(
+    normalize_dispatcher_personal_context({
+      ...draft,
+      selected_agents,
+      required_checks: investigate ? [...required_checks, 'ethics'] : required_checks,
+    }),
+  )
 }
+
+// Selecting Vault Keeper stays the Dispatcher's decision. The backend only keeps the graph consistent
+// with it: the personal_context check, and Medic waiting for the personal context it may use.
+const normalize_dispatcher_personal_context = (draft: type_schema_agent_dispatcher_draft): type_schema_agent_dispatcher_draft => {
+  const has_vault_keeper = draft.selected_agents.some((step) => step.agent === 'Vault Keeper')
+  const selected_agents = draft.selected_agents.map((step) =>
+    step.agent === 'Medic' && step.depends_on.includes('Vault Keeper') !== has_vault_keeper
+      ? {
+          ...step,
+          depends_on: has_vault_keeper ? [...step.depends_on, 'Vault Keeper' as const] : step.depends_on.filter((agent) => agent !== 'Vault Keeper'),
+        }
+      : step,
+  )
+  const required_checks = draft.required_checks.filter((check) => check !== 'personal_context')
+  return { ...draft, selected_agents, required_checks: has_vault_keeper ? [...required_checks, 'personal_context'] : required_checks }
+}
+
+// When an agent runs follows from its role, never from planning: only Coach and Historian wait for permission.
+const dispatcher_run_when = (agent: (typeof enum_dispatcher_agent)[number]) =>
+  agent === 'Coach' ? ('personalization_permitted' as const) : agent === 'Historian' ? ('history_permitted' as const) : ('always' as const)
+
+const normalize_dispatcher_run_when = (draft: type_schema_agent_dispatcher_draft): type_schema_agent_dispatcher_draft => ({
+  ...draft,
+  selected_agents: draft.selected_agents.map((step) => ({ ...step, run_when: dispatcher_run_when(step.agent) })),
+})
 
 export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine((plan, context) => {
   const names = plan.selected_agents.map((step) => step.agent)
@@ -222,7 +253,7 @@ export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine
     ) {
       reject(`Invalid dependencies for ${step.agent}`)
     }
-    const condition = step.agent === 'Coach' ? 'personalization_permitted' : step.agent === 'Historian' ? 'history_permitted' : 'always'
+    const condition = dispatcher_run_when(step.agent)
     if (step.run_when !== condition) reject(`${step.agent} must use run_when=${condition}`)
   }
 

@@ -18,7 +18,8 @@ export const schema_tool_medic_verified_nutrition = z
   .object({
     variant: z
       .object({
-        product_id: z.number().int().positive(),
+        // Null for facts read from Open Food Facts for a product that is not in the catalog yet.
+        product_id: z.number().int().positive().nullable(),
         product_barcode: z.string().regex(/^\d{6,64}$/),
         product_name: z.string().nullable(),
       })

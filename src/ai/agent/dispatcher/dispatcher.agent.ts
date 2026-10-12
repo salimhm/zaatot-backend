@@ -53,6 +53,7 @@ export const agent_dispatcher = async (input: type_schema_agent_dispatcher_input
         },
       }),
     )
+    console.log(plan.selected_agents.map((step) => step.agent).join(' -> '))
     const remaining_ms = data.budget_limits.timeout_ms - Math.ceil(performance.now() - started_at)
     if (remaining_ms <= 0) throw new Error('Dispatcher exhausted the workflow deadline')
     plan.budgets.timeout_ms = Math.min(plan.budgets.timeout_ms, remaining_ms)

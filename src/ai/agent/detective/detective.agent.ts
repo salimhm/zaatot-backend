@@ -1,7 +1,8 @@
 import type { type_product_lookup_record, type_schema_agent_detective } from '@agent/detective/detective.schema.agent'
 import type { product_lookup_runtime } from '@tool/product-lookup/product-lookup.tool'
+import type { Toolkit } from '@voltagent/core'
 
-import { Agent } from '@voltagent/core'
+import { Agent, Tool } from '@voltagent/core'
 
 import { trusted_agent_generation_options } from '@ai/generation.ai'
 import { ai_cloudflare, ai_cloudflare_default_model } from '@ai/provider.ai'
@@ -325,6 +326,52 @@ export function normalize_detective_results(tool_results: unknown[] | undefined)
   })
 }
 
+// GTIN check digit (EAN-8, UPC-A, EAN-13, GTIN-14): weights 3 and 1 alternate from the right of the body.
+const has_valid_check_digit = (digits: string) => {
+  const sum = [...digits.slice(0, -1)].reverse().reduce((total, digit, index) => total + Number(digit) * (index % 2 === 0 ? 3 : 1), 0)
+  return (10 - (sum % 10)) % 10 === Number(digits.at(-1))
+}
+
+/** Standard product barcodes written in the request. A quantity such as "330 ml" or a phone number never qualifies. */
+export const extract_request_barcodes = (message: string): string[] => [
+  ...new Set(
+    (message.match(/(?<!\d)\d{8,14}(?!\d)/g) ?? []).filter((digits) => [8, 12, 13, 14].includes(digits.length) && has_valid_check_digit(digits)),
+  ),
+]
+
+const barcode_identity_tools = ['tool_product_lookup_local_by_barcode', 'tool_product_lookup_provider_by_barcode'] as const
+
+// For a nutrition question the model sometimes calls only the nutrition lookup, which never identifies the
+// product. A barcode is exact, so the identity lookups it skipped run here, in the order the prompt requires,
+// through the same request-scoped tools (budget, activity events, and Bait Tester inspection still apply).
+const complete_barcode_identity = async (message: string, tool_results: unknown[], toolkit: Toolkit, signal?: AbortSignal) => {
+  const barcodes = extract_request_barcodes(message)
+  if (barcodes.length !== 1) return tool_results
+  const [barcode] = barcodes as [string]
+  const results = [...tool_results]
+  const already_ran = (tool_name: string) =>
+    results.some(
+      (result) =>
+        typeof result === 'object' &&
+        result !== null &&
+        'toolName' in result &&
+        result.toolName === tool_name &&
+        'input' in result &&
+        (result.input as { barcode?: unknown } | null)?.barcode === barcode,
+    )
+
+  for (const tool_name of barcode_identity_tools) {
+    if (normalize_detective_results(results).status === 'identified') break
+    if (already_ran(tool_name)) continue
+    const tool = toolkit.tools.find((item): item is Tool => item instanceof Tool && item.name === tool_name)
+    if (!tool?.execute) continue
+    signal?.throwIfAborted()
+    const output = await tool.execute({ barcode }, { toolContext: { abortSignal: signal } } as never)
+    results.push({ toolName: tool_name, input: { barcode }, output })
+  }
+  return results
+}
+
 export const agent_detective = async (
   message: string,
   signal?: AbortSignal,
@@ -333,13 +380,14 @@ export const agent_detective = async (
   try {
     signal?.throwIfAborted()
     let tool_error: Error | undefined
+    const toolkit = runtime ? create_product_lookup_toolkit(runtime) : toolkit_product_lookup
     const result = await $agent_detective.generateText(message, {
       ...trusted_agent_generation_options,
       temperature: 0,
       maxSteps: 6,
       maxRetries: 0,
       abortSignal: signal,
-      tools: runtime ? [create_product_lookup_toolkit(runtime)] : undefined,
+      tools: runtime ? [toolkit] : undefined,
       hooks: {
         onToolError: async ({ originalError }) => {
           tool_error = originalError
@@ -349,7 +397,9 @@ export const agent_detective = async (
 
     signal?.throwIfAborted()
     if (tool_error) throw tool_error
-    return { success: true, data: normalize_detective_results(result.toolResults) }
+    const tool_results = await complete_barcode_identity(message, result.toolResults ?? [], toolkit, signal)
+    signal?.throwIfAborted()
+    return { success: true, data: normalize_detective_results(tool_results) }
   } catch (error) {
     return { success: false, data: error }
   }

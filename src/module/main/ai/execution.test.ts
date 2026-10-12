@@ -561,3 +561,37 @@ describe('Consumer specialist workflow slots', () => {
     expect(handlers.Skeptic).not.toHaveBeenCalled()
   })
 })
+
+describe('Review agents after an unresolved review', () => {
+  it('runs Referee and Storyteller on a Skeptic review that needs review, keeping the result restrictive', async () => {
+    const { dependency, handlers } = fixture(core)
+    handlers.Skeptic.mockResolvedValue({ status: 'needs_review', output: { agent: 'Skeptic' }, limitations: ['Undated boycott evidence.'] })
+
+    const result = await run_consumer_workflow(request, { dependency })
+
+    expect(handlers.Referee).toHaveBeenCalledTimes(1)
+    expect(handlers.Storyteller).toHaveBeenCalledTimes(1)
+    expect(result.status).toBe('needs_review')
+  })
+
+  it('runs Storyteller after a blocking Referee decision and keeps the block', async () => {
+    const { dependency, handlers } = fixture(core)
+    handlers.Referee.mockResolvedValue({ status: 'blocked', output: { agent: 'Referee' }, limitations: ['Hard constraint violated.'] })
+
+    const result = await run_consumer_workflow(request, { dependency })
+
+    expect(handlers.Storyteller).toHaveBeenCalledTimes(1)
+    expect(result.status).toBe('blocked')
+  })
+
+  it('still skips Referee and Storyteller when Skeptic could not review anything', async () => {
+    const { dependency, handlers } = fixture(core)
+    handlers.Skeptic.mockResolvedValue({ status: 'needs_input', output: null, limitations: ['No resolved identity.'] })
+
+    const result = await run_consumer_workflow(request, { dependency })
+
+    expect(handlers.Referee).not.toHaveBeenCalled()
+    expect(handlers.Storyteller).not.toHaveBeenCalled()
+    expect(result.status).toBe('needs_input')
+  })
+})

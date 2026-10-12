@@ -47,6 +47,16 @@ const storyteller_context_agents: consumer_specialist_name[] = [
 ]
 
 // Snapshot only the verified identity/access fields, separately from workflow data.
+// Referee and Storyteller review and explain unresolved results, so a finished review that is not a clean pass
+// still feeds them. The final status stays restrictive because it comes from these results. Every other input,
+// and every other agent's input, must be completed.
+const review_input_statuses: Partial<
+  Record<consumer_specialist_name, Partial<Record<consumer_specialist_name, readonly consumer_step_result['status'][]>>>
+> = {
+  Referee: { Skeptic: ['completed', 'needs_review'] },
+  Storyteller: { Skeptic: ['completed', 'needs_review'], Referee: ['completed', 'needs_review', 'blocked'] },
+}
+
 const snapshot_backend_context = (payload?: lib_dto_payload): consumer_backend_context | undefined =>
   payload
     ? {
@@ -216,7 +226,10 @@ export const create_consumer_execution = (
       return report_skipped('Vault Keeper has not permitted personalization.')
     }
     if (step.run_when === 'history_permitted' && permissions?.history !== true) return report_skipped('Vault Keeper has not permitted history use.')
-    const unavailable = step.depends_on.filter((name) => data.agent_results[name]?.status !== 'completed')
+    const unavailable = step.depends_on.filter((name) => {
+      const status = data.agent_results[name]?.status
+      return status === undefined || !(review_input_statuses[agent]?.[name] ?? ['completed']).includes(status)
+    })
     if (unavailable.length) return report_skipped(`Required inputs are unavailable: ${unavailable.join(', ')}.`)
     if (
       agent === 'Storyteller' &&

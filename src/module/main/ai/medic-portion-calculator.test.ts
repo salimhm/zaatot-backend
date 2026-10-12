@@ -4,7 +4,11 @@ import { describe, expect, it, spyOn } from 'bun:test'
 
 import { adapter_medic } from '@ai/adapter/medic.adapter.ai'
 import { dto_tool_medic_portion_calculator } from '@tool/medic-portion-calculator/medic-portion-calculator.dto.tool'
-import { calculate_medic_portion, extract_requested_medic_portion } from '@tool/medic-portion-calculator/medic-portion-calculator.tool'
+import {
+  calculate_medic_portion,
+  create_medic_portion_calculator_tool,
+  extract_requested_medic_portion,
+} from '@tool/medic-portion-calculator/medic-portion-calculator.tool'
 
 import { service_product } from '@module/main/product/product.service'
 
@@ -194,5 +198,52 @@ describe('Medic portion calculator', () => {
     } finally {
       nutrition_lookup.mockRestore()
     }
+  })
+})
+
+describe('Medic portion calculator nutrition source', () => {
+  // The shape Open Food Facts returns for 5449000054227: no catalog id, a 250 ml serving, no per-100 ml values.
+  const open_food_facts = {
+    found: true,
+    available: true,
+    issue: null,
+    source: 'open_food_facts' as const,
+    data: {
+      variant: { product_id: null, product_barcode: '5449000054227', product_name: 'Coca-Cola Original Taste' },
+      serving: { value: 250, unit: 'ml' },
+      nutrients: [
+        { code: 'sugars', value: 10.6, unit: 'g', basis: 'per_100g' as const },
+        { code: 'sugars', value: 26.5, unit: 'g', basis: 'per_serving' as const },
+      ],
+      sources: [{ provider: 'Open Food Facts', url: null, retrieved_at: '2026-10-12T12:00:00.000Z', fresh_until: null }],
+      completeness: { status: 'complete' as const, complete: true, missing_nutrient_codes: [] },
+    },
+  }
+  const options = { toolContext: { abortSignal: new AbortController().signal } } as never
+
+  it('scales Open Food Facts serving facts for a product that is not in the catalog', async () => {
+    const tool = create_medic_portion_calculator_tool({ lookup_nutrition_by_barcode: async () => open_food_facts })
+
+    const result = dto_tool_medic_portion_calculator.calculation.parse(
+      await tool.execute!({ barcode: '5449000054227', portion: { value: 330, unit: 'ml' } }, options),
+    )
+
+    expect(result.status).toBe('calculated')
+    expect(result.variant).toEqual({ barcode: '5449000054227', name: 'Coca-Cola Original Taste' })
+    // 26.5 g per 250 ml serving, scaled to 330 ml; the per-100 g value is never treated as per-100 ml.
+    expect(result.nutrient_quantities).toEqual([{ code: 'sugars', value: 34.98, unit: 'g', source_basis: 'per_serving' }])
+  })
+
+  it('explains an unavailable provider instead of calculating', async () => {
+    const tool = create_medic_portion_calculator_tool({
+      lookup_nutrition_by_barcode: async () => ({ ...open_food_facts, found: false, available: false, issue: 'temporarily_unavailable', data: null }),
+    })
+
+    const result = dto_tool_medic_portion_calculator.calculation.parse(
+      await tool.execute!({ barcode: '5449000054227', portion: { value: 330, unit: 'ml' } }, options),
+    )
+
+    expect(result.status).toBe('insufficient_data')
+    expect(result.missing_information).toEqual(['The verified nutrition provider is temporarily unavailable. Try again later.'])
   })
 })

@@ -9,6 +9,8 @@ import { adapter_bodyguard, adapter_conductor, adapter_dispatcher } from '@ai/ad
 import { adapter_skeptic } from '@ai/adapter/skeptic.adapter.ai'
 import { adapter_vault_keeper } from '@ai/adapter/vault-keeper.adapter.ai'
 import { inspect_external_content } from '@agent/bait-tester/bait-tester.agent'
+import { adapter_storyteller } from '@ai/adapter/storyteller.adapter.ai'
+import { adapter_referee } from '@ai/adapter/referee.adapter.ai'
 
 export type consumer_dependency = consumer_execution_dependency & {
   bodyguard: (prompt: string, signal: AbortSignal) => Promise<unknown>
@@ -31,10 +33,10 @@ export const default_dependency: consumer_dependency = {
     'Eco Scout': adapter_eco_scout,
     Historian: null, // TODO: agent_historian — permitted history only.
     Skeptic: adapter_skeptic,
-    Referee: null, // TODO: agent_referee — hard constraints.
+    Referee: adapter_referee, // TODO: agent_referee — hard constraints.
     Coach: null, // TODO: agent_coach — permitted goal fit.
     'Bargain Hunter': null, // TODO: agent_bargain_hunter — alternative candidates.
-    Storyteller: null, // TODO: agent_storyteller — draft / repair the explanation.
+    Storyteller: adapter_storyteller, // TODO: agent_storyteller — draft / repair the explanation.
     Gatekeeper: null, // TODO: agent_gatekeeper — output the validated final API response.
   },
   candidate_review: null, // TODO: bounded candidate identity / specialist / evidence / constraint review.

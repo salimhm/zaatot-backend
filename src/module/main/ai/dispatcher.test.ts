@@ -329,4 +329,56 @@ describe('Dispatcher planning contract', () => {
       generate.mockRestore()
     }
   })
+  it('adds the personal_context check and Medic waiting for Vault Keeper when Vault Keeper is selected', () => {
+    // The shape the model returned for "How much sugar would I consume from 330 ml of barcode …?".
+    const draft = nutrition_plan_fixture()
+    draft.selected_agents.push({ agent: 'Vault Keeper', depends_on: [], run_when: 'always' })
+    expect(schema_agent_dispatcher.safeParse(draft).success).toBe(false)
+
+    const plan = schema_agent_dispatcher.parse(normalize_dispatcher_plan(draft))
+
+    expect(plan.selected_agents.find((step) => step.agent === 'Medic')!.depends_on).toEqual(['Detective', 'Vault Keeper'])
+    expect(plan.required_checks).toContain('personal_context')
+  })
+
+  it('removes the personal_context check and Medic waiting for Vault Keeper when Vault Keeper is not selected', () => {
+    const draft = nutrition_plan_fixture()
+    draft.selected_agents.find((step) => step.agent === 'Medic')!.depends_on = ['Detective', 'Vault Keeper']
+    draft.required_checks.push('personal_context')
+    expect(schema_agent_dispatcher.safeParse(draft).success).toBe(false)
+
+    const plan = schema_agent_dispatcher.parse(normalize_dispatcher_plan(draft))
+
+    expect(plan.selected_agents.find((step) => step.agent === 'Medic')!.depends_on).toEqual(['Detective'])
+    expect(plan.required_checks).not.toContain('personal_context')
+  })
+
+  it('accepts a model plan that selects Vault Keeper but forgets its check and Medic dependency', async () => {
+    const draft = nutrition_plan_fixture()
+    draft.selected_agents.push({ agent: 'Vault Keeper', depends_on: [], run_when: 'always' })
+    const generate = spyOn($agent_dispatcher, 'generateText').mockResolvedValue({
+      output: { ...draft, investigation: { needed: false, reason: 'Only nutrition is requested.' } },
+    } as Awaited<ReturnType<typeof $agent_dispatcher.generateText>>)
+    try {
+      const result = await agent_dispatcher({ ...input_fixture(), prompt: 'How much sugar would I consume from 330 ml of barcode 5449000054227?' })
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.required_checks).toContain('personal_context')
+        expect(result.data.selected_agents.find((step) => step.agent === 'Medic')!.depends_on).toEqual(['Detective', 'Vault Keeper'])
+      }
+    } finally {
+      generate.mockRestore()
+    }
+  })
+  it("sets each agent's run_when from its role instead of trusting the model", () => {
+    // The shape the model returned in a failing run: Vault Keeper waiting for a permission it grants itself.
+    const draft = nutrition_plan_fixture()
+    draft.selected_agents.push({ agent: 'Vault Keeper', depends_on: [], run_when: 'personalization_permitted' })
+    draft.selected_agents.find((step) => step.agent === 'Medic')!.run_when = 'history_permitted'
+
+    const plan = schema_agent_dispatcher.parse(normalize_dispatcher_plan(draft))
+
+    expect(plan.selected_agents.find((step) => step.agent === 'Vault Keeper')!.run_when).toBe('always')
+    expect(plan.selected_agents.find((step) => step.agent === 'Medic')!.run_when).toBe('always')
+  })
 })
