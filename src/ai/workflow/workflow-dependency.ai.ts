@@ -3,14 +3,16 @@ import type { consumer_execution_dependency } from '@ai/execution/execution-cont
 
 import { adapter_detective } from '@ai/adapter/detective.adapter.ai'
 import { adapter_eco_scout } from '@ai/adapter/eco-scout.adapter.ai'
+import { adapter_historian } from '@ai/adapter/historian.adapter.ai'
 import { adapter_investigator } from '@ai/adapter/investigator.adapter.ai'
 import { adapter_medic } from '@ai/adapter/medic.adapter.ai'
 import { adapter_bodyguard, adapter_conductor, adapter_dispatcher } from '@ai/adapter/planning.adapter.ai'
+import { adapter_referee } from '@ai/adapter/referee.adapter.ai'
 import { adapter_skeptic } from '@ai/adapter/skeptic.adapter.ai'
+import { adapter_storyteller } from '@ai/adapter/storyteller.adapter.ai'
 import { adapter_vault_keeper } from '@ai/adapter/vault-keeper.adapter.ai'
 import { inspect_external_content } from '@agent/bait-tester/bait-tester.agent'
-import { adapter_storyteller } from '@ai/adapter/storyteller.adapter.ai'
-import { adapter_referee } from '@ai/adapter/referee.adapter.ai'
+import { analyse_historian_result } from '@tool/historian-analyse-result/historian-analyse-result.tool'
 
 export type consumer_dependency = consumer_execution_dependency & {
   bodyguard: (prompt: string, signal: AbortSignal) => Promise<unknown>
@@ -31,7 +33,9 @@ export const default_dependency: consumer_dependency = {
     Medic: adapter_medic,
     Investigator: adapter_investigator,
     'Eco Scout': adapter_eco_scout,
-    Historian: null, // TODO: agent_historian — permitted history only.
+    Historian: adapter_historian({
+      analyse: ({ scans, focus, window }) => analyse_historian_result({ scans, focus, time_zone: window.time_zone }),
+    }),
     Skeptic: adapter_skeptic,
     Referee: adapter_referee, // TODO: agent_referee — hard constraints.
     Coach: null, // TODO: agent_coach — permitted goal fit.

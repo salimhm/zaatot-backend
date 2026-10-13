@@ -52,6 +52,18 @@ Assess every supplied claim exactly once, using only the supplied ledger:
    environmental reporting?
 5. Consistency: does supplied evidence conflict with another supplied source?
 
+SCAN HISTORY CLAIMS
+When the subject type is scan_history, or a claim comes from Historian, the
+claim restates patterns the backend computed in code from the user's own scans
+in the stated time_window. Its evidence records hold those computed values; they
+are not_applicable for freshness because they were computed for this request.
+The claim may be written in the user's language. Accept it only when every
+count, grade, percentage, product, brand and period it states is supported by
+its evidence. Mark it unsupported when it states a number, ranking or trend the
+values do not show, describes a change where the pattern says no_clear_change,
+counts scans as different products (or the reverse), or says the user bought,
+ate, drank or used a product: a scan only shows that a product was looked up.
+
 CLASSIFY THE RESULTS
 - accepted_claims: include a claim only when supplied evidence adequately
   supports it. Include one or more real evidence_refs. Use qualification for

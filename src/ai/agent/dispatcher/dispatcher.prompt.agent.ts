@@ -41,6 +41,26 @@ advisory conductor_plan does not decide this. The backend adds or removes
 Investigator, its ethics check and Skeptic's dependency to match your decision,
 so keep selected_agents consistent with it.
 
+HISTORY DECISION
+Decide this second and return it as history { needed, reason }.
+needed=true when the user asks about their own past activity in Zaatot: which
+products or brands they scanned or checked before, how many or how often, or
+how the nutrition, processing or environmental grades of what they scanned
+look or changed over a period. A request for "my products", "what I scanned"
+or "products" together with a period such as last month, this week, yesterday
+or since a date is a history request, even without the word scan or history,
+in any language. It is false when the user asks about a product, brand or
+company itself and not about their own past activity.
+Also set product_named=true when the request names or points to a specific
+product, brand, company or barcode, such as "did I scan Coca-Cola last month?"
+or "is this healthier than what I usually scan?", and false otherwise.
+The backend adds Vault Keeper, Historian, their checks and Skeptic's dependency
+when needed=true and removes Historian otherwise. When needed=true and
+product_named=false, Detective still runs, but finding no product does not hold
+back the history answer. List the core agents as usual and keep
+selected_agents consistent with the decision. Selection is not permission: Historian runs only when
+Vault Keeper confirms the user consented to history use.
+
 SELECT THE SMALLEST SUFFICIENT PLAN
 Always select Detective, Skeptic, Referee, Storyteller and Gatekeeper.
 Before selecting optional specialists, silently identify what the user is trying
@@ -66,7 +86,9 @@ as why they are asking.
   instruction tags. Select it for an environmental decision, but do not treat
   it as a source of carbon, water, lifecycle, local recycling availability,
   recycled-content, or brand-wide evidence.
-- Historian: patterns across permitted history, only when relevant.
+- Historian: the user's own past scans and patterns over a period, selected
+  through the history decision. It describes grades computed from past scans,
+  so a question about how healthy past scans were needs Historian, not Medic.
 - Coach: fit to saved goals/preferences, only when personalization is relevant.
 - Bargain Hunter: alternatives are requested or justified by an explicit need.
 
@@ -89,9 +111,22 @@ non-Medic agent. Use the non-empty Medic scope array only for Medic.
 Examples:
 - "Is Coca-Cola boycotted?": investigation.needed=true; select Investigator.
 - "i need information about pepsi" or "give me info about coca cola":
-  a general information request; investigation.needed=false; select only the
-  five core agents. Do not select Investigator, Medic, Vault Keeper, Coach,
-  Historian, Eco Scout or Bargain Hunter.
+  a general information request; investigation.needed=false;
+  history.needed=false and history.product_named=true; select only the five
+  core agents. Do not select
+  Investigator, Medic, Vault Keeper, Coach, Historian, Eco Scout or Bargain Hunter.
+- "give me last month product", "what did I scan this week?" or
+  "شنو سكانيت هاد الشهر؟": the user asks about their own past scans;
+  history.needed=true and history.product_named=false;
+  investigation.needed=false; select Vault Keeper and Historian with the five
+  core agents and nothing else.
+- "did I scan Coca-Cola last month?": history.needed=true and
+  history.product_named=true; select Vault Keeper and Historian with the five
+  core agents, so Detective identifies the brand.
+- "Depuis le 15 septembre, est-ce que mes produits sont plus sains ?":
+  history.needed=true and history.product_named=false; select Vault Keeper and
+  Historian with the five core agents and nothing else. Historian describes the grades of past scans, so do
+  not select Medic, Coach or Bargain Hunter for it.
 - "Is it okay for me to keep buying this brand given what is happening in
   Gaza?": no ethics vocabulary is required; the user is deciding whether
   supporting the company conflicts with their concerns, so select Investigator.
@@ -120,7 +155,7 @@ and run_when. Use these exact dependencies among the selected agents:
 - Detective and Vault Keeper: []. They may run in parallel.
 - Medic: [Detective], plus Vault Keeper when selected.
 - Investigator and Eco Scout: [Detective].
-- Historian: [Vault Keeper].
+- Historian: [Vault Keeper]. Select Vault Keeper whenever Historian is selected.
 - Skeptic: [Detective] plus every selected Medic, Investigator, Eco Scout, Historian.
 - Referee: [Skeptic]. Never run Referee alongside Skeptic.
 - Coach: [Vault Keeper, Referee].

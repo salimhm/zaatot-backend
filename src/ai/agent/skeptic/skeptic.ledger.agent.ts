@@ -2,6 +2,7 @@ import type { type_schema_agent_skeptic } from '@agent/skeptic/skeptic.schema.ag
 import type { consumer_specialist_input } from '@ai/execution/execution-contract.ai'
 
 import { schema_agent_detective } from '@agent/detective/detective.schema.agent'
+import { schema_historian_result } from '@agent/historian/historian.schema.agent'
 import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
 import { schema_agent_medic } from '@agent/medic/medic.schema.agent'
 
@@ -31,6 +32,13 @@ export type skeptic_ledger = {
   /** Gaps detected in code; preserved in the review whatever the model returns. */
   known_uncertainties: type_schema_agent_skeptic['uncertainties']
   known_limitations: string[]
+}
+
+/** Claim and evidence references for Historian's description, shared with the result builder. */
+export const skeptic_historian_ref = {
+  summary: 'historian.summary',
+  finding: (index: number) => `historian.findings[${index}]`,
+  pattern: (id: string) => `historian.patterns.${id}`,
 }
 
 export const skeptic_source_max_age_days = () => {
@@ -63,7 +71,9 @@ export const skeptic_source_freshness = (
 
 /**
  * Builds the closed-world evidence ledger reviewed by Skeptic from completed dependency outputs.
- * Returns null when Detective has not resolved exactly one subject.
+ * Returns null when Detective is a dependency but has not resolved exactly one subject, or, for a
+ * history-only plan where Skeptic does not depend on Detective, when Historian has not described the
+ * user's scan history.
  */
 export const build_skeptic_ledger = (
   dependencies: consumer_specialist_input['dependencies'],
@@ -71,9 +81,14 @@ export const build_skeptic_ledger = (
   max_age_days = skeptic_source_max_age_days(),
 ): skeptic_ledger | null => {
   const detective = schema_agent_detective.safeParse(dependencies.Detective?.output)
-  if (!detective.success || detective.data.status !== 'identified' || !detective.data.subject) return null
+  const identity = detective.success && detective.data.status === 'identified' ? detective.data.subject : null
+  const historian = schema_historian_result.safeParse(dependencies.Historian?.output)
+  const history =
+    historian.success && historian.data.analysis && historian.data.review
+      ? { time_window: historian.data.time_window, analysis: historian.data.analysis, review: historian.data.review }
+      : null
+  if ('Detective' in dependencies ? !identity : !history) return null
 
-  const subject = detective.data.subject
   const claims: skeptic_claim[] = []
   const evidence: skeptic_evidence[] = []
   const known_uncertainties: skeptic_ledger['known_uncertainties'] = []
@@ -93,13 +108,15 @@ export const build_skeptic_ledger = (
     return id
   }
 
-  add_record('detective.subject', 'Detective', { subject, sources_checked: detective.data.sources_checked }, 'not_applicable')
-  claims.push({
-    id: 'detective.subject',
-    agent: 'Detective',
-    claim: `Detective resolved the requested ${subject.type} as ${subject.name ?? 'an unnamed product'}.`,
-    evidence_refs: ['detective.subject'],
-  })
+  if (identity && detective.success) {
+    add_record('detective.subject', 'Detective', { subject: identity, sources_checked: detective.data.sources_checked }, 'not_applicable')
+    claims.push({
+      id: 'detective.subject',
+      agent: 'Detective',
+      claim: `Detective resolved the requested ${identity.type} as ${identity.name ?? 'an unnamed product'}.`,
+      evidence_refs: ['detective.subject'],
+    })
+  }
 
   const investigator = schema_agent_investigator.safeParse(dependencies.Investigator?.output)
   if (investigator.success) {
@@ -189,10 +206,26 @@ export const build_skeptic_ledger = (
     }
   }
 
+  if (history) {
+    // Patterns were computed in code from the user's own scans for this request, so freshness does not apply.
+    const pattern_refs = new Map(
+      history.analysis.patterns.map((pattern) => [
+        pattern.id,
+        add_record(skeptic_historian_ref.pattern(pattern.id), 'Historian', { time_window: history.time_window, pattern }, 'not_applicable'),
+      ]),
+    )
+    claims.push({ id: skeptic_historian_ref.summary, agent: 'Historian', claim: history.review.summary, evidence_refs: [...pattern_refs.values()] })
+    for (const [index, finding] of history.review.findings.entries()) {
+      const ref = pattern_refs.get(finding.pattern_id)
+      // finalize_historian_review already rejects a finding that cites an unknown pattern.
+      if (ref) claims.push({ id: skeptic_historian_ref.finding(index), agent: 'Historian', claim: finding.statement, evidence_refs: [ref] })
+    }
+  }
+
   return {
     reviewed_at: new Date(now).toISOString(),
     max_source_age_days: max_age_days,
-    subject,
+    subject: identity ?? { type: 'scan_history', time_window: history?.time_window ?? null },
     claims,
     evidence,
     known_uncertainties,

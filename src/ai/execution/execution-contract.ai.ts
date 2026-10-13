@@ -30,6 +30,8 @@ export type consumer_specialist_input = {
   execution_id: string
   /** Supplied only to Vault Keeper; retrieve permitted fields through services. */
   user_id?: number
+  /** The client's IANA time zone, supplied only to Historian. Unverified: adapters must validate it. */
+  time_zone?: string
   dependencies: Partial<Record<consumer_specialist_name, consumer_step_result>>
   candidate_review: consumer_step_result | null
   feedback?: consumer_step_result
@@ -42,7 +44,7 @@ export type consumer_specialist_input = {
   inspect_content: (text: string) => Promise<string>
 }
 
-/** Server-only context for Vault Keeper's adapter and its future tools. Never serialize into agent input/output. */
+/** Server-only context for the Vault Keeper and Historian adapters and their tools. Never serialize into agent input/output. */
 export type consumer_backend_context = {
   payload: lib_dto_payload
 }

@@ -100,6 +100,33 @@ const medic_with_source = (retrieved_at: string) =>
 
 const completed = (output: unknown) => ({ status: 'completed' as const, output, limitations: [] })
 
+// A described scan history as the Historian adapter returns it.
+const historian = {
+  status: 'available' as const,
+  time_window: { label: 'last month', from: '2026-08-01T00:00:00.000Z', to: '2026-09-01T00:00:00.000Z', time_zone: 'UTC' },
+  focus: ['products' as const],
+  analysis: {
+    status: 'available' as const,
+    total_scans: 12,
+    truncated: false,
+    patterns: [
+      { id: 'scan_count', kind: 'scan_count', values: { total_scans: 12, distinct_products: 5 } },
+      { id: 'top_products', kind: 'ranking', values: { rank_1_name: 'Atlas Cola 330 ml', rank_1_scans: 4 } },
+    ],
+    limitations: [],
+  },
+  review: {
+    status: 'available' as const,
+    summary: 'Last month you scanned 12 products; Atlas Cola 330 ml came up most.',
+    findings: [
+      { pattern_id: 'top_products', statement: 'You scanned Atlas Cola 330 ml 4 times.' },
+      { pattern_id: 'scan_count', statement: 'You scanned 12 products, 5 of them different.' },
+    ],
+    limitations: ['Window: last month.'],
+  },
+  limitations: ['Scans show which products were looked up in Zaatot, not what was bought or consumed.'],
+}
+
 const ledger_with = (medic_retrieved_at = '2026-09-20T00:00:00.000Z') =>
   build_skeptic_ledger(
     { Detective: completed(detective), Investigator: completed(investigator), Medic: completed(medic_with_source(medic_retrieved_at)) },
@@ -154,6 +181,56 @@ describe('Skeptic evidence ledger', () => {
     } finally {
       generate.mockRestore()
     }
+  })
+
+  it('reviews a history-only plan without Detective from Historian claims and computed patterns', () => {
+    const ledger = build_skeptic_ledger({ Historian: completed(historian) }, now, 30)!
+
+    expect(ledger.subject).toEqual({ type: 'scan_history', time_window: historian.time_window })
+    expect(ledger.claims).toEqual([
+      {
+        id: 'historian.summary',
+        agent: 'Historian',
+        claim: historian.review.summary,
+        evidence_refs: ['historian.patterns.scan_count', 'historian.patterns.top_products'],
+      },
+      {
+        id: 'historian.findings[0]',
+        agent: 'Historian',
+        claim: 'You scanned Atlas Cola 330 ml 4 times.',
+        evidence_refs: ['historian.patterns.top_products'],
+      },
+      {
+        id: 'historian.findings[1]',
+        agent: 'Historian',
+        claim: 'You scanned 12 products, 5 of them different.',
+        evidence_refs: ['historian.patterns.scan_count'],
+      },
+    ])
+    expect(ledger.evidence.find((record) => record.id === 'historian.patterns.top_products')).toMatchObject({
+      record: { time_window: historian.time_window, pattern: historian.analysis.patterns[1] },
+      freshness: 'not_applicable',
+    })
+    expect(finalize_skeptic_review(ledger, accept_all(ledger)).status).toBe('reviewed')
+  })
+
+  it('adds Historian claims next to a resolved product and still requires that identity', () => {
+    const ledger = build_skeptic_ledger({ Detective: completed(detective), Historian: completed(historian) }, now, 30)!
+    expect(ledger.claims.map((claim) => claim.id)).toEqual([
+      'detective.subject',
+      'historian.summary',
+      'historian.findings[0]',
+      'historian.findings[1]',
+    ])
+    expect(ledger.subject).toEqual(detective.subject)
+
+    // A plan that depends on Detective never falls back to the history alone.
+    expect(build_skeptic_ledger({ Detective: completed({ ...detective, status: 'requires_selection' }), Historian: completed(historian) })).toBeNull()
+  })
+
+  it('needs a described history when the plan has no Detective', () => {
+    expect(build_skeptic_ledger({ Historian: completed({ ...historian, review: null }) })).toBeNull()
+    expect(build_skeptic_ledger({ Historian: completed({ ...historian, status: 'not_permitted', analysis: null, review: null }) })).toBeNull()
   })
 
   it('computes freshness from expiry, age, and missing or future dates', () => {

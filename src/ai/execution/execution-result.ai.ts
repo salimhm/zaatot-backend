@@ -2,19 +2,24 @@ import type { type_schema_agent_conductor_result } from '@agent/conductor/conduc
 import type { consumer_execution_data, consumer_execution_dependency, consumer_step_result } from '@ai/execution/execution-contract.ai'
 
 import {
+  build_history_explanation,
   build_temporary_explanation,
   collect_eco_scout_sources,
   collect_investigator_sources,
   readable_label,
   readable_list,
   summarize_eco_scout,
+  summarize_historian,
   summarize_investigator,
 } from '@ai/execution/execution-explanation.ai'
 import { schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
 import { schema_agent_detective, schema_product_detective } from '@agent/detective/detective.schema.agent'
+import { is_history_only_plan } from '@agent/dispatcher/dispatcher.schema.agent'
 import { schema_agent_eco_scout } from '@agent/eco-scout/eco-scout.schema.agent'
+import { schema_historian_result } from '@agent/historian/historian.schema.agent'
 import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
 import { schema_agent_medic } from '@agent/medic/medic.schema.agent'
+import { schema_agent_skeptic } from '@agent/skeptic/skeptic.schema.agent'
 import { schema_agent_storyteller } from '@agent/storyteller/storyteller.schema.agent'
 
 // Builds the public result: the Gatekeeper-approved response when every selected check
@@ -24,7 +29,13 @@ export const build_consumer_result = (
   dependency: consumer_execution_dependency,
 ): type_schema_agent_conductor_result => {
   const allowed = data.bodyguard.safe && data.bodyguard.action === 'allow'
-  const selected_implemented = data.dispatcher_plan?.selected_agents.filter((step) => Boolean(dependency.specialists?.[step.agent])) ?? []
+  // A history-only request names no product. Detective still runs, but its result is not part of the
+  // answer, so finding no product neither holds back nor changes the history answer.
+  const history_only = data.dispatcher_plan ? is_history_only_plan(data.dispatcher_plan) : false
+  const selected_implemented =
+    data.dispatcher_plan?.selected_agents.filter(
+      (step) => Boolean(dependency.specialists?.[step.agent]) && !(history_only && step.agent === 'Detective'),
+    ) ?? []
   const steps = selected_implemented.flatMap((step) => {
     const result = data.agent_results[step.agent]
     return result ? [{ agent: step.agent, result }] : []
@@ -57,10 +68,12 @@ export const build_consumer_result = (
     return { ...approved, execution_id: data.execution_id }
   }
 
-  const detective = schema_agent_detective.safeParse(data.agent_results.Detective?.output)
+  const detective = schema_agent_detective.safeParse(history_only ? undefined : data.agent_results.Detective?.output)
   const investigator = schema_agent_investigator.safeParse(data.agent_results.Investigator?.output)
   const eco_scout = schema_agent_eco_scout.safeParse(data.agent_results['Eco Scout']?.output)
   const storyteller = schema_agent_storyteller.safeParse(data.agent_results.Storyteller?.output)
+  const historian = schema_historian_result.safeParse(data.agent_results.Historian?.output)
+  const skeptic = schema_agent_skeptic.safeParse(data.agent_results.Skeptic?.output)
   const investigator_sources = investigator.success ? collect_investigator_sources(investigator.data) : { sources: [], source_ids: [] }
   const eco_scout_sources = eco_scout.success ? collect_eco_scout_sources(eco_scout.data) : { sources: [], source_ids: [] }
   const detective_subject = detective.success && detective.data.status === 'identified' ? detective.data.subject : null
@@ -123,7 +136,9 @@ export const build_consumer_result = (
               ? summarize_eco_scout(eco_scout.data)
               : agent === 'Storyteller' && storyteller.success
                 ? storyteller.data.summary
-                : (result.limitations[0] ?? `${agent} ${result.status}.`)
+                : agent === 'Historian' && historian.success
+                  ? summarize_historian(historian.data, result.limitations[0] ?? `${agent} ${result.status}.`)
+                  : (result.limitations[0] ?? `${agent} ${result.status}.`)
     return {
       agent,
       status: assessment_status(result.status),
@@ -166,7 +181,9 @@ export const build_consumer_result = (
             tradeoffs: [],
             citation_ids: [],
           }
-        : null)
+        : allowed && historian.success && historian.data.status !== 'not_permitted'
+          ? build_history_explanation(historian.data, skeptic.success ? skeptic.data : null)
+          : null)
 
   let status: type_schema_agent_conductor_result['status'] = 'needs_review'
   if (!allowed) status = data.bodyguard.action === 'human_review' ? 'needs_review' : 'blocked'

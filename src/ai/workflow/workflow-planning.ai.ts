@@ -102,7 +102,8 @@ export const create_planning_stages = ({ dependency, signal, deadline_ms, report
         title: 'Workflow plan ready',
         detail:
           `Selected ${result.selected_agents.map((step) => step.agent).join(', ')}.` +
-          (result.investigation ? ` Investigation ${result.investigation.needed ? 'needed' : 'not needed'}: ${result.investigation.reason}` : ''),
+          (result.investigation ? ` Investigation ${result.investigation.needed ? 'needed' : 'not needed'}: ${result.investigation.reason}` : '') +
+          (result.history?.needed ? ` Scan history needed: ${result.history.reason}` : ''),
       }),
     })
     signal.throwIfAborted()

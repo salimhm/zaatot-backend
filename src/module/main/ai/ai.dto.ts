@@ -116,6 +116,8 @@ export const dto_ai = {
       {
         prompt: t.String({ minLength: 1, maxLength: 4000, pattern: '\\S' }),
         user_id: t.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
+        // IANA name such as Africa/Casablanca, used to resolve "today" or "this week" in scan history questions.
+        time_zone: t.Optional(t.String({ minLength: 1, maxLength: 64, pattern: '^[A-Za-z][A-Za-z0-9_+\\-]*(?:/[A-Za-z0-9_+\\-]+)*$' })),
       },
       { additionalProperties: false },
     ),

@@ -1,8 +1,9 @@
-import { describe, expect, it, mock, spyOn } from 'bun:test'
 import type { type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 import type { lib_dto_payload } from '@lib/dto.lib'
 
 import { Elysia } from 'elysia'
+
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 
 import { ai_request_timeout_seconds, ai_workflow_timeout_ms } from '@ai/runtime.ai'
 import { run_consumer_workflow } from '@ai/workflow.ai'
@@ -63,6 +64,17 @@ describe('AI HTTP boundary', () => {
       expect((await send(token)).status).toBe(401)
     }
     expect(analyze).not.toHaveBeenCalled()
+  })
+
+  it('accepts an IANA time zone and rejects a malformed one before execution', async () => {
+    const { app, send, analyze } = app_fixture()
+    const token = 'Bearer ' + (await (await app.handle(new Request('http://localhost/test-token'))).text())
+    for (const time_zone of ['../etc/passwd', 'Africa Casablanca', '', 'A'.repeat(65)]) {
+      expect((await send(token, { time_zone })).status).toBe(422)
+    }
+    expect(analyze).not.toHaveBeenCalled()
+    expect((await send(token, { time_zone: 'Africa/Casablanca' })).status).toBe(200)
+    expect(analyze.mock.calls[0]?.[0]).toMatchObject({ time_zone: 'Africa/Casablanca' })
   })
 
   it('rejects signed tokens with invalid identity', async () => {

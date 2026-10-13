@@ -18,6 +18,12 @@ export const schema_agent_conductor_plan = z.object({
 export const schema_agent_conductor_input = z.object({
   prompt: z.string().trim().min(1).max(4000),
   user_id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  // The client's IANA time zone. Only Historian receives it; an unknown name falls back to UTC with a note.
+  time_zone: z
+    .string()
+    .max(64)
+    .regex(/^[A-Za-z][A-Za-z0-9_+\-]*(?:\/[A-Za-z0-9_+\-]+)*$/)
+    .optional(),
 })
 
 const schema_product_nutrition = z.object({

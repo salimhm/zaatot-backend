@@ -1,8 +1,11 @@
 import type { type_schema_agent_conductor_result } from '@agent/conductor/conductor.schema.agent'
 import type { type_schema_agent_eco_scout } from '@agent/eco-scout/eco-scout.schema.agent'
+import type { type_historian_result } from '@agent/historian/historian.schema.agent'
 import type { type_schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
+import type { type_schema_agent_skeptic } from '@agent/skeptic/skeptic.schema.agent'
 
 import { eco_scout_source_provider_label } from '@agent/eco-scout/eco-scout.schema.agent'
+import { skeptic_historian_ref } from '@agent/skeptic/skeptic.ledger.agent'
 
 // TEMPORARY presentation helpers used by the unresolved-result path until
 // Storyteller and Gatekeeper produce the approved explanation.
@@ -90,6 +93,39 @@ export const collect_eco_scout_sources = (output: type_schema_agent_eco_scout) =
 }
 
 export const summarize_eco_scout = (output: type_schema_agent_eco_scout) => output.summary
+
+// The validated review when there is one; otherwise a sentence built only from computed values.
+export const summarize_historian = (output: type_historian_result, fallback: string) => {
+  if (output.review) return output.review.summary
+  const label = output.time_window?.label
+  if (output.status === 'insufficient_history' && label) return `There are not enough scans in the selected period (${label}) to show a pattern.`
+  if (output.status === 'available' && output.analysis && label) {
+    const total = output.analysis.total_scans
+    return `${total} scan${total === 1 ? ' was' : 's were'} found in the selected period (${label}), but the patterns could not be described reliably.`
+  }
+  return fallback
+}
+
+// A history question has no product subject. The model's statements are presented only when Skeptic
+// accepted them; everything else falls back to sentences built from computed values.
+export const build_history_explanation = (
+  output: type_historian_result,
+  skeptic: type_schema_agent_skeptic | null,
+): NonNullable<type_schema_agent_conductor_result['explanation']> => {
+  const accepted = new Set(skeptic?.accepted_claims.map((claim) => claim.claim_ref) ?? [])
+  const review = output.review
+  return {
+    summary:
+      review && accepted.has(skeptic_historian_ref.summary)
+        ? review.summary
+        : summarize_historian({ ...output, review: null }, 'Your scan history was checked.'),
+    reasons: (review?.findings ?? [])
+      .flatMap((finding, index) => (accepted.has(skeptic_historian_ref.finding(index)) ? [finding.statement] : []))
+      .slice(0, 4),
+    tradeoffs: [],
+    citation_ids: [],
+  }
+}
 
 // TEMPORARY: replace this deterministic presenter when Storyteller/Gatekeeper are implemented.
 export const build_temporary_explanation = (

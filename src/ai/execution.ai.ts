@@ -46,6 +46,10 @@ const storyteller_context_agents: consumer_specialist_name[] = [
   'Bargain Hunter',
 ]
 
+// Only these specialists read the user's private database through tools, so only they receive
+// the verified identity. Every other specialist works from workflow data alone.
+const backend_context_agents = new Set<consumer_specialist_name>(['Vault Keeper', 'Historian'])
+
 // Snapshot only the verified identity/access fields, separately from workflow data.
 // Referee and Storyteller review and explain unresolved results, so a finished review that is not a clean pass
 // still feeds them. The final status stays restrictive because it comes from these results. Every other input,
@@ -137,7 +141,7 @@ export const create_consumer_execution = (
           try {
             result = await run_workflow_step(input.execution_id, step, runtime.signal, async () =>
               schema_step_result.parse(
-                await (agent === 'Vault Keeper' && backend_context
+                await (agent && backend_context_agents.has(agent) && backend_context
                   ? handler(input, runtime.signal, backend_context)
                   : handler(input, runtime.signal)),
               ),
@@ -248,6 +252,7 @@ export const create_consumer_execution = (
     }
     if (agent === 'Medic') input.medic_checks = step.medic_checks ?? []
     if (agent === 'Vault Keeper') input.user_id = data.user_id
+    if (agent === 'Historian' && data.time_zone) input.time_zone = data.time_zone
     if (feedback) input.feedback = feedback
     const result = await invoke(agent.toLowerCase().replaceAll(' ', '-'), handler, input, agent)
     // Only Vault Keeper can grant permissions; agent-local data stays internal until final review.

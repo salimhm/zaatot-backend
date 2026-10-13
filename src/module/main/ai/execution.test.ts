@@ -1,4 +1,8 @@
-import type { type_schema_agent_dispatcher, type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
+import type {
+  type_schema_agent_dispatcher,
+  type_schema_agent_dispatcher_draft,
+  type_schema_agent_dispatcher_input,
+} from '@agent/dispatcher/dispatcher.schema.agent'
 import type { consumer_specialist, consumer_specialist_name, consumer_step_result } from '@ai/execution/execution-contract.ai'
 import type { consumer_dependency } from '@ai/workflow.ai'
 import type { lib_dto_payload } from '@lib/dto.lib'
@@ -6,7 +10,7 @@ import type { lib_dto_payload } from '@lib/dto.lib'
 import { describe, expect, it, mock, spyOn } from 'bun:test'
 
 import { run_consumer_workflow } from '@ai/workflow.ai'
-import { schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.schema.agent'
+import { normalize_dispatcher_plan, schema_agent_dispatcher } from '@agent/dispatcher/dispatcher.schema.agent'
 
 const request = { prompt: 'Check this cereal and suggest an alternative', user_id: 7 }
 const core: consumer_specialist_name[] = ['Detective', 'Investigator', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper']
@@ -40,7 +44,12 @@ const checks: Partial<Record<consumer_specialist_name, type_schema_agent_dispatc
 const all = Object.keys(dependencies) as consumer_specialist_name[]
 const complete = (output: unknown = {}): consumer_step_result => ({ status: 'completed', output, limitations: [] })
 
-function fixture(selected = all, medic_checks = ['nutrition_assessment', 'restriction_check', 'portion_calculation']) {
+function fixture(
+  selected = all,
+  medic_checks = ['nutrition_assessment', 'restriction_check', 'portion_calculation'],
+  // A Dispatcher history decision; the plan then goes through the backend normalization like a real one.
+  history?: type_schema_agent_dispatcher['history'],
+) {
   const calls: string[] = []
   const handlers = Object.fromEntries(
     all.map((agent) => [
@@ -70,8 +79,8 @@ function fixture(selected = all, medic_checks = ['nutrition_assessment', 'restri
     calls.push('Candidate review')
     return complete({ candidates: [] })
   })
-  const plan = (input: type_schema_agent_dispatcher_input): type_schema_agent_dispatcher =>
-    schema_agent_dispatcher.parse({
+  const plan = (input: type_schema_agent_dispatcher_input): type_schema_agent_dispatcher => {
+    const draft = {
       selected_agents: selected.map((agent) => ({
         agent,
         depends_on: dependencies[agent].filter((name) => selected.includes(name)),
@@ -87,7 +96,10 @@ function fixture(selected = all, medic_checks = ['nutrition_assessment', 'restri
       },
       untrusted_content_policy: 'bait_tester_before_consumption',
       candidate_validation: selected.includes('Bargain Hunter') ? 'repeat_required_checks' : 'not_requested',
-    })
+      ...(history ? { history } : {}),
+    } as type_schema_agent_dispatcher_draft
+    return schema_agent_dispatcher.parse(history ? normalize_dispatcher_plan(draft) : draft)
+  }
   const dependency: consumer_dependency = {
     bodyguard: mock(async () => ({ safe: true, action: 'allow', riskLevel: 'none', risks: [], reason: 'Allowed', confidence: 1 })),
     conductor: mock(async () => ({ intent: 'Product analysis', steps: [] })),
@@ -99,7 +111,7 @@ function fixture(selected = all, medic_checks = ['nutrition_assessment', 'restri
 }
 
 describe('Consumer specialist workflow slots', () => {
-  it('provides verified claims only to Vault Keeper through backend context', async () => {
+  it('provides verified claims only to Vault Keeper and Historian through backend context', async () => {
     const { dependency, handlers, candidate_review } = fixture()
     const authenticated_payload = {
       user_id: request.user_id,
@@ -118,6 +130,8 @@ describe('Consumer specialist workflow slots', () => {
       const result = await run_consumer_workflow(request, { dependency, authenticated_payload, on_step: (event) => events.push(event) })
       expect(result.status).toBe('completed')
       const context = handlers['Vault Keeper'].mock.calls[0]![2]
+      // Historian reads the user's own scan history, so it receives the same verified snapshot.
+      expect(handlers.Historian.mock.calls[0]![2]).toEqual(context)
       expect(context).toEqual({
         payload: {
           user_id: request.user_id,
@@ -127,7 +141,7 @@ describe('Consumer specialist workflow slots', () => {
       expect(context!.payload).not.toBe(authenticated_payload)
       expect(context!.payload.tenants).not.toBe(authenticated_payload.tenants)
       expect(context!.payload.tenants![0]).not.toBe(authenticated_payload.tenants[0])
-      for (const agent of all.filter((name) => name !== 'Vault Keeper')) {
+      for (const agent of all.filter((name) => name !== 'Vault Keeper' && name !== 'Historian')) {
         expect(handlers[agent]).toHaveBeenCalled()
         for (const call of handlers[agent].mock.calls) expect(call).toHaveLength(2)
       }
@@ -146,6 +160,159 @@ describe('Consumer specialist workflow slots', () => {
       planners.forEach((planner) => planner.mockRestore())
       log.mockRestore()
     }
+  })
+
+  it('passes the client time zone only to Historian', async () => {
+    const { dependency, handlers } = fixture()
+    const result = await run_consumer_workflow({ ...request, time_zone: 'Africa/Casablanca' }, { dependency })
+    expect(result.status).toBe('completed')
+    expect(handlers.Historian.mock.calls[0]![0].time_zone).toBe('Africa/Casablanca')
+    for (const agent of all.filter((name) => name !== 'Historian')) {
+      for (const [input] of handlers[agent].mock.calls) expect(input).not.toHaveProperty('time_zone')
+    }
+    await expect(run_consumer_workflow({ ...request, time_zone: '../etc/passwd' }, { dependency })).rejects.toThrow()
+  })
+
+  const history_agents: consumer_specialist_name[] = ['Detective', 'Vault Keeper', 'Historian', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper']
+  const history_only = { needed: true, product_named: false, reason: 'The user asks which products they scanned this month.' }
+  // What Detective returns for a request that names no product.
+  const no_product = {
+    status: 'needs_input' as const,
+    output: null,
+    limitations: ['Detective could not resolve the product or brand. Provide a more specific name or barcode.'],
+  }
+  const history_review = {
+    status: 'available' as const,
+    summary: 'This month you scanned 12 products; most had Nutri-Score D or E.',
+    findings: [
+      { pattern_id: 'nutriscore_distribution', statement: '8 of the 12 products you scanned had Nutri-Score D or E.' },
+      { pattern_id: 'nutriscore_distribution', statement: 'You bought mostly unhealthy products.' },
+    ],
+    limitations: ['Window: this month.'],
+  }
+  const history_output = {
+    status: 'available',
+    time_window: { label: 'this month', from: '2026-10-01T00:00:00.000Z', to: '2026-10-08T10:00:00.000Z', time_zone: 'UTC' },
+    focus: ['nutriscore'],
+    analysis: {
+      status: 'available',
+      total_scans: 12,
+      truncated: false,
+      patterns: [{ id: 'nutriscore_distribution', kind: 'grade_distribution', values: { d: 4, e: 4, graded_scans: 12 } }],
+      limitations: [],
+    },
+    review: history_review,
+    limitations: [],
+  }
+  const skeptic_review = (accepted: string[]) => ({
+    status: 'reviewed' as const,
+    accepted_claims: accepted.map((claim_ref) => ({
+      claim_ref,
+      claim: claim_ref,
+      evidence_refs: ['historian.patterns.nutriscore_distribution'],
+      qualification: null,
+    })),
+    unsupported_claims: ['historian.summary', 'historian.findings[0]', 'historian.findings[1]']
+      .filter((claim_ref) => !accepted.includes(claim_ref))
+      .map((claim_ref) => ({ claim_ref, claim: claim_ref, reason: 'Not supported by the computed pattern.', evidence_refs: [] })),
+    stale_sources: [],
+    uncertainties: [],
+    targeted_rechecks: [],
+  })
+
+  it('answers a history-only request although Detective finds no product, presenting only what Skeptic accepted', async () => {
+    const { dependency, handlers } = fixture(history_agents, undefined, history_only)
+    // Without Gatekeeper, the result is built from the specialist outputs rather than an approved response.
+    dependency.specialists!.Gatekeeper = null
+    handlers.Detective.mockResolvedValue(no_product)
+    handlers.Historian.mockResolvedValue(complete(history_output))
+    handlers.Skeptic.mockResolvedValue(complete(skeptic_review(['historian.summary', 'historian.findings[0]'])))
+    const events: { agent: string | null; type: string; title: string; detail: string | null }[] = []
+
+    const result = await run_consumer_workflow(request, { dependency, on_step: (event) => events.push(event) })
+
+    // Detective still runs, but Skeptic reviews only the history and the result leaves Detective out.
+    expect(handlers.Detective).toHaveBeenCalledTimes(1)
+    expect(Object.keys(handlers.Skeptic.mock.calls[0]![0].dependencies)).toEqual(['Historian'])
+    expect(result.status).toBe('completed')
+    expect(result.subject).toBeNull()
+    expect(result.outcome).toBeNull()
+    expect(result.assessments.map((assessment) => assessment.agent)).not.toContain('Detective')
+    expect(result.limitations).not.toContain(no_product.limitations[0]!)
+    expect(result.assessments.find((assessment) => assessment.agent === 'Historian')).toMatchObject({
+      status: 'completed',
+      summary: history_review.summary,
+    })
+    // The finding Skeptic rejected ("you bought…") is not presented.
+    expect(result.explanation).toEqual({
+      summary: history_review.summary,
+      reasons: [history_review.findings[0]!.statement],
+      tradeoffs: [],
+      citation_ids: [],
+    })
+    expect(events.find((event) => event.agent === 'Historian' && event.type === 'agent.started')?.title).toBe('Reviewing your scan history')
+    expect(events.find((event) => event.agent === 'Historian' && event.type === 'agent.completed')).toMatchObject({
+      title: 'Scan history reviewed',
+      detail: history_review.summary,
+    })
+  })
+
+  it('falls back to computed sentences when Skeptic did not accept the history description', async () => {
+    const { dependency, handlers } = fixture(history_agents, undefined, history_only)
+    dependency.specialists!.Gatekeeper = null
+    handlers.Detective.mockResolvedValue(no_product)
+    handlers.Historian.mockResolvedValue(complete(history_output))
+    handlers.Skeptic.mockResolvedValue({ status: 'needs_review', output: { ...skeptic_review([]), status: 'needs_review' }, limitations: [] })
+
+    const result = await run_consumer_workflow(request, { dependency })
+
+    expect(result.status).toBe('needs_review')
+    expect(result.explanation).toEqual({
+      summary: '12 scans were found in the selected period (this month), but the patterns could not be described reliably.',
+      reasons: [],
+      tradeoffs: [],
+      citation_ids: [],
+    })
+  })
+
+  it('explains an insufficient history from computed values only', async () => {
+    const { dependency, handlers } = fixture(history_agents, undefined, history_only)
+    dependency.specialists!.Gatekeeper = null
+    handlers.Detective.mockResolvedValue(no_product)
+    handlers.Historian.mockResolvedValue({
+      status: 'partial',
+      output: {
+        status: 'insufficient_history',
+        time_window: { label: 'yesterday', from: '2026-10-07T00:00:00.000Z', to: '2026-10-08T00:00:00.000Z', time_zone: 'UTC' },
+        focus: [],
+        analysis: { status: 'insufficient_history', total_scans: 0, truncated: false, patterns: [], limitations: [] },
+        review: null,
+        limitations: [],
+      },
+      limitations: [],
+    })
+
+    const result = await run_consumer_workflow(request, { dependency })
+
+    const summary = 'There are not enough scans in the selected period (yesterday) to show a pattern.'
+    expect(result.assessments.find((assessment) => assessment.agent === 'Historian')?.summary).toBe(summary)
+    expect(result.explanation).toEqual({ summary, reasons: [], tradeoffs: [], citation_ids: [] })
+    // Nothing was described, so Skeptic had nothing to review.
+    expect(handlers.Skeptic).not.toHaveBeenCalled()
+  })
+
+  it('still waits for the product when a history request names one that Detective cannot find', async () => {
+    const { dependency, handlers } = fixture(history_agents, undefined, { ...history_only, product_named: true })
+    dependency.specialists!.Gatekeeper = null
+    handlers.Detective.mockResolvedValue(no_product)
+    handlers.Historian.mockResolvedValue(complete(history_output))
+
+    const result = await run_consumer_workflow(request, { dependency })
+
+    expect(handlers.Skeptic).not.toHaveBeenCalled()
+    expect(result.status).toBe('needs_input')
+    expect(result.assessments.find((assessment) => assessment.agent === 'Detective')?.status).toBe('needs_input')
+    expect(result.limitations).toContain(no_product.limitations[0]!)
   })
 
   it('does not infer authenticated context from workflow input', async () => {

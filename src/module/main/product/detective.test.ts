@@ -1,15 +1,6 @@
-import { createToolkit } from '@voltagent/core'
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 
-mock.module('@tool/product-lookup/product-lookup.tool', () => ({
-  toolkit_product_lookup: createToolkit({
-    name: 'mock_product_lookup',
-    description: 'Mock lookup toolkit',
-    tools: [],
-  }),
-}))
-
-const { normalize_detective_results } = await import('@agent/detective/detective.agent')
+import { normalize_detective_results } from '@agent/detective/detective.agent'
 
 describe('Detective response normalization', () => {
   it('returns structured local product data with Detective retrieval time', () => {

@@ -13,7 +13,7 @@ export const adapter_skeptic = async (input: consumer_specialist_input, signal: 
     return {
       status: 'needs_input' as const,
       output: null,
-      limitations: ['Skeptic requires one product or brand identity resolved by Detective.'],
+      limitations: ['Skeptic requires one product or brand identity resolved by Detective, or a described scan history.'],
     }
   }
 

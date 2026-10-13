@@ -94,10 +94,23 @@ export const schema_agent_dispatcher_investigation = z.object({
   reason: z.string().min(1).max(300).describe('One sentence explaining the decision from the meaning of the request'),
 })
 
+// Decided before the plan is written: whether the user asks about their own past activity in Zaatot.
+// The backend derives Vault Keeper and Historian selection from it.
+export const schema_agent_dispatcher_history = z.object({
+  needed: z
+    .boolean()
+    .describe('True when the user asks about their own past scans or activity: what they scanned, how often, or how it changed over a period'),
+  product_named: z
+    .boolean()
+    .describe('True when the request also names or points to a specific product, brand, company or barcode that must be identified'),
+  reason: z.string().min(1).max(300).describe('One sentence explaining the decision from the meaning of the request'),
+})
+
 export const schema_agent_dispatcher_draft = z.object({
   investigation: schema_agent_dispatcher_investigation
     .optional()
     .describe('Contextual Investigator decision; when present it determines whether Investigator is selected'),
+  history: schema_agent_dispatcher_history.optional().describe('Scan history decision; when present it determines whether Historian is selected'),
   selected_agents: z
     .array(schema_agent_dispatcher_step)
     .min(5)
@@ -123,6 +136,7 @@ const schema_agent_dispatcher_provider_step = schema_agent_dispatcher_step.exten
 
 export const schema_agent_dispatcher_provider_draft = schema_agent_dispatcher_draft.extend({
   investigation: schema_agent_dispatcher_investigation,
+  history: schema_agent_dispatcher_history,
   selected_agents: z.array(schema_agent_dispatcher_provider_step).min(5).max(enum_dispatcher_agent.length),
 })
 
@@ -165,12 +179,70 @@ export const normalize_dispatcher_plan = (draft: type_schema_agent_dispatcher_dr
   })
   const required_checks = draft.required_checks.filter((check) => check !== 'ethics')
   return normalize_dispatcher_run_when(
-    normalize_dispatcher_personal_context({
-      ...draft,
-      selected_agents,
-      required_checks: investigate ? [...required_checks, 'ethics'] : required_checks,
-    }),
+    normalize_dispatcher_personal_context(
+      normalize_dispatcher_history({
+        ...draft,
+        selected_agents,
+        required_checks: investigate ? [...required_checks, 'ethics'] : required_checks,
+      }),
+    ),
   )
+}
+
+// Specialists that analyse an identified product or brand and therefore depend on Detective.
+const dispatcher_product_agents: readonly (typeof enum_dispatcher_agent)[number][] = ['Medic', 'Investigator', 'Eco Scout', 'Bargain Hunter']
+
+/**
+ * A request about the user's own past scans that names no product and selects no product specialist.
+ * Detective still runs in such a plan, but finding no product must not hold back the history answer.
+ */
+export const is_history_only_plan = (plan: Pick<type_schema_agent_dispatcher_draft, 'history' | 'selected_agents'>) =>
+  plan.history?.needed === true &&
+  plan.history.product_named === false &&
+  !plan.selected_agents.some((step) => dispatcher_product_agents.includes(step.agent))
+
+// Dispatcher decides whether Historian runs through its history decision. Historian needs Vault Keeper,
+// which confirms history consent, so a history request also selects Vault Keeper and its check. Vault
+// Keeper is never removed here: other specialists may need it for reasons unrelated to history.
+const normalize_dispatcher_history = (draft: type_schema_agent_dispatcher_draft): type_schema_agent_dispatcher_draft => {
+  const listed = draft.selected_agents.some((step) => step.agent === 'Historian')
+  const needed = draft.history?.needed ?? listed
+  const has_vault_keeper = draft.selected_agents.some((step) => step.agent === 'Vault Keeper')
+  const add_vault_keeper = needed && !has_vault_keeper
+
+  const selected_agents = draft.selected_agents.flatMap((step) => {
+    if (step.agent === 'Historian') return needed ? [{ ...step, depends_on: ['Vault Keeper' as const], run_when: 'history_permitted' as const }] : []
+    if (step.agent === 'Skeptic' && step.depends_on.includes('Historian') !== needed) {
+      return [{ ...step, depends_on: needed ? [...step.depends_on, 'Historian' as const] : step.depends_on.filter((agent) => agent !== 'Historian') }]
+    }
+    // Medic depends on Vault Keeper whenever both are selected.
+    if (step.agent === 'Medic' && add_vault_keeper) return [{ ...step, depends_on: [...step.depends_on, 'Vault Keeper' as const] }]
+    return [step]
+  })
+  if (add_vault_keeper) selected_agents.unshift({ agent: 'Vault Keeper', depends_on: [], run_when: 'always' })
+  if (needed && !listed) selected_agents.push({ agent: 'Historian', depends_on: ['Vault Keeper'], run_when: 'history_permitted' })
+
+  const required_checks = [
+    ...draft.required_checks.filter((check) => check !== 'history' && !(add_vault_keeper && check === 'personal_context')),
+    ...(add_vault_keeper ? (['personal_context'] as const) : []),
+    ...(needed ? (['history'] as const) : []),
+  ]
+
+  // A history-only request names no product. Detective still runs, but Skeptic reviews only the history,
+  // so it must not wait for an identity the request never asked for. Every other plan waits for Detective.
+  const history_only = is_history_only_plan({ history: draft.history, selected_agents })
+  const has_detective = selected_agents.some((step) => step.agent === 'Detective')
+  return {
+    ...draft,
+    selected_agents: selected_agents.map((step) => {
+      if (step.agent !== 'Skeptic') return step
+      const waits = step.depends_on.includes('Detective')
+      if (history_only && waits) return { ...step, depends_on: step.depends_on.filter((agent) => agent !== 'Detective') }
+      if (!history_only && !waits && has_detective) return { ...step, depends_on: ['Detective' as const, ...step.depends_on] }
+      return step
+    }),
+    required_checks,
+  }
 }
 
 // Selecting Vault Keeper stays the Dispatcher's decision. The backend only keeps the graph consistent
@@ -212,6 +284,7 @@ export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine
   for (const agent of ['Detective', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'] as const) {
     if (!has(agent)) reject(`${agent} is required for an analysis plan`)
   }
+  const history_only = is_history_only_plan(plan)
 
   const check_agent = {
     identity: 'Detective',
@@ -237,7 +310,8 @@ export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine
     Investigator: ['Detective'],
     'Eco Scout': ['Detective'],
     Historian: ['Vault Keeper'],
-    Skeptic: ['Detective', ...(['Medic', 'Investigator', 'Eco Scout', 'Historian'] as const).filter(has)],
+    // In a history-only plan Skeptic reviews only the history, so it does not wait for Detective.
+    Skeptic: [...(history_only ? [] : (['Detective'] as const)), ...(['Medic', 'Investigator', 'Eco Scout', 'Historian'] as const).filter(has)],
     Referee: ['Skeptic'],
     Coach: ['Vault Keeper', 'Referee'],
     'Bargain Hunter': ['Detective', 'Referee', ...(has('Coach') ? ['Coach' as const] : [])],

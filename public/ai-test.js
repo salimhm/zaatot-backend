@@ -149,8 +149,10 @@ function fallbackAssessmentSteps(assessments) {
 
 function renderResult(data) {
   const subject = data.subject
-  document.querySelector('#subject-type').textContent = subject ? subject.type : 'Analysis result'
-  document.querySelector('#subject-name').textContent = subject?.name || 'Unresolved request'
+  // A history question has no product subject; its answer comes from Historian.
+  const history = !subject && data.assessments?.some((assessment) => assessment.agent === 'Historian')
+  document.querySelector('#subject-type').textContent = subject ? subject.type : history ? 'Scan history' : 'Analysis result'
+  document.querySelector('#subject-name').textContent = subject?.name || (history ? 'Your scan history' : 'Unresolved request')
   document.querySelector('#subject-meta').textContent = subject?.barcode
     ? `Barcode ${subject.barcode}${subject.brand ? ` · ${subject.brand}` : ''}`
     : subject?.brand && subject.type === 'product'
@@ -246,7 +248,7 @@ async function analyze(event) {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt, user_id: userId }),
+      body: JSON.stringify({ prompt, user_id: userId, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
     })
     const refreshedToken = response.headers.get('X-Refresh-Token')
     if (refreshedToken) tokenInput.value = refreshedToken

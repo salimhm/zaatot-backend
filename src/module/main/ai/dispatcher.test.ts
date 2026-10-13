@@ -55,14 +55,17 @@ describe('Dispatcher planning contract', () => {
   it('accepts provider transport nulls and removes them before internal plan validation', () => {
     const internal_plan = plan_fixture()
     const investigation = { needed: true, reason: 'The user asks who owns the brand.' }
+    const history = { needed: false, product_named: true, reason: 'The user does not ask about their own past scans.' }
     const provider_plan = {
       ...internal_plan,
       investigation,
+      history,
       selected_agents: internal_plan.selected_agents.map((step) => ({ ...step, medic_checks: null })),
     }
     expect(schema_agent_dispatcher_provider_draft.safeParse(provider_plan).success).toBe(true)
     expect(schema_agent_dispatcher_provider_draft.safeParse({ ...provider_plan, investigation: undefined }).success).toBe(false)
-    expect(normalize_dispatcher_provider_draft(provider_plan)).toEqual({ ...internal_plan, investigation })
+    expect(schema_agent_dispatcher_provider_draft.safeParse({ ...provider_plan, history: undefined }).success).toBe(false)
+    expect(normalize_dispatcher_provider_draft(provider_plan)).toEqual({ ...internal_plan, investigation, history })
   })
 
   it('accepts brand investigation for a general information plan without selecting unrelated specialists', () => {
@@ -370,6 +373,131 @@ describe('Dispatcher planning contract', () => {
       generate.mockRestore()
     }
   })
+
+  // The five core agents only, as the model lists them for a request that needs no specialist.
+  const core_plan_fixture = (): type_schema_agent_dispatcher => {
+    const plan = nutrition_plan_fixture()
+    plan.selected_agents = plan.selected_agents.filter((step) => step.agent !== 'Medic')
+    plan.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on = ['Detective']
+    plan.required_checks = plan.required_checks.filter((check) => check !== 'clinical_risk')
+    return plan
+  }
+
+  const history_only = { needed: true, product_named: false, reason: 'The user asks which products they scanned last month.' }
+
+  it('selects Vault Keeper, Historian, their checks and Skeptic dependency for a history request that names a product', () => {
+    const plan = schema_agent_dispatcher.parse(
+      normalize_dispatcher_plan({
+        ...core_plan_fixture(),
+        history: { needed: true, product_named: true, reason: 'The user asks whether they scanned Coca-Cola last month.' },
+      }),
+    )
+
+    expect(plan.selected_agents.find((step) => step.agent === 'Vault Keeper')).toEqual({ agent: 'Vault Keeper', depends_on: [], run_when: 'always' })
+    expect(plan.selected_agents.find((step) => step.agent === 'Historian')).toEqual({
+      agent: 'Historian',
+      depends_on: ['Vault Keeper'],
+      run_when: 'history_permitted',
+    })
+    expect(plan.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).toEqual(['Detective', 'Historian'])
+    expect(plan.required_checks).toEqual(expect.arrayContaining(['identity', 'personal_context', 'history']))
+  })
+
+  it('keeps Detective in a history-only plan but lets Skeptic review the history without waiting for it', () => {
+    const plan = schema_agent_dispatcher.parse(normalize_dispatcher_plan({ ...core_plan_fixture(), history: history_only }))
+
+    expect(plan.selected_agents.map((step): string => step.agent).sort()).toEqual(
+      ['Detective', 'Gatekeeper', 'Historian', 'Referee', 'Skeptic', 'Storyteller', 'Vault Keeper'].sort(),
+    )
+    expect(plan.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).toEqual(['Historian'])
+    expect(plan.required_checks).toEqual(expect.arrayContaining(['identity', 'personal_context', 'history', 'evidence']))
+  })
+
+  it('keeps Detective for a history request when a product specialist is selected', () => {
+    const plan = schema_agent_dispatcher.parse(normalize_dispatcher_plan({ ...nutrition_plan_fixture(), history: history_only }))
+
+    // Medic needs an identity, so Skeptic keeps waiting for Detective.
+    expect(plan.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).toEqual(['Detective', 'Medic', 'Historian'])
+    expect(plan.required_checks).toContain('identity')
+    // Medic depends on Vault Keeper whenever both are selected.
+    expect(plan.selected_agents.find((step) => step.agent === 'Medic')!.depends_on).toEqual(['Detective', 'Vault Keeper'])
+    expect(plan.selected_agents.filter((step) => step.agent === 'Vault Keeper')).toHaveLength(1)
+  })
+
+  it('requires Detective in every plan and lets Skeptic skip it only in a history-only plan', () => {
+    const plan = schema_agent_dispatcher.parse(normalize_dispatcher_plan({ ...core_plan_fixture(), history: history_only }))
+    const without_detective = {
+      ...plan,
+      selected_agents: plan.selected_agents.filter((step) => step.agent !== 'Detective'),
+      required_checks: plan.required_checks.filter((check) => check !== 'identity'),
+    }
+    expect(schema_agent_dispatcher.safeParse(without_detective).success).toBe(false)
+
+    // A request that names a product needs its identity before Skeptic reviews anything.
+    const named = { ...plan, history: { ...history_only, product_named: true } }
+    expect(schema_agent_dispatcher.safeParse(named).success).toBe(false)
+    const repaired = schema_agent_dispatcher.parse(normalize_dispatcher_plan(named))
+    expect(repaired.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).toEqual(['Detective', 'Historian'])
+  })
+
+  it('keeps an already selected Vault Keeper and repairs Historian details the model got wrong', () => {
+    const draft = plan_fixture()
+    draft.selected_agents.push(
+      { agent: 'Vault Keeper', depends_on: [], run_when: 'always' },
+      { agent: 'Historian', depends_on: [], run_when: 'always' },
+    )
+    draft.required_checks.push('personal_context')
+
+    const plan = schema_agent_dispatcher.parse(
+      normalize_dispatcher_plan({
+        ...draft,
+        history: { needed: true, product_named: true, reason: 'The user asks what they scanned of this brand.' },
+      }),
+    )
+
+    expect(plan.selected_agents.filter((step) => step.agent === 'Vault Keeper')).toHaveLength(1)
+    expect(plan.selected_agents.find((step) => step.agent === 'Historian')).toMatchObject({
+      depends_on: ['Vault Keeper'],
+      run_when: 'history_permitted',
+    })
+    expect(plan.required_checks.filter((check) => check === 'personal_context')).toHaveLength(1)
+  })
+
+  it('removes Historian when the history decision says it is not needed but keeps Vault Keeper', () => {
+    const draft = plan_fixture()
+    draft.selected_agents.push(
+      { agent: 'Vault Keeper', depends_on: [], run_when: 'always' },
+      { agent: 'Historian', depends_on: ['Vault Keeper'], run_when: 'history_permitted' },
+    )
+    draft.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on.push('Historian')
+    draft.required_checks.push('personal_context', 'history')
+
+    const plan = schema_agent_dispatcher.parse(
+      normalize_dispatcher_plan({ ...draft, history: { needed: false, product_named: true, reason: 'The user asks about the brand itself.' } }),
+    )
+
+    expect(plan.selected_agents.map((step) => step.agent)).not.toContain('Historian')
+    expect(plan.selected_agents.map((step) => step.agent)).toContain('Vault Keeper')
+    expect(plan.required_checks).not.toContain('history')
+    expect(plan.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).not.toContain('Historian')
+  })
+
+  it('applies the model history decision end to end', async () => {
+    const generate = spyOn($agent_dispatcher, 'generateText').mockResolvedValue({
+      output: { ...core_plan_fixture(), investigation: { needed: false, reason: 'No ownership or ethics question.' }, history: history_only },
+    } as Awaited<ReturnType<typeof $agent_dispatcher.generateText>>)
+    try {
+      const result = await agent_dispatcher({ ...input_fixture(), prompt: 'give me last month product' })
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.selected_agents.map((step) => step.agent)).toEqual(expect.arrayContaining(['Detective', 'Vault Keeper', 'Historian']))
+        expect(result.data.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).toEqual(['Historian'])
+      }
+    } finally {
+      generate.mockRestore()
+    }
+  })
+
   it("sets each agent's run_when from its role instead of trusting the model", () => {
     // The shape the model returned in a failing run: Vault Keeper waiting for a permission it grants itself.
     const draft = nutrition_plan_fixture()

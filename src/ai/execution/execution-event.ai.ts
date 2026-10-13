@@ -1,8 +1,10 @@
 import type { type_ai_workflow_step } from '@agent/conductor/conductor.schema.agent'
 import type { consumer_specialist_name, consumer_step_result } from '@ai/execution/execution-contract.ai'
 
+import { summarize_historian } from '@ai/execution/execution-explanation.ai'
 import { schema_agent_detective } from '@agent/detective/detective.schema.agent'
 import { schema_agent_eco_scout } from '@agent/eco-scout/eco-scout.schema.agent'
+import { schema_historian_result } from '@agent/historian/historian.schema.agent'
 import { schema_agent_investigator } from '@agent/investigator/investigator.schema.agent'
 import { schema_agent_medic } from '@agent/medic/medic.schema.agent'
 import { schema_agent_storyteller } from '@agent/storyteller/storyteller.schema.agent'
@@ -15,6 +17,7 @@ export const agent_title = (agent: consumer_specialist_name) => {
   if (agent === 'Investigator') return 'Investigating the resolved brand'
   if (agent === 'Eco Scout') return 'Checking product environmental evidence'
   if (agent === 'Storyteller') return 'Writing the final explanation'
+  if (agent === 'Historian') return 'Reviewing your scan history'
   return `Running ${agent}`
 }
 
@@ -56,6 +59,20 @@ export const agent_completion = (agent: consumer_specialist_name, result: consum
   if (agent === 'Storyteller') {
     const output = schema_agent_storyteller.safeParse(result.output)
     if (output.success) return { title: 'Final explanation drafted', detail: output.data.summary }
+  }
+  if (agent === 'Historian') {
+    const output = schema_historian_result.safeParse(result.output)
+    if (output.success) {
+      const title =
+        output.data.status === 'not_permitted'
+          ? 'Scan history was not used'
+          : output.data.status === 'insufficient_history'
+            ? 'Not enough scan history'
+            : output.data.review
+              ? 'Scan history reviewed'
+              : 'Scan history patterns computed'
+      return { title, detail: summarize_historian(output.data, result.limitations[0] ?? 'Scan history review finished.') }
+    }
   }
   return { title: `${agent} finished`, detail: result.limitations[0] ?? null }
 }
