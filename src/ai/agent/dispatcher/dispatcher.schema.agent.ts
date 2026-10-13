@@ -179,12 +179,14 @@ export const normalize_dispatcher_plan = (draft: type_schema_agent_dispatcher_dr
   })
   const required_checks = draft.required_checks.filter((check) => check !== 'ethics')
   return normalize_dispatcher_run_when(
-    normalize_dispatcher_personal_context(
-      normalize_dispatcher_history({
-        ...draft,
-        selected_agents,
-        required_checks: investigate ? [...required_checks, 'ethics'] : required_checks,
-      }),
+    normalize_dispatcher_dependencies(
+      normalize_dispatcher_personal_context(
+        normalize_dispatcher_history({
+          ...draft,
+          selected_agents,
+          required_checks: investigate ? [...required_checks, 'ethics'] : required_checks,
+        }),
+      ),
     ),
   )
 }
@@ -200,6 +202,40 @@ export const is_history_only_plan = (plan: Pick<type_schema_agent_dispatcher_dra
   plan.history?.needed === true &&
   plan.history.product_named === false &&
   !plan.selected_agents.some((step) => dispatcher_product_agents.includes(step.agent))
+
+const dispatcher_dependencies = (
+  plan: Pick<type_schema_agent_dispatcher_draft, 'history' | 'selected_agents'>,
+): Record<(typeof enum_dispatcher_agent)[number], readonly (typeof enum_dispatcher_agent)[number][]> => {
+  const names = plan.selected_agents.map((step) => step.agent)
+  const has = (name: (typeof enum_dispatcher_agent)[number]) => names.includes(name)
+  const history_only = is_history_only_plan(plan)
+
+  return {
+    Detective: [],
+    'Vault Keeper': [],
+    Medic: ['Detective', ...(has('Vault Keeper') ? ['Vault Keeper' as const] : [])],
+    Investigator: ['Detective'],
+    'Eco Scout': ['Detective'],
+    Historian: ['Vault Keeper'],
+    // In a history-only plan Skeptic reviews only the history, so it does not wait for Detective.
+    Skeptic: [...(history_only ? [] : (['Detective'] as const)), ...(['Medic', 'Investigator', 'Eco Scout', 'Historian'] as const).filter(has)],
+    Referee: ['Skeptic'],
+    Coach: ['Vault Keeper', 'Referee'],
+    'Bargain Hunter': ['Detective', 'Referee', ...(has('Coach') ? ['Coach' as const] : [])],
+    Storyteller: ['Skeptic', 'Referee', ...(['Coach', 'Bargain Hunter'] as const).filter(has)],
+    Gatekeeper: ['Storyteller'],
+  }
+}
+
+// Agent selection is a model decision; graph topology is an application invariant.
+// Rebuild every selected step's edges so optional agents cannot leave the plan internally inconsistent.
+const normalize_dispatcher_dependencies = (draft: type_schema_agent_dispatcher_draft): type_schema_agent_dispatcher_draft => {
+  const dependencies = dispatcher_dependencies(draft)
+  return {
+    ...draft,
+    selected_agents: draft.selected_agents.map((step) => ({ ...step, depends_on: [...dependencies[step.agent]] })),
+  }
+}
 
 // Dispatcher decides whether Historian runs through its history decision. Historian needs Vault Keeper,
 // which confirms history consent, so a history request also selects Vault Keeper and its check. Vault
@@ -284,8 +320,6 @@ export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine
   for (const agent of ['Detective', 'Skeptic', 'Referee', 'Storyteller', 'Gatekeeper'] as const) {
     if (!has(agent)) reject(`${agent} is required for an analysis plan`)
   }
-  const history_only = is_history_only_plan(plan)
-
   const check_agent = {
     identity: 'Detective',
     personal_context: 'Vault Keeper',
@@ -303,21 +337,7 @@ export const schema_agent_dispatcher = schema_agent_dispatcher_draft.superRefine
     if (plan.required_checks.includes(check) !== has(check_agent[check])) reject(`${check} must match selection of ${check_agent[check]}`)
   }
 
-  const dependencies: Record<(typeof enum_dispatcher_agent)[number], readonly (typeof enum_dispatcher_agent)[number][]> = {
-    Detective: [],
-    'Vault Keeper': [],
-    Medic: ['Detective', ...(has('Vault Keeper') ? ['Vault Keeper' as const] : [])],
-    Investigator: ['Detective'],
-    'Eco Scout': ['Detective'],
-    Historian: ['Vault Keeper'],
-    // In a history-only plan Skeptic reviews only the history, so it does not wait for Detective.
-    Skeptic: [...(history_only ? [] : (['Detective'] as const)), ...(['Medic', 'Investigator', 'Eco Scout', 'Historian'] as const).filter(has)],
-    Referee: ['Skeptic'],
-    Coach: ['Vault Keeper', 'Referee'],
-    'Bargain Hunter': ['Detective', 'Referee', ...(has('Coach') ? ['Coach' as const] : [])],
-    Storyteller: ['Skeptic', 'Referee', ...(['Coach', 'Bargain Hunter'] as const).filter(has)],
-    Gatekeeper: ['Storyteller'],
-  }
+  const dependencies = dispatcher_dependencies(plan)
   for (const step of plan.selected_agents) {
     const expected = dependencies[step.agent]
     if (

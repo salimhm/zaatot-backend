@@ -1,6 +1,7 @@
 import type { type_schema_agent_dispatcher_input } from '@agent/dispatcher/dispatcher.schema.agent'
 import type { consumer_execution_dependency } from '@ai/execution/execution-contract.ai'
 
+import { adapter_bargain_hunter } from '@ai/adapter/bargain-hunter.adapter.ai'
 import { adapter_detective } from '@ai/adapter/detective.adapter.ai'
 import { adapter_eco_scout } from '@ai/adapter/eco-scout.adapter.ai'
 import { adapter_historian } from '@ai/adapter/historian.adapter.ai'
@@ -39,7 +40,7 @@ export const default_dependency: consumer_dependency = {
     Skeptic: adapter_skeptic,
     Referee: adapter_referee, // TODO: agent_referee — hard constraints.
     Coach: null, // TODO: agent_coach — permitted goal fit.
-    'Bargain Hunter': null, // TODO: agent_bargain_hunter — alternative candidates.
+    'Bargain Hunter': adapter_bargain_hunter,
     Storyteller: adapter_storyteller, // TODO: agent_storyteller — draft / repair the explanation.
     Gatekeeper: null, // TODO: agent_gatekeeper — output the validated final API response.
   },

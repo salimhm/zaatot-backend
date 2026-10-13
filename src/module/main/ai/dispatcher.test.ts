@@ -276,12 +276,28 @@ describe('Dispatcher planning contract', () => {
     }
   })
 
-  it('still rejects invalid dependencies, candidate policies and over-budget drafts after normalization', async () => {
+  it('rebuilds dependencies when optional agents make the provider graph inconsistent', () => {
+    const draft = plan_fixture()
+    draft.selected_agents.push({ agent: 'Bargain Hunter', depends_on: ['Skeptic'], run_when: 'always' })
+    draft.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on.push('Bargain Hunter')
+    draft.selected_agents.find((step) => step.agent === 'Storyteller')!.depends_on = ['Skeptic', 'Referee']
+    draft.required_checks.push('alternatives')
+    draft.candidate_validation = 'repeat_required_checks'
+    draft.budgets.max_alternative_candidates = 2
+    draft.budgets.max_candidate_review_passes = 1
+    expect(schema_agent_dispatcher.safeParse(draft).success).toBe(false)
+
+    const plan = schema_agent_dispatcher.parse(normalize_dispatcher_plan(draft))
+
+    expect(plan.selected_agents.find((step) => step.agent === 'Skeptic')!.depends_on).toEqual(['Detective', 'Investigator'])
+    expect(plan.selected_agents.find((step) => step.agent === 'Bargain Hunter')!.depends_on).toEqual(['Detective', 'Referee'])
+    expect(plan.selected_agents.find((step) => step.agent === 'Storyteller')!.depends_on).toEqual(['Skeptic', 'Referee', 'Bargain Hunter'])
+  })
+
+  it('still rejects invalid candidate policies and over-budget drafts after normalization', async () => {
     const generate = spyOn($agent_dispatcher, 'generateText')
     try {
-      const invalid_dependencies = plan_fixture()
-      invalid_dependencies.selected_agents.find((step) => step.agent === 'Storyteller')!.depends_on = []
-      for (const draft of [invalid_dependencies, { ...plan_fixture(), candidate_validation: 'repeat_required_checks' }]) {
+      for (const draft of [{ ...plan_fixture(), candidate_validation: 'repeat_required_checks' }]) {
         generate.mockResolvedValue({ output: { ...draft, budgets: { ...dispatcher_budget_limit } } } as Awaited<
           ReturnType<typeof $agent_dispatcher.generateText>
         >)
